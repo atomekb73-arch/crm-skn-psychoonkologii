@@ -154,6 +154,12 @@ export default function LoginScreen() {
         
         {/* Header Branding */}
         <div className="text-center space-y-3">
+          <div className="flex justify-center">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden shadow-2xl border border-white/20 bg-white p-1.5 flex items-center justify-center">
+              <img src="/app-icon.png" alt="SKN Psychoonkologii" className="w-full h-full object-contain rounded-xl" />
+            </div>
+          </div>
+
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-purple-900/60 border border-purple-500/30 text-purple-200 text-xs font-semibold backdrop-blur-md shadow-inner">
             <span className="text-base leading-none">🎗️</span>
             <span>Studenckie Koło Naukowe Psychoonkologii WSKZ</span>
