@@ -28,6 +28,8 @@ import Navbar        from './components/Navbar';
 import SettingsModal from './components/SettingsModal';
 import ProfileMenu   from './components/ProfileMenu';
 import ErrorBoundary from './components/ErrorBoundary';
+import LoginScreen from './components/LoginScreen';
+import { useAuth } from './context/AuthContext';
 import { useOrg } from './context/OrgContext';
 import { useAcademicYear } from './context/AcademicYearContext';
 import { fetchAllData, AUTHORIZED_INDEXES } from './services/googleSheets';
@@ -78,6 +80,7 @@ if (typeof window !== 'undefined') {
 }
 
 export default function App() {
+  const { user, isAuthenticated } = useAuth();
   const { currentOrg, organizations, switchOrg, getStorageKey } = useOrg();
   const [activeTab, setActiveTabState] = useState(() => {
     try {
@@ -816,6 +819,10 @@ export default function App() {
   const syncLabel = lastSync
     ? lastSync.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
     : null;
+
+  if (!isAuthenticated || !user) {
+    return <LoginScreen />;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/30">

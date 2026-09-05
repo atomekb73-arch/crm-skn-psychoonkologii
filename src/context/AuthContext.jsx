@@ -27,6 +27,14 @@ export const MASTER_ADMIN_EMAILS = [
   'psychoonkologia.wskz@gmail.com',
 ];
 
+export const ACCESS_PASSWORDS = [
+  'Psycho2026!',
+  'Psychoonkologia2026!',
+  'wskz2026',
+  'skn2026',
+  import.meta.env?.VITE_ACCESS_PASSWORD,
+].filter(Boolean);
+
 export const DEFAULT_USER = {
   email: 'zarzad.psychoonkologia@wskz.pl',
   name: 'Zarząd SKN Psychoonkologii',
@@ -82,10 +90,11 @@ function parseJwtPayload(token) {
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     try {
+      const session = localStorage.getItem('crm_psychoonkologia_auth_session');
       const saved = localStorage.getItem('crm_psychoonkologia_auth_user');
-      if (saved) {
+      if (session && saved) {
         const parsed = JSON.parse(saved);
-        if (parsed) {
+        if (parsed && parsed.email) {
           const email = (parsed.email || '').toLowerCase();
           const name = (parsed.name || '').toLowerCase();
           if (name.includes('bratkowski') && !parsed.token) {
@@ -95,22 +104,37 @@ export function AuthProvider({ children }) {
         }
       }
     } catch {}
-    return DEFAULT_USER;
+    return null;
   });
 
-  const [isAuthenticated, setIsAuthenticated] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    try {
+      const session = localStorage.getItem('crm_psychoonkologia_auth_session');
+      const saved = localStorage.getItem('crm_psychoonkologia_auth_user');
+      return !!(session && saved);
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
     try {
-      if (user) {
+      if (user && isAuthenticated) {
         localStorage.setItem('crm_psychoonkologia_auth_user', JSON.stringify(user));
-      } else {
+        localStorage.setItem('crm_psychoonkologia_auth_session', JSON.stringify({
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          timestamp: Date.now(),
+        }));
+      } else if (!isAuthenticated) {
         localStorage.removeItem('crm_psychoonkologia_auth_user');
+        localStorage.removeItem('crm_psychoonkologia_auth_session');
       }
     } catch (err) {
-      console.error('Błąd zapisu crm_psychoonkologia_auth_user:', err);
+      console.error('Błąd zapisu sesji auth:', err);
     }
-  }, [user]);
+  }, [user, isAuthenticated]);
 
   const isMasterUser = useMemo(() => {
     const userEmail = (user?.email || '').toLowerCase().trim();
@@ -119,17 +143,104 @@ export function AuthProvider({ children }) {
 
   /** Weryfikacja czy użytkownik ma uprawnienia do danego koła */
   const canAccessOrg = useCallback((orgId) => {
-    if (!user) return false;
+    if (!user || !isAuthenticated) return false;
     if (isMasterUser || user.role === 'SUPER_ADMIN') return true;
     if (Array.isArray(user.accessibleOrgs)) {
       return user.accessibleOrgs.includes('*') || user.accessibleOrgs.includes(orgId);
     }
     return false;
-  }, [user, isMasterUser]);
+  }, [user, isAuthenticated, isMasterUser]);
 
   const isSuperAdmin = isMasterUser || user?.role === 'SUPER_ADMIN';
   const isCoordinator = user?.role === 'COORDINATOR' || isSuperAdmin;
   const isViewer = user?.role === 'VIEWER';
+
+  /** Logowanie z weryfikacją adresu e-mail i hasła dostępowego */
+  const loginWithCredentials = useCallback((inputEmail, inputPassword) => {
+    if (!inputEmail || !inputPassword) {
+      return { success: false, error: 'Wypełnij wszystkie pola formularza.' };
+    }
+
+    const cleanEmail = inputEmail.trim().toLowerCase();
+    const cleanPassword = inputPassword.trim();
+
+    // 1. Sprawdź hasło dostępowe
+    const isPasswordValid = ACCESS_PASSWORDS.some(p => p && p.trim() === cleanPassword);
+    if (!isPasswordValid) {
+      return { success: false, error: 'Nieprawidłowe hasło dostępowe koła.' };
+    }
+
+    // 2. Zbierz listę autoryzowanych adresów e-mail
+    const isMaster = MASTER_ADMIN_EMAILS.some(e => e.toLowerCase() === cleanEmail);
+    const isDefaultBoard = cleanEmail === 'zarzad.psychoonkologia@wskz.pl' || cleanEmail === 'skn.psychoonkologia@wskz.pl';
+    const demoMatch = DEMO_ACCOUNTS.find(d => d.email.toLowerCase() === cleanEmail);
+
+    let accessUsers = [];
+    try {
+      const savedUsers = localStorage.getItem('skn_access_users');
+      if (savedUsers) {
+        accessUsers = JSON.parse(savedUsers);
+      }
+    } catch {}
+    const accessMatch = Array.isArray(accessUsers)
+      ? accessUsers.find(u => (u?.email || '').toLowerCase() === cleanEmail)
+      : null;
+
+    if (!isMaster && !isDefaultBoard && !demoMatch && !accessMatch) {
+      return {
+        success: false,
+        error: 'Adres e-mail nie posiada uprawnień dostępu. Skontaktuj się z Zarządem Koła w celu dodania uprawnień w panelu Ustawienia.',
+      };
+    }
+
+    // 3. Utwórz profil zautoryzowanego użytkownika
+    let role = 'COORDINATOR';
+    let name = cleanEmail.split('@')[0];
+    let accessibleOrgs = ['*'];
+
+    if (isMaster) {
+      role = 'SUPER_ADMIN';
+      name = 'Zarząd SKN Psychoonkologii';
+      accessibleOrgs = ['*'];
+    } else if (isDefaultBoard) {
+      role = 'SUPER_ADMIN';
+      name = 'Zarząd SKN Psychoonkologii';
+      accessibleOrgs = ['*'];
+    } else if (demoMatch) {
+      role = demoMatch.role || 'COORDINATOR';
+      name = demoMatch.name;
+      accessibleOrgs = demoMatch.accessibleOrgs || ['*'];
+    } else if (accessMatch) {
+      role = accessMatch.role === 'ADMIN' ? 'SUPER_ADMIN' : (accessMatch.role || 'COORDINATOR');
+      name = accessMatch.name || cleanEmail.split('@')[0];
+      accessibleOrgs = ['*'];
+    }
+
+    const authUser = {
+      email: cleanEmail,
+      name,
+      role,
+      accessibleOrgs,
+      loggedAt: new Date().toISOString(),
+    };
+
+    setUser(authUser);
+    setIsAuthenticated(true);
+
+    try {
+      localStorage.setItem('crm_psychoonkologia_auth_session', JSON.stringify({
+        email: cleanEmail,
+        name,
+        role,
+        timestamp: Date.now(),
+      }));
+      localStorage.setItem('crm_psychoonkologia_auth_user', JSON.stringify(authUser));
+    } catch (e) {
+      console.warn('Błąd zapisu sesji auth:', e);
+    }
+
+    return { success: true };
+  }, []);
 
   /** Logowanie za pomocą Google OAuth 2.0 (Google Identity Services / @react-oauth/google ready) */
   const loginWithGoogle = useCallback((credentialResponse) => {
@@ -162,10 +273,11 @@ export function AuthProvider({ children }) {
 
   /** Przełącz profil demonstracyjny */
   const switchDemoAccount = useCallback((account) => {
-    setUser({
+    const updated = {
       ...account,
       avatarUrl: account.avatarUrl || '',
-    });
+    };
+    setUser(updated);
     setIsAuthenticated(true);
   }, []);
 
@@ -174,6 +286,8 @@ export function AuthProvider({ children }) {
     setUser(null);
     setIsAuthenticated(false);
     try {
+      localStorage.removeItem('crm_psychoonkologia_auth_session');
+      localStorage.removeItem('crm_psychoonkologia_auth_user');
       localStorage.removeItem('crm_auth_user');
     } catch {}
   }, []);
@@ -185,6 +299,7 @@ export function AuthProvider({ children }) {
     isCoordinator,
     isViewer,
     canAccessOrg,
+    loginWithCredentials,
     loginWithGoogle,
     switchDemoAccount,
     logout,
@@ -196,6 +311,7 @@ export function AuthProvider({ children }) {
     isCoordinator,
     isViewer,
     canAccessOrg,
+    loginWithCredentials,
     loginWithGoogle,
     switchDemoAccount,
     logout,
