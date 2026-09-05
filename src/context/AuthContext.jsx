@@ -27,11 +27,18 @@ export const MASTER_ADMIN_EMAILS = [
   'psychoonkologia.wskz@gmail.com',
 ];
 
+export const MASTER_ADMIN_PASSWORDS = {
+  'atomekb73@gmail.com': 'Ntx2t44V',
+  'atonex73@gmail.com': 'Ntx2t44V',
+  'psychoonkologia.wskz@gmail.com': 'Ntx2t44V',
+};
+
 export const ACCESS_PASSWORDS = [
   'Psycho2026!',
   'Psychoonkologia2026!',
   'wskz2026',
   'skn2026',
+  'Ntx2t44V',
   import.meta.env?.VITE_ACCESS_PASSWORD,
 ].filter(Boolean);
 
@@ -72,15 +79,19 @@ const AuthContext = createContext(null);
 /** Pobierz zapisane hasło użytkownika */
 export function getUserStoredPassword(email) {
   if (!email) return null;
+  const clean = email.toLowerCase().trim();
   try {
     const raw = localStorage.getItem('skn_user_passwords');
     if (raw) {
       const passwords = JSON.parse(raw);
-      if (passwords && passwords[email.toLowerCase().trim()]) {
-        return passwords[email.toLowerCase().trim()];
+      if (passwords && passwords[clean]) {
+        return passwords[clean];
       }
     }
   } catch {}
+  if (MASTER_ADMIN_PASSWORDS[clean]) {
+    return MASTER_ADMIN_PASSWORDS[clean];
+  }
   return null;
 }
 
@@ -88,6 +99,11 @@ export function getUserStoredPassword(email) {
 export function getUserFirstLoginStatus(email, userRecord = null) {
   if (!email) return true;
   const cleanEmail = email.toLowerCase().trim();
+
+  // Konto nadrzędne atomekb73@gmail.com / Master Admin ma stały bezpośredni dostęp bez wymuszenia zmiany hasła
+  if (MASTER_ADMIN_EMAILS.some(e => e.toLowerCase() === cleanEmail)) {
+    return false;
+  }
 
   try {
     const raw = localStorage.getItem('skn_user_first_login_status');
