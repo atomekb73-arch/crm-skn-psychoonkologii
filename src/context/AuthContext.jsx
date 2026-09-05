@@ -437,6 +437,52 @@ export function AuthProvider({ children }) {
     setIsAuthenticated(true);
   }, []);
 
+  /** Zmiana hasła przez zalogowanego użytkownika (z weryfikacją aktualnego hasła) */
+  const changeUserPassword = useCallback((currentPassword, newPassword, confirmPassword) => {
+    if (!user || !user.email) {
+      return { success: false, error: 'Brak aktywnej sesji użytkownika.' };
+    }
+
+    const cleanEmail = user.email.trim().toLowerCase();
+    const curPass = (currentPassword || '').trim();
+    const p1 = (newPassword || '').trim();
+    const p2 = (confirmPassword || '').trim();
+
+    if (!curPass || !p1 || !p2) {
+      return { success: false, error: 'Wypełnij wszystkie pola formularza.' };
+    }
+
+    // 1. Weryfikacja aktualnego hasła
+    const customPass = getUserStoredPassword(cleanEmail);
+    let isCurrentValid = false;
+
+    if (customPass) {
+      isCurrentValid = customPass === curPass;
+    } else {
+      let accessUsers = [];
+      try {
+        const savedUsers = localStorage.getItem('skn_access_users');
+        if (savedUsers) accessUsers = JSON.parse(savedUsers);
+      } catch {}
+      const accessMatch = Array.isArray(accessUsers)
+        ? accessUsers.find(u => (u?.email || '').toLowerCase() === cleanEmail)
+        : null;
+
+      const allowedTempPasswords = [
+        accessMatch?.tempPassword,
+        ...ACCESS_PASSWORDS,
+      ].filter(Boolean);
+      isCurrentValid = allowedTempPasswords.some(p => p && p.trim() === curPass);
+    }
+
+    if (!isCurrentValid) {
+      return { success: false, error: 'Wprowadzone dotychczasowe hasło jest nieprawidłowe.' };
+    }
+
+    // 2. Wywołaj właściwą procedurę zmiany hasła
+    return changePassword(cleanEmail, p1, p2, user);
+  }, [user, changePassword]);
+
   /** Wylogowanie */
   const logout = useCallback(() => {
     setUser(null);
@@ -457,6 +503,7 @@ export function AuthProvider({ children }) {
     canAccessOrg,
     loginWithCredentials,
     changePassword,
+    changeUserPassword,
     loginWithGoogle,
     switchDemoAccount,
     logout,
@@ -470,6 +517,7 @@ export function AuthProvider({ children }) {
     canAccessOrg,
     loginWithCredentials,
     changePassword,
+    changeUserPassword,
     loginWithGoogle,
     switchDemoAccount,
     logout,

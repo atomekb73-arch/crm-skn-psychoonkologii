@@ -10,10 +10,8 @@ import {
   AlertCircle,
   Sparkles,
   CheckCircle2,
-  XCircle,
   Key,
   ArrowLeft,
-  ShieldAlert,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -23,7 +21,7 @@ export default function LoginScreen() {
   // Step state: 'login' | 'change_password'
   const [step, setStep] = useState('login');
 
-  // Step 1: Login state
+  // Step 1: Login state - explicitly empty
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -107,12 +105,6 @@ export default function LoginScreen() {
     }
   };
 
-  const handleQuickFill = (demoEmail) => {
-    setEmail(demoEmail);
-    setPassword('Psycho2026!');
-    setError(null);
-  };
-
   const handleBackToLogin = () => {
     setStep('login');
     setNewPassword('');
@@ -176,7 +168,7 @@ export default function LoginScreen() {
             )}
 
             {/* Form */}
-            <form onSubmit={handleLoginSubmit} className="space-y-4">
+            <form onSubmit={handleLoginSubmit} autoComplete="off" className="space-y-4">
               
               {/* Email field */}
               <div className="space-y-1.5">
@@ -190,6 +182,8 @@ export default function LoginScreen() {
                     type="email"
                     required
                     autoFocus
+                    autoComplete="off"
+                    spellCheck="false"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="np. zarzad.psychoonkologia@wskz.pl"
@@ -211,6 +205,8 @@ export default function LoginScreen() {
                     id="login-password"
                     type={showPassword ? 'text' : 'password'}
                     required
+                    autoComplete="new-password"
+                    spellCheck="false"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Wprowadź hasło koła lub hasło startowe..."
@@ -243,32 +239,6 @@ export default function LoginScreen() {
                 )}
               </button>
             </form>
-
-            {/* Quick Access Helper for Board & Supervisors */}
-            <div className="pt-2 border-t border-slate-100">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-                Szybki wybór profilu z bazy uprawnień:
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleQuickFill('zarzad.psychoonkologia@wskz.pl')}
-                  className="p-2 rounded-xl bg-slate-50 hover:bg-purple-50 hover:border-purple-200 border border-slate-200/80 text-left transition cursor-pointer group"
-                >
-                  <p className="text-[11px] font-bold text-slate-700 group-hover:text-purple-900 truncate">Zarząd Koła</p>
-                  <p className="text-[9.5px] text-slate-400 truncate font-mono">zarzad.psychoonkologia@wskz.pl</p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleQuickFill('opiekun.psychoonkologia@wskz.pl')}
-                  className="p-2 rounded-xl bg-slate-50 hover:bg-purple-50 hover:border-purple-200 border border-slate-200/80 text-left transition cursor-pointer group"
-                >
-                  <p className="text-[11px] font-bold text-slate-700 group-hover:text-purple-900 truncate">Opiekun Naukowy</p>
-                  <p className="text-[9.5px] text-slate-400 truncate font-mono">opiekun.psychoonkologia@wskz.pl</p>
-                </button>
-              </div>
-            </div>
 
           </div>
         ) : (
@@ -313,7 +283,7 @@ export default function LoginScreen() {
             )}
 
             {/* Form */}
-            <form onSubmit={handleChangePasswordSubmit} className="space-y-4">
+            <form onSubmit={handleChangePasswordSubmit} autoComplete="off" className="space-y-4">
               
               {/* New Password field */}
               <div className="space-y-1.5">
@@ -327,6 +297,8 @@ export default function LoginScreen() {
                     type={showNewPassword ? 'text' : 'password'}
                     required
                     autoFocus
+                    autoComplete="new-password"
+                    spellCheck="false"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="Wprowadź minimum 8 znaków..."
@@ -354,6 +326,8 @@ export default function LoginScreen() {
                     id="change-confirm-password"
                     type={showConfirmPassword ? 'text' : 'password'}
                     required
+                    autoComplete="new-password"
+                    spellCheck="false"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Wpisz ponownie to samo hasło..."
