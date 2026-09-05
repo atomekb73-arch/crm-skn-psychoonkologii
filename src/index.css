@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Comfortaa', sans-serif;
+}
+
+html,
+body,
+input,
+button,
+select,
+table,
+textarea,
+p,
+span,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+div {
+  font-family: 'Comfortaa', sans-serif;
+}
+
+/* Force sans-serif on inputs, buttons and tables */
+body, input, button, select, table, textarea {
+  font-family: 'Comfortaa', sans-serif !important;
+}
+
+/* Smooth scrollbar hiding for tab bar */
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
