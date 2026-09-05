@@ -33,12 +33,71 @@ export const MASTER_ADMIN_PASSWORDS = {
   'psychoonkologia.wskz@gmail.com': 'Ntx2t44V',
 };
 
+export const DEFAULT_AUTHORIZED_ACCOUNTS = [
+  {
+    id: 'usr_liliana_01',
+    name: 'Liliana Sienkiewicz',
+    email: 'lajlasienkiewicz@gmail.com',
+    role: 'ADMIN',
+    roleLabel: 'Dostęp pełny',
+    badgeColor: 'bg-slate-100 text-slate-700 border-slate-200',
+    tempPassword: 'Liliana123',
+    isFirstLogin: true,
+    addedAt: '2026-09-05',
+  },
+  {
+    id: 'usr_katarzyna_02',
+    name: 'Katarzyna Kubacka',
+    email: 'kasia.j.kubacka@gmail.com',
+    role: 'ADMIN',
+    roleLabel: 'Dostęp pełny',
+    badgeColor: 'bg-slate-100 text-slate-700 border-slate-200',
+    tempPassword: 'Kasia123',
+    isFirstLogin: true,
+    addedAt: '2026-09-05',
+  },
+  {
+    id: 'usr_piotr_03',
+    name: 'Piotr Niklas',
+    email: 'piotrniklas7@gmail.com',
+    role: 'ADMIN',
+    roleLabel: 'Dostęp pełny',
+    badgeColor: 'bg-slate-100 text-slate-700 border-slate-200',
+    tempPassword: 'Piotr123',
+    isFirstLogin: true,
+    addedAt: '2026-09-05',
+  },
+  {
+    id: 'usr_zarzad_01',
+    name: 'Zarząd SKN Psychoonkologii',
+    email: 'skn.psychoonkologia@wskz.pl',
+    role: 'ADMIN',
+    roleLabel: 'Dostęp zarządu',
+    badgeColor: 'bg-slate-100 text-slate-700 border-slate-200',
+    tempPassword: 'Psycho2026!',
+    isFirstLogin: true,
+    addedAt: '2026-09-05',
+  },
+];
+
+export const STARTER_PASSWORDS = {
+  'lajlasienkiewicz@gmail.com': 'Liliana123',
+  'kasia.j.kubacka@gmail.com': 'Kasia123',
+  'piotrniklas7@gmail.com': 'Piotr123',
+  'skn.psychoonkologia@wskz.pl': 'Psycho2026!',
+  'zarzad.psychoonkologia@wskz.pl': 'Psycho2026!',
+  'opiekun.psychoonkologia@wskz.pl': 'Psycho2026!',
+};
+
 export const ACCESS_PASSWORDS = [
   'Psycho2026!',
   'Psychoonkologia2026!',
   'wskz2026',
   'skn2026',
   'Ntx2t44V',
+  'Liliana123',
+  'Kasia123',
+  'Piotr123',
   import.meta.env?.VITE_ACCESS_PASSWORD,
 ].filter(Boolean);
 
@@ -116,10 +175,15 @@ export function getUserFirstLoginStatus(email, userRecord = null) {
   } catch {}
 
   // Jeśli użytkownik ma już zapisane własne hasło w skn_user_passwords, to nie jest pierwsze logowanie
-  const customPass = getUserStoredPassword(cleanEmail);
-  if (customPass) {
-    return false;
-  }
+  try {
+    const rawPass = localStorage.getItem('skn_user_passwords');
+    if (rawPass) {
+      const passwords = JSON.parse(rawPass);
+      if (passwords && passwords[cleanEmail]) {
+        return false;
+      }
+    }
+  } catch {}
 
   // Jeśli rekord użytkownika ma jawnie isFirstLogin: false
   if (userRecord && userRecord.isFirstLogin === false) {
@@ -229,6 +293,7 @@ export function AuthProvider({ children }) {
     const isMaster = MASTER_ADMIN_EMAILS.some(e => e.toLowerCase() === cleanEmail);
     const isDefaultBoard = cleanEmail === 'zarzad.psychoonkologia@wskz.pl' || cleanEmail === 'skn.psychoonkologia@wskz.pl';
     const demoMatch = DEMO_ACCOUNTS.find(d => d.email.toLowerCase() === cleanEmail);
+    const defaultAuthMatch = DEFAULT_AUTHORIZED_ACCOUNTS.find(d => d.email.toLowerCase() === cleanEmail);
 
     let accessUsers = [];
     try {
@@ -237,9 +302,8 @@ export function AuthProvider({ children }) {
         accessUsers = JSON.parse(savedUsers);
       }
     } catch {}
-    const accessMatch = Array.isArray(accessUsers)
-      ? accessUsers.find(u => (u?.email || '').toLowerCase() === cleanEmail)
-      : null;
+    const accessMatch = (Array.isArray(accessUsers) ? accessUsers : DEFAULT_AUTHORIZED_ACCOUNTS)
+      .find(u => (u?.email || '').toLowerCase() === cleanEmail) || defaultAuthMatch;
 
     if (!isMaster && !isDefaultBoard && !demoMatch && !accessMatch) {
       return {
@@ -258,6 +322,7 @@ export function AuthProvider({ children }) {
     } else {
       // Użytkownik podaje hasło startowe / tymczasowe
       const allowedTempPasswords = [
+        STARTER_PASSWORDS[cleanEmail],
         accessMatch?.tempPassword,
         ...ACCESS_PASSWORDS,
       ].filter(Boolean);
@@ -347,7 +412,18 @@ export function AuthProvider({ children }) {
       return { success: false, error: 'Wprowadzone hasła nie są identyczne.' };
     }
 
-    if (p1 === 'Psycho2026!' || p1 === 'Psychoonkologia2026!' || p1 === 'wskz2026') {
+    const isStarter = [
+      'Psycho2026!',
+      'Psychoonkologia2026!',
+      'wskz2026',
+      'skn2026',
+      'Liliana123',
+      'Kasia123',
+      'Piotr123',
+      STARTER_PASSWORDS[cleanEmail],
+    ].filter(Boolean).includes(p1);
+
+    if (isStarter) {
       return { success: false, error: 'Nowe hasło nie może być hasłem startowym. Wybierz inne, bezpieczne hasło.' };
     }
 
@@ -480,11 +556,11 @@ export function AuthProvider({ children }) {
         const savedUsers = localStorage.getItem('skn_access_users');
         if (savedUsers) accessUsers = JSON.parse(savedUsers);
       } catch {}
-      const accessMatch = Array.isArray(accessUsers)
-        ? accessUsers.find(u => (u?.email || '').toLowerCase() === cleanEmail)
-        : null;
+      const accessMatch = (Array.isArray(accessUsers) ? accessUsers : DEFAULT_AUTHORIZED_ACCOUNTS)
+        .find(u => (u?.email || '').toLowerCase() === cleanEmail);
 
       const allowedTempPasswords = [
+        STARTER_PASSWORDS[cleanEmail],
         accessMatch?.tempPassword,
         ...ACCESS_PASSWORDS,
       ].filter(Boolean);

@@ -46,7 +46,10 @@ export default function LoginScreen() {
     newPassword !== 'Psycho2026!' &&
     newPassword !== 'Psychoonkologia2026!' &&
     newPassword !== 'wskz2026' &&
-    newPassword !== 'skn2026';
+    newPassword !== 'skn2026' &&
+    newPassword !== 'Liliana123' &&
+    newPassword !== 'Kasia123' &&
+    newPassword !== 'Piotr123';
   const isFormValid = hasMinLength && passwordsMatch && isNotStarterPassword;
 
   // Handle standard login submit
