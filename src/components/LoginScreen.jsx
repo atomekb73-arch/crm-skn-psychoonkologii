@@ -12,63 +12,93 @@ import {
   CheckCircle2,
   Key,
   ArrowLeft,
+  UserCheck,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function LoginScreen() {
-  const { loginWithCredentials, changePassword } = useAuth();
+  const { checkEmailStatus, activateAccount, loginWithPassword } = useAuth();
 
-  // Step state: 'login' | 'change_password'
-  const [step, setStep] = useState('login');
+  // Step state: 'email' | 'password' | 'activate'
+  const [step, setStep] = useState('email');
 
-  // Step 1: Login state - explicitly empty
+  // Input fields
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  // Password visibility
   const [showPassword, setShowPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Status & Feedback
+  const [verifiedUser, setVerifiedUser] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // Step 2: First-time password change state
-  const [pendingEmail, setPendingEmail] = useState('');
-  const [pendingUser, setPendingUser] = useState(null);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [changeError, setChangeError] = useState(null);
-  const [changeLoading, setChangeLoading] = useState(false);
-
-  // Validation rules for new password
+  // Validation rules for new password during first-time activation
   const hasMinLength = newPassword.length >= 8;
   const passwordsMatch = newPassword.length > 0 && newPassword === confirmPassword;
-  const isNotStarterPassword =
-    newPassword.length > 0 &&
-    newPassword !== 'Psycho2026!' &&
-    newPassword !== 'Psychoonkologia2026!' &&
-    newPassword !== 'wskz2026' &&
-    newPassword !== 'skn2026' &&
-    newPassword !== 'Liliana123' &&
-    newPassword !== 'Kasia123' &&
-    newPassword !== 'Piotr123';
-  const isFormValid = hasMinLength && passwordsMatch && isNotStarterPassword;
+  const isActivationValid = hasMinLength && passwordsMatch;
 
-  // Handle standard login submit
-  const handleLoginSubmit = async (e) => {
+  // STEP 1: Verify Email
+  const handleEmailSubmit = (e) => {
+    e.preventDefault();
+    setError(null);
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!cleanEmail) {
+      setError('Wprowadź adres e-mail.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = checkEmailStatus(cleanEmail);
+
+      if (!res.authorized) {
+        setError(res.error || 'Brak uprawnień dostępu. Twój adres nie został dodany przez zarząd koła.');
+        setVerifiedUser(null);
+        return;
+      }
+
+      setVerifiedUser(res.user);
+
+      if (res.isFirstLogin || !res.hasPassword) {
+        // First login: No password set yet -> Activation form
+        setStep('activate');
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        // Returning user: Password already set -> Standard password prompt
+        setStep('password');
+        setPassword('');
+      }
+    } catch (err) {
+      setError('Wystąpił nieoczekiwany błąd podczas sprawdzania adresu e-mail.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // STEP 2A: Submit Existing Password
+  const handlePasswordSubmit = (e) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
     try {
-      const res = loginWithCredentials(email.trim(), password);
-      if (res.requiresPasswordChange) {
-        setPendingEmail(email.trim().toLowerCase());
-        setPendingUser(res.user);
-        setStep('change_password');
-        setPassword('');
-        setError(null);
-      } else if (!res.success) {
-        setError(res.error || 'Błąd uwierzytelniania. Sprawdź wprowadzone dane.');
+      const res = loginWithPassword(email.trim(), password);
+      if (!res.success) {
+        if (res.requiresActivation) {
+          setStep('activate');
+        } else {
+          setError(res.error || 'Nieprawidłowe hasło dostępowe.');
+        }
       }
+      // On success, AuthContext automatically updates isAuthenticated = true and opens CRM
     } catch (err) {
       setError('Wystąpił nieoczekiwany błąd podczas logowania.');
     } finally {
@@ -76,43 +106,41 @@ export default function LoginScreen() {
     }
   };
 
-  // Handle password change submit on first login
-  const handleChangePasswordSubmit = async (e) => {
+  // STEP 2B: First-Time Account Activation & Set Password
+  const handleActivationSubmit = (e) => {
     e.preventDefault();
-    setChangeError(null);
+    setError(null);
 
     if (!hasMinLength) {
-      setChangeError('Hasło musi zawierać co najmniej 8 znaków.');
+      setError('Hasło musi zawierać co najmniej 8 znaków.');
       return;
     }
     if (!passwordsMatch) {
-      setChangeError('Podane hasła nie są identyczne.');
-      return;
-    }
-    if (!isNotStarterPassword) {
-      setChangeError('Nowe hasło nie może być hasłem startowym. Wybierz własne unikalne hasło.');
+      setError('Podane hasła nie są identyczne.');
       return;
     }
 
-    setChangeLoading(true);
+    setLoading(true);
     try {
-      const res = changePassword(pendingEmail, newPassword, confirmPassword, pendingUser);
+      const res = activateAccount(email.trim(), newPassword, confirmPassword, verifiedUser);
       if (!res.success) {
-        setChangeError(res.error || 'Nie udało się zapisać nowego hasła.');
+        setError(res.error || 'Nie udało się zapisać hasła.');
       }
-      // On success, AuthContext automatically sets user & isAuthenticated = true, redirecting into CRM
+      // On success, AuthContext automatically sets session and unlocks CRM
     } catch (err) {
-      setChangeError('Wystąpił nieoczekiwany błąd podczas zapisu hasła.');
+      setError('Wystąpił błąd podczas aktywacji konta.');
     } finally {
-      setChangeLoading(false);
+      setLoading(false);
     }
   };
 
-  const handleBackToLogin = () => {
-    setStep('login');
+  // Reset to email step
+  const handleResetToEmail = () => {
+    setStep('email');
+    setPassword('');
     setNewPassword('');
     setConfirmPassword('');
-    setChangeError(null);
+    setError(null);
   };
 
   return (
@@ -121,10 +149,10 @@ export default function LoginScreen() {
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-600/15 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
 
-      {/* Container */}
+      {/* Main Container */}
       <div className="w-full max-w-md relative z-10 space-y-6">
         
-        {/* Brand & Organization Header */}
+        {/* Header Branding */}
         <div className="text-center space-y-3">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-purple-900/60 border border-purple-500/30 text-purple-200 text-xs font-semibold backdrop-blur-md shadow-inner">
             <span className="text-base leading-none">🎗️</span>
@@ -140,79 +168,126 @@ export default function LoginScreen() {
         </div>
 
         {/* Dynamic Card Container */}
-        {step === 'login' ? (
-          /* STEP 1: LOGIN FORM */
-          <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-6 sm:p-8 shadow-2xl border border-white/20 text-slate-900 space-y-5 animate-in fade-in zoom-in-95 duration-200">
-            
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
-                  <ShieldCheck size={20} />
-                </div>
-                <div>
-                  <h2 className="text-sm font-bold text-slate-900">Autoryzacja Dostępowa</h2>
-                  <p className="text-[11px] text-slate-500">Wprowadź swoje dane, aby odblokować panel</p>
-                </div>
+        <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-6 sm:p-8 shadow-2xl border border-white/20 text-slate-900 space-y-5 animate-in fade-in zoom-in-95 duration-200">
+          
+          {/* Top Status Header */}
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2.5">
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
+                step === 'activate' ? 'bg-amber-100 text-amber-700' : 'bg-purple-100 text-purple-700'
+              }`}>
+                {step === 'activate' ? <Key size={20} /> : <ShieldCheck size={20} />}
               </div>
-              <span className="text-[10px] font-mono font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">
-                2026/2027
-              </span>
+              <div>
+                <h2 className="text-sm font-bold text-slate-900">
+                  {step === 'email' && 'Autoryzacja Dostępowa'}
+                  {step === 'password' && 'Logowanie do Systemu'}
+                  {step === 'activate' && 'Pierwsze Logowanie'}
+                </h2>
+                <p className="text-[11px] text-slate-500">
+                  {step === 'email' && 'Wprowadź swój uczelniany adres e-mail'}
+                  {step === 'password' && 'Podaj swoje hasło dostępowe'}
+                  {step === 'activate' && 'Nadaj swoje hasło dostępowe'}
+                </p>
+              </div>
             </div>
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+              step === 'activate' ? 'bg-amber-100 text-amber-800 font-mono' : 'bg-slate-100 text-slate-600 font-mono'
+            }`}>
+              {step === 'activate' ? 'Aktywacja' : '2026/2027'}
+            </span>
+          </div>
 
-            {/* Error Notice */}
-            {error && (
-              <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2.5 animate-in fade-in zoom-in-95 duration-150">
-                <AlertCircle size={16} className="text-rose-600 shrink-0 mt-0.5" />
-                <div className="leading-snug">
-                  <p className="font-bold">Odmowa dostępu</p>
-                  <p className="text-[11px] text-rose-700 mt-0.5">{error}</p>
-                </div>
+          {/* Error Notice */}
+          {error && (
+            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2.5 animate-in fade-in zoom-in-95 duration-150">
+              <AlertCircle size={16} className="text-rose-600 shrink-0 mt-0.5" />
+              <div className="leading-snug">
+                <p className="font-bold">Odmowa dostępu</p>
+                <p className="text-[11px] text-rose-700 mt-0.5">{error}</p>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Form */}
-            <form onSubmit={handleLoginSubmit} autoComplete="off" className="space-y-4">
-              
-              {/* Email field */}
+          {/* ──────────────── STEP 1: EMAIL INPUT ──────────────── */}
+          {step === 'email' && (
+            <form onSubmit={handleEmailSubmit} autoComplete="off" className="space-y-4">
               <div className="space-y-1.5">
-                <label htmlFor="login-email" className="block text-xs font-bold text-slate-700">
+                <label htmlFor="auth-email" className="block text-xs font-bold text-slate-700">
                   Adres e-mail
                 </label>
                 <div className="relative">
                   <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
-                    id="login-email"
+                    id="auth-email"
                     type="email"
                     required
                     autoFocus
                     autoComplete="off"
                     spellCheck="false"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      setError(null);
+                    }}
                     placeholder="np. zarzad.psychoonkologia@wskz.pl"
                     className="w-full pl-10 pr-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-purple-400 focus:border-purple-400 outline-none transition font-medium text-slate-800"
                   />
                 </div>
               </div>
 
+              <button
+                type="submit"
+                disabled={loading || !email.trim()}
+                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-purple-700 via-indigo-600 to-purple-800 hover:from-purple-800 hover:to-indigo-700 text-white font-bold text-xs shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.99]"
+              >
+                {loading ? (
+                  <span>Weryfikacja uprawnień…</span>
+                ) : (
+                  <>
+                    <span>Dalej</span>
+                    <ArrowRight size={15} />
+                  </>
+                )}
+              </button>
+            </form>
+          )}
+
+          {/* ──────────────── STEP 2A: RETURNING USER LOGIN ──────────────── */}
+          {step === 'password' && (
+            <form onSubmit={handlePasswordSubmit} autoComplete="off" className="space-y-4">
+              {/* Account Pill */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
+                <div className="min-w-0 pr-2">
+                  <p className="text-xs font-bold text-slate-800 truncate">{verifiedUser?.name}</p>
+                  <p className="text-[11px] text-slate-500 font-mono truncate">{email}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleResetToEmail}
+                  className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 underline shrink-0 cursor-pointer"
+                >
+                  Zmień
+                </button>
+              </div>
+
               {/* Password field */}
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label htmlFor="login-password" className="block text-xs font-bold text-slate-700">
-                    Hasło dostępowe
-                  </label>
-                </div>
+                <label htmlFor="auth-password" className="block text-xs font-bold text-slate-700">
+                  Hasło dostępowe
+                </label>
                 <div className="relative">
                   <KeyRound size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
-                    id="login-password"
+                    id="auth-password"
                     type={showPassword ? 'text' : 'password'}
                     required
-                    autoComplete="new-password"
+                    autoFocus
+                    autoComplete="current-password"
                     spellCheck="false"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Wprowadź hasło koła lub hasło startowe..."
+                    placeholder="Wprowadź swoje hasło..."
                     className="w-full pl-10 pr-10 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-purple-400 focus:border-purple-400 outline-none transition font-medium text-slate-800 font-mono"
                   />
                   <button
@@ -229,11 +304,11 @@ export default function LoginScreen() {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !password.trim()}
                 className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-purple-700 via-indigo-600 to-purple-800 hover:from-purple-800 hover:to-indigo-700 text-white font-bold text-xs shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 active:scale-[0.99]"
               >
                 {loading ? (
-                  <span>Weryfikacja uprawnień…</span>
+                  <span>Logowanie…</span>
                 ) : (
                   <>
                     <span>Zaloguj do systemu CRM</span>
@@ -241,62 +316,53 @@ export default function LoginScreen() {
                   </>
                 )}
               </button>
+
+              <button
+                type="button"
+                onClick={handleResetToEmail}
+                className="w-full py-1 text-xs text-slate-500 hover:text-slate-800 flex items-center justify-center gap-1 cursor-pointer"
+              >
+                <ArrowLeft size={13} />
+                <span>Wróć do wpisywania e-maila</span>
+              </button>
             </form>
+          )}
 
-          </div>
-        ) : (
-          /* STEP 2: FORCED PASSWORD CHANGE ON FIRST LOGIN */
-          <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-6 sm:p-8 shadow-2xl border border-white/20 text-slate-900 space-y-5 animate-in fade-in zoom-in-95 duration-200">
-            
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
-                  <Key size={20} />
-                </div>
-                <div>
-                  <h2 className="text-sm font-bold text-slate-900">Ustaw nowe hasło</h2>
-                  <p className="text-[11px] text-slate-500">Wymagane przy pierwszym logowaniu do koła</p>
-                </div>
-              </div>
-              <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md">
-                1. wejście
-              </span>
-            </div>
-
-            {/* Account Pill */}
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Mail size={14} className="text-slate-400" />
-                <span className="text-xs font-mono font-medium text-slate-700">{pendingEmail}</span>
-              </div>
-              <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">
-                Konto autoryzowane
-              </span>
-            </div>
-
-            {/* Change Error Notice */}
-            {changeError && (
-              <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2.5 animate-in fade-in zoom-in-95 duration-150">
-                <AlertCircle size={16} className="text-rose-600 shrink-0 mt-0.5" />
-                <div className="leading-snug">
-                  <p className="font-bold">Błąd walidacji hasła</p>
-                  <p className="text-[11px] text-rose-700 mt-0.5">{changeError}</p>
-                </div>
-              </div>
-            )}
-
-            {/* Form */}
-            <form onSubmit={handleChangePasswordSubmit} autoComplete="off" className="space-y-4">
+          {/* ──────────────── STEP 2B: FIRST-TIME ACTIVATION FORM ──────────────── */}
+          {step === 'activate' && (
+            <form onSubmit={handleActivationSubmit} autoComplete="off" className="space-y-4">
               
+              {/* Account welcome banner */}
+              <div className="p-3.5 bg-amber-50/80 border border-amber-200/80 rounded-2xl space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-amber-900 uppercase tracking-wider">
+                    🎉 Pierwsze logowanie do koła
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleResetToEmail}
+                    className="text-[10px] font-semibold text-amber-800 hover:text-amber-950 underline cursor-pointer"
+                  >
+                    Zmień e-mail
+                  </button>
+                </div>
+                <p className="text-xs font-bold text-amber-950">
+                  Witaj, {verifiedUser?.name || 'Użytkowniku'}!
+                </p>
+                <p className="text-[11px] text-amber-800/90 leading-relaxed">
+                  Twoje konto zostało dodane przez Zarząd. Ustaw swoje własne, unikalne hasło dostępowe, aby wejść do CRM.
+                </p>
+              </div>
+
               {/* New Password field */}
               <div className="space-y-1.5">
-                <label htmlFor="change-new-password" className="block text-xs font-bold text-slate-700">
-                  Nowe hasło
+                <label htmlFor="activate-password" className="block text-xs font-bold text-slate-700">
+                  Wpisz hasło
                 </label>
                 <div className="relative">
                   <KeyRound size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
-                    id="change-new-password"
+                    id="activate-password"
                     type={showNewPassword ? 'text' : 'password'}
                     required
                     autoFocus
@@ -304,8 +370,8 @@ export default function LoginScreen() {
                     spellCheck="false"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Wprowadź minimum 8 znaków..."
-                    className="w-full pl-10 pr-10 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-purple-400 focus:border-purple-400 outline-none transition font-medium text-slate-800 font-mono"
+                    placeholder="Minimum 8 znaków..."
+                    className="w-full pl-10 pr-10 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-amber-400 outline-none transition font-medium text-slate-800 font-mono"
                   />
                   <button
                     type="button"
@@ -320,13 +386,13 @@ export default function LoginScreen() {
 
               {/* Confirm Password field */}
               <div className="space-y-1.5">
-                <label htmlFor="change-confirm-password" className="block text-xs font-bold text-slate-700">
-                  Powtórz nowe hasło
+                <label htmlFor="activate-confirm-password" className="block text-xs font-bold text-slate-700">
+                  Powtórz hasło
                 </label>
                 <div className="relative">
                   <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
-                    id="change-confirm-password"
+                    id="activate-confirm-password"
                     type={showConfirmPassword ? 'text' : 'password'}
                     required
                     autoComplete="new-password"
@@ -334,7 +400,7 @@ export default function LoginScreen() {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Wpisz ponownie to samo hasło..."
-                    className="w-full pl-10 pr-10 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-purple-400 focus:border-purple-400 outline-none transition font-medium text-slate-800 font-mono"
+                    className="w-full pl-10 pr-10 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-amber-400 outline-none transition font-medium text-slate-800 font-mono"
                   />
                   <button
                     type="button"
@@ -370,53 +436,41 @@ export default function LoginScreen() {
                     Hasła są identyczne
                   </span>
                 </div>
-
-                <div className="flex items-center gap-2">
-                  {isNotStarterPassword ? (
-                    <CheckCircle2 size={13} className="text-emerald-600" />
-                  ) : (
-                    <div className="w-3 h-3 rounded-full border border-slate-300" />
-                  )}
-                  <span className={isNotStarterPassword ? 'text-emerald-700 font-semibold' : 'text-slate-500'}>
-                    Różne od hasła startowego
-                  </span>
-                </div>
               </div>
 
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={changeLoading || !isFormValid}
+                disabled={loading || !isActivationValid}
                 className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.99]"
               >
-                {changeLoading ? (
-                  <span>Zapisywanie nowego hasła…</span>
+                {loading ? (
+                  <span>Zapisywanie hasła…</span>
                 ) : (
                   <>
-                    <span>Zapisz hasło i wejdź do CRM</span>
+                    <span>Zapisz hasło i wejdź</span>
                     <ArrowRight size={15} />
                   </>
                 )}
               </button>
 
-              {/* Back to login button */}
               <button
                 type="button"
-                onClick={handleBackToLogin}
-                className="w-full py-2 text-xs font-semibold text-slate-500 hover:text-slate-800 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                onClick={handleResetToEmail}
+                className="w-full py-1 text-xs text-slate-500 hover:text-slate-800 flex items-center justify-center gap-1 cursor-pointer"
               >
                 <ArrowLeft size={13} />
-                <span>Wróć do logowania</span>
+                <span>Wróć do wpisywania e-maila</span>
               </button>
             </form>
+          )}
 
-          </div>
-        )}
+        </div>
 
         {/* Footer info */}
         <div className="text-center text-[11px] text-purple-200/50 space-y-1">
           <p>Instytut Psychologii WSKZ • Bezpieczne połączenie szyfrowane</p>
-          <p className="text-[10px]">W razie trudności z logowaniem zgłoś się do administratora systemu.</p>
+          <p className="text-[10px]">W razie trudności z logowaniem zgłoś się do administratora koła.</p>
         </div>
 
       </div>

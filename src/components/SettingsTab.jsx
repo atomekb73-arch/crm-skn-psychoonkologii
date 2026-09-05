@@ -75,7 +75,6 @@ const DEFAULT_ACCESS_USERS = [
     role: 'ADMIN',
     roleLabel: 'Dostęp pełny',
     badgeColor: 'bg-slate-100 text-slate-700 border-slate-200',
-    tempPassword: 'Liliana123',
     isFirstLogin: true,
     addedAt: '2026-09-05',
     isPermanent: false,
@@ -87,7 +86,6 @@ const DEFAULT_ACCESS_USERS = [
     role: 'ADMIN',
     roleLabel: 'Dostęp pełny',
     badgeColor: 'bg-slate-100 text-slate-700 border-slate-200',
-    tempPassword: 'Kasia123',
     isFirstLogin: true,
     addedAt: '2026-09-05',
     isPermanent: false,
@@ -99,7 +97,6 @@ const DEFAULT_ACCESS_USERS = [
     role: 'ADMIN',
     roleLabel: 'Dostęp pełny',
     badgeColor: 'bg-slate-100 text-slate-700 border-slate-200',
-    tempPassword: 'Piotr123',
     isFirstLogin: true,
     addedAt: '2026-09-05',
     isPermanent: false,
@@ -111,7 +108,6 @@ const DEFAULT_ACCESS_USERS = [
     role: 'ADMIN',
     roleLabel: 'Dostęp zarządu',
     badgeColor: 'bg-slate-100 text-slate-700 border-slate-200',
-    tempPassword: 'Psycho2026!',
     isFirstLogin: true,
     addedAt: '2026-09-05',
     isPermanent: false,
@@ -493,7 +489,6 @@ export default function SettingsTab({ members = [], meetings = [] }) {
       addedAt: new Date().toISOString().split('T')[0],
       isPermanent: false,
       isFirstLogin: true,
-      tempPassword: 'Psycho2026!',
     };
 
     const updated = [...accessUsers.filter(u => u.email !== newUser.email), newUser];

@@ -280,16 +280,15 @@ export function AuthProvider({ children }) {
   const isCoordinator = user?.role === 'COORDINATOR' || isSuperAdmin;
   const isViewer = user?.role === 'VIEWER';
 
-  /** Logowanie z weryfikacją adresu e-mail, hasła i flagi pierwszego logowania */
-  const loginWithCredentials = useCallback((inputEmail, inputPassword) => {
-    if (!inputEmail || !inputPassword) {
-      return { success: false, error: 'Wypełnij wszystkie pola formularza.' };
+  /** Sprawdzenie uprawnień adresu e-mail i stanu hasła */
+  const checkEmailStatus = useCallback((inputEmail) => {
+    if (!inputEmail || !inputEmail.trim()) {
+      return { authorized: false, error: 'Wprowadź adres e-mail.' };
     }
 
     const cleanEmail = inputEmail.trim().toLowerCase();
-    const cleanPassword = inputPassword.trim();
 
-    // 1. Zbierz listę autoryzowanych adresów e-mail
+    // 1. Sprawdź czy konto jest w bazie uprawnionych
     const isMaster = MASTER_ADMIN_EMAILS.some(e => e.toLowerCase() === cleanEmail);
     const isDefaultBoard = cleanEmail === 'zarzad.psychoonkologia@wskz.pl' || cleanEmail === 'skn.psychoonkologia@wskz.pl';
     const demoMatch = DEMO_ACCOUNTS.find(d => d.email.toLowerCase() === cleanEmail);
@@ -302,38 +301,30 @@ export function AuthProvider({ children }) {
         accessUsers = JSON.parse(savedUsers);
       }
     } catch {}
+
+    let supervisors = [];
+    try {
+      const savedSup = localStorage.getItem('skn_faculty_supervisors');
+      if (savedSup) {
+        supervisors = JSON.parse(savedSup);
+      }
+    } catch {}
+
     const accessMatch = (Array.isArray(accessUsers) ? accessUsers : DEFAULT_AUTHORIZED_ACCOUNTS)
       .find(u => (u?.email || '').toLowerCase() === cleanEmail) || defaultAuthMatch;
 
-    if (!isMaster && !isDefaultBoard && !demoMatch && !accessMatch) {
+    const supervisorMatch = Array.isArray(supervisors)
+      ? supervisors.find(s => (s?.email || '').toLowerCase() === cleanEmail)
+      : null;
+
+    if (!isMaster && !isDefaultBoard && !demoMatch && !accessMatch && !supervisorMatch) {
       return {
-        success: false,
-        error: 'Adres e-mail nie posiada uprawnień dostępu. Skontaktuj się z Zarządem Koła w celu dodania uprawnień w panelu Ustawienia.',
+        authorized: false,
+        error: 'Brak uprawnień dostępu. Twój adres nie został dodany przez zarząd koła.',
       };
     }
 
-    // 2. Weryfikacja hasła dostępowego
-    const customPassword = getUserStoredPassword(cleanEmail);
-    let isPasswordValid = false;
-
-    if (customPassword) {
-      // Użytkownik ustawił już własne hasło
-      isPasswordValid = customPassword === cleanPassword;
-    } else {
-      // Użytkownik podaje hasło startowe / tymczasowe
-      const allowedTempPasswords = [
-        STARTER_PASSWORDS[cleanEmail],
-        accessMatch?.tempPassword,
-        ...ACCESS_PASSWORDS,
-      ].filter(Boolean);
-      isPasswordValid = allowedTempPasswords.some(p => p && p.trim() === cleanPassword);
-    }
-
-    if (!isPasswordValid) {
-      return { success: false, error: 'Nieprawidłowe hasło dostępowe.' };
-    }
-
-    // 3. Utwórz profil zautoryzowanego użytkownika
+    // 2. Utwórz profil użytkownika
     let role = 'COORDINATOR';
     let name = cleanEmail.split('@')[0];
     let accessibleOrgs = ['*'];
@@ -341,19 +332,18 @@ export function AuthProvider({ children }) {
     if (isMaster) {
       role = 'SUPER_ADMIN';
       name = 'Zarząd SKN Psychoonkologii';
-      accessibleOrgs = ['*'];
     } else if (isDefaultBoard) {
       role = 'SUPER_ADMIN';
       name = 'Zarząd SKN Psychoonkologii';
-      accessibleOrgs = ['*'];
-    } else if (demoMatch) {
-      role = demoMatch.role || 'COORDINATOR';
-      name = demoMatch.name;
-      accessibleOrgs = demoMatch.accessibleOrgs || ['*'];
     } else if (accessMatch) {
       role = accessMatch.role === 'ADMIN' ? 'SUPER_ADMIN' : (accessMatch.role || 'COORDINATOR');
       name = accessMatch.name || cleanEmail.split('@')[0];
-      accessibleOrgs = ['*'];
+    } else if (supervisorMatch) {
+      role = 'COORDINATOR';
+      name = supervisorMatch.name || supervisorMatch.fullName || 'Opiekun Naukowy';
+    } else if (demoMatch) {
+      role = demoMatch.role || 'COORDINATOR';
+      name = demoMatch.name;
     }
 
     const authUser = {
@@ -364,35 +354,150 @@ export function AuthProvider({ children }) {
       loggedAt: new Date().toISOString(),
     };
 
-    // 4. Sprawdź czy to pierwsze logowanie
-    const isFirstLogin = getUserFirstLoginStatus(cleanEmail, accessMatch);
+    // 3. Sprawdź czy użytkownik ma już zdefiniowane hasło
+    const storedPass = getUserStoredPassword(cleanEmail);
+    const hasPassword = Boolean(storedPass);
+    const isFirstLogin = !hasPassword;
 
-    if (isFirstLogin) {
+    return {
+      authorized: true,
+      hasPassword,
+      isFirstLogin,
+      user: authUser,
+    };
+  }, []);
+
+  /** Aktywacja nowego konta na pierwszym logowaniu i nadanie własnego hasła */
+  const activateAccount = useCallback((email, newPassword, confirmPassword, userData = null) => {
+    if (!email || !newPassword || !confirmPassword) {
+      return { success: false, error: 'Wypełnij wszystkie pola formularza.' };
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const p1 = newPassword.trim();
+    const p2 = confirmPassword.trim();
+
+    if (p1.length < 8) {
+      return { success: false, error: 'Hasło musi zawierać co najmniej 8 znaków.' };
+    }
+
+    if (p1 !== p2) {
+      return { success: false, error: 'Wprowadzone hasła nie są identyczne.' };
+    }
+
+    try {
+      // 1. Zapisz nowe hasło w rejestrze haseł użytkowników
+      let passwords = {};
+      try {
+        const rawPass = localStorage.getItem('skn_user_passwords');
+        if (rawPass) passwords = JSON.parse(rawPass);
+      } catch {}
+      passwords[cleanEmail] = p1;
+      localStorage.setItem('skn_user_passwords', JSON.stringify(passwords));
+
+      // 2. Oznacz isFirstLogin jako false
+      let statusMap = {};
+      try {
+        const rawStatus = localStorage.getItem('skn_user_first_login_status');
+        if (rawStatus) statusMap = JSON.parse(rawStatus);
+      } catch {}
+      statusMap[cleanEmail] = false;
+      localStorage.setItem('skn_user_first_login_status', JSON.stringify(statusMap));
+
+      // 3. Zaktualizuj rekord w skn_access_users jeśli istnieje
+      try {
+        const rawUsers = localStorage.getItem('skn_access_users');
+        if (rawUsers) {
+          const accessUsers = JSON.parse(rawUsers);
+          if (Array.isArray(accessUsers)) {
+            const updatedUsers = accessUsers.map(u => {
+              if ((u?.email || '').toLowerCase() === cleanEmail) {
+                return { ...u, isFirstLogin: false, tempPassword: null };
+              }
+              return u;
+            });
+            localStorage.setItem('skn_access_users', JSON.stringify(updatedUsers));
+          }
+        }
+      } catch {}
+
+      // 4. Utwórz profil i zaloguj bezpośrednio do CRM
+      const authUser = userData || {
+        email: cleanEmail,
+        name: cleanEmail.split('@')[0],
+        role: cleanEmail.includes('zarzad') ? 'SUPER_ADMIN' : 'COORDINATOR',
+        accessibleOrgs: ['*'],
+        loggedAt: new Date().toISOString(),
+      };
+
+      setUser(authUser);
+      setIsAuthenticated(true);
+
+      localStorage.setItem('crm_psychoonkologia_auth_session', JSON.stringify({
+        email: cleanEmail,
+        name: authUser.name,
+        role: authUser.role,
+        timestamp: Date.now(),
+      }));
+      localStorage.setItem('crm_psychoonkologia_auth_user', JSON.stringify(authUser));
+
+      return { success: true, user: authUser };
+    } catch (e) {
+      console.error('Błąd aktywacji konta:', e);
+      return { success: false, error: 'Wystąpił błąd podczas zapisywania hasła.' };
+    }
+  }, []);
+
+  /** Logowanie z hasłem */
+  const loginWithPassword = useCallback((inputEmail, inputPassword) => {
+    if (!inputEmail || !inputPassword) {
+      return { success: false, error: 'Wypełnij wszystkie pola formularza.' };
+    }
+
+    const cleanEmail = inputEmail.trim().toLowerCase();
+    const cleanPassword = inputPassword.trim();
+
+    const status = checkEmailStatus(cleanEmail);
+    if (!status.authorized) {
+      return { success: false, error: status.error };
+    }
+
+    if (!status.hasPassword) {
       return {
-        success: true,
-        requiresPasswordChange: true,
-        user: authUser,
+        success: false,
+        requiresActivation: true,
+        user: status.user,
+        error: 'Konto nie posiada jeszcze nadanego hasła. Uzupełnij formularz aktywacji.',
       };
     }
 
-    // Zalogowanie bez zmiany hasła
-    setUser(authUser);
+    const storedPassword = getUserStoredPassword(cleanEmail);
+    if (!storedPassword || storedPassword !== cleanPassword) {
+      return { success: false, error: 'Nieprawidłowe hasło dostępowe.' };
+    }
+
+    setUser(status.user);
     setIsAuthenticated(true);
 
     try {
       localStorage.setItem('crm_psychoonkologia_auth_session', JSON.stringify({
         email: cleanEmail,
-        name,
-        role,
+        name: status.user.name,
+        role: status.user.role,
         timestamp: Date.now(),
       }));
-      localStorage.setItem('crm_psychoonkologia_auth_user', JSON.stringify(authUser));
+      localStorage.setItem('crm_psychoonkologia_auth_user', JSON.stringify(status.user));
     } catch (e) {
-      console.warn('Błąd zapisu sesji auth:', e);
+      console.warn('Błąd zapisu sesji:', e);
     }
 
-    return { success: true, requiresPasswordChange: false };
-  }, []);
+    return { success: true };
+  }, [checkEmailStatus]);
+
+  /** Logowanie z weryfikacją adresu e-mail i hasła (kompatybilność wsteczna) */
+  const loginWithCredentials = useCallback((inputEmail, inputPassword) => {
+    return loginWithPassword(inputEmail, inputPassword);
+  }, [loginWithPassword]);
 
   /** Zmiana hasła przy pierwszym logowaniu lub na żądanie */
   const changePassword = useCallback((email, newPassword, confirmPassword, userData = null) => {
@@ -593,6 +698,9 @@ export function AuthProvider({ children }) {
     isCoordinator,
     isViewer,
     canAccessOrg,
+    checkEmailStatus,
+    activateAccount,
+    loginWithPassword,
     loginWithCredentials,
     changePassword,
     changeUserPassword,
@@ -607,6 +715,9 @@ export function AuthProvider({ children }) {
     isCoordinator,
     isViewer,
     canAccessOrg,
+    checkEmailStatus,
+    activateAccount,
+    loginWithPassword,
     loginWithCredentials,
     changePassword,
     changeUserPassword,
