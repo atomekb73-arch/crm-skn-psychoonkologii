@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/api-teamup/:path*",
+      "destination": "https://api.teamup.com/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

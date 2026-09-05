@@ -1,30 +1,40 @@
-const TEAMUP_CALENDAR_ID = 'ks9aiux4jiza1ronpd';
-const TEAMUP_TOKEN = '20dc4242d0d74be314e5ee108dc618cf3f6fbcb7647865568775fe4d9a89c112';
+const TEAMUP_CALENDAR_ID = import.meta.env?.VITE_TEAMUP_CALENDAR_ID || 'ks9aiux4jiza1ronpd';
+const TEAMUP_TOKEN = import.meta.env?.VITE_TEAMUP_API_KEY || import.meta.env?.VITE_TEAMUP_TOKEN || '20dc4242d0d74be314e5ee108dc618cf3f6fbcb7647865568775fe4d9a89c112';
 const BASE_URL = `/api-teamup/${TEAMUP_CALENDAR_ID}`;
+const DIRECT_URL = `https://api.teamup.com/${TEAMUP_CALENDAR_ID}`;
 
-export const DEFAULT_SUBCALENDAR_ID = '15520558';
+export const DEFAULT_SUBCALENDAR_ID = import.meta.env?.VITE_SUBCALENDAR_ID || '15520558';
 
 export async function fetchTeamupSubcalendars() {
   const defaultSub = { id: DEFAULT_SUBCALENDAR_ID, name: 'Koła Naukowe > 07 🎗️ SKN Psychoonkologii' };
-  if (!BASE_URL || !TEAMUP_TOKEN) {
+  if (!TEAMUP_TOKEN) {
     return [defaultSub];
   }
 
-  try {
-    const res = await fetch(`${BASE_URL}/subcalendars`, {
-      headers: {
-        'Teamup-Token': TEAMUP_TOKEN,
-      },
-    });
-    const data = await res.json();
-    if (res.ok && data.subcalendars) {
-      const targetSub = data.subcalendars.find(s => String(s.id) === DEFAULT_SUBCALENDAR_ID);
-      if (targetSub) {
-        return [{ id: String(targetSub.id), name: targetSub.name || 'Koła Naukowe > 07 🎗️ SKN Psychoonkologii' }];
+  const urlsToTry = [`${BASE_URL}/subcalendars`, `${DIRECT_URL}/subcalendars`];
+
+  for (const url of urlsToTry) {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          'Teamup-Token': TEAMUP_TOKEN,
+        },
+      });
+      if (res.ok) {
+        const text = await res.text();
+        if (text && text.trim().startsWith('{')) {
+          const data = JSON.parse(text);
+          if (data && data.subcalendars) {
+            const targetSub = data.subcalendars.find(s => String(s.id) === DEFAULT_SUBCALENDAR_ID);
+            if (targetSub) {
+              return [{ id: String(targetSub.id), name: targetSub.name || 'Koła Naukowe > 07 🎗️ SKN Psychoonkologii' }];
+            }
+          }
+        }
       }
+    } catch (err) {
+      console.warn('Błąd pobierania podkalendarzy z url:', url, err);
     }
-  } catch (err) {
-    console.error('Błąd pobierania podkalendarzy z Teamup:', err);
   }
 
   return [defaultSub];
@@ -36,7 +46,7 @@ export async function fetchTeamupEvents({
   subcalendarId = DEFAULT_SUBCALENDAR_ID,
   yearPrefix = '26/27',
 } = {}) {
-  if (!BASE_URL || !TEAMUP_TOKEN) {
+  if (!TEAMUP_TOKEN) {
     return [];
   }
   try {
@@ -50,21 +60,40 @@ export async function fetchTeamupEvents({
 
     params.append('subcalendarId[]', targetSubId);
 
-    const url = `${BASE_URL}/events?${params.toString()}`;
-    const res = await fetch(url, {
-      headers: {
-        'Teamup-Token': TEAMUP_TOKEN,
-      },
-    });
+    const urlsToTry = [
+      `${BASE_URL}/events?${params.toString()}`,
+      `${DIRECT_URL}/events?${params.toString()}`,
+    ];
 
-    const data = await res.json();
+    let eventsData = null;
 
-    if (!res.ok || data.error || !data.events) {
-      const errMsg = data?.error?.message || `HTTP ${res.status}`;
-      console.error(`Błąd Teamup API (${errMsg}):`, data?.error);
-      console.log('Pobrane wydarzenia Teamup:', []);
+    for (const url of urlsToTry) {
+      try {
+        const res = await fetch(url, {
+          headers: {
+            'Teamup-Token': TEAMUP_TOKEN,
+          },
+        });
+        if (res.ok) {
+          const text = await res.text();
+          if (text && text.trim().startsWith('{')) {
+            const data = JSON.parse(text);
+            if (data && data.events) {
+              eventsData = data;
+              break;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Błąd podczas próby pobrania wydarzeń z', url, e);
+      }
+    }
+
+    if (!eventsData || !eventsData.events) {
       return [];
     }
+
+    const data = eventsData;
 
     // Ścisłe filtrowanie: wyklucz zdarzenia z jakichkolwiek innych podkalendarzy
     const rawEvents = data.events || [];

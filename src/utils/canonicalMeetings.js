@@ -269,10 +269,160 @@ export const CANONICAL_MEETINGS_SKNU = [
   },
 ];
 
+export const CANONICAL_MEETINGS_PSYCHOONKOLOGIA = [
+  {
+    id: '2089952664',
+    code: '[26/27] M01',
+    name: 'Studenckie Koło Naukowe Psychoonkologii WSKZ',
+    date: '2026-05-07',
+    dateFormatted: '07.05.2026, 18:00',
+    formattedDate: '07.05.2026, 18:00',
+    start_dt: '2026-05-07T18:00:00+02:00',
+    end_dt: '2026-05-07T19:30:00+02:00',
+    type: 'Spotkanie organizacyjne',
+    title: '🎗️🧪 Inauguracja Koła Naukowego Psychoonkologii | Zarząd Koła',
+    who: 'mgr Paweł Pilkiewicz, Zarząd Koła',
+    speaker: 'mgr Paweł Pilkiewicz, Zarząd Koła',
+    attendeesCount: 41,
+    attendees: [],
+    location: 'Online (Google Meet)',
+    isMandatory: true,
+    isLive: true,
+    isUpcoming: false,
+    notes: 'Porządek spotkania: Wyznaczenie kierunków i przyszłych projektów koła, proces zapisów, wybory zarządu.',
+  },
+  {
+    id: '2098131141',
+    code: '[26/27] M02',
+    name: 'Studenckie Koło Naukowe Psychoonkologii WSKZ',
+    date: '2026-05-21',
+    dateFormatted: '21.05.2026, 18:00',
+    formattedDate: '21.05.2026, 18:00',
+    start_dt: '2026-05-21T18:00:00+02:00',
+    end_dt: '2026-05-21T21:00:00+02:00',
+    type: 'Warsztat',
+    title: '📊🎗️ Warsztat: „Rozpoznawanie indywidualnych potrzeb i predyspozycji komunikacyjnych (Cztery Soczewki)” | Michał Sieradzan-Przybyłowicz',
+    who: 'Michał Sieradzan-Przybyłowicz',
+    speaker: 'Michał Sieradzan-Przybyłowicz',
+    attendeesCount: 35,
+    attendees: [],
+    location: 'Online (Google Meet)',
+    isMandatory: false,
+    isLive: true,
+    isUpcoming: false,
+    notes: 'Diagnoza typu temperamentu wg testu "Cztery Soczewki" (prof. G. Nelson) oraz techniki pracy z różnymi typami osobowości.',
+  },
+  {
+    id: '2093151269-rid-1779984000',
+    code: '[26/27] M03',
+    name: 'Studenckie Koło Naukowe Psychoonkologii WSKZ',
+    date: '2026-05-28',
+    dateFormatted: '28.05.2026, 18:00',
+    formattedDate: '28.05.2026, 18:00',
+    start_dt: '2026-05-28T18:00:00+02:00',
+    end_dt: '2026-05-28T20:00:00+02:00',
+    type: 'Warsztat',
+    title: '👨‍🏫 📊WARSZTATY - Kurs z psychoonkologii z mgr Pawłem Pilkiewiczem',
+    who: 'mgr Paweł Pilkiewicz',
+    speaker: 'mgr Paweł Pilkiewicz',
+    attendeesCount: 38,
+    attendees: [],
+    location: 'Online (Google Meet)',
+    isMandatory: true,
+    isLive: true,
+    isUpcoming: false,
+    notes: 'Warsztaty z zakresu psychoonkologii - tematy kliniczne i praktyczne zastosowania wiedzy psychologicznej.',
+  },
+  {
+    id: '2093578855-rid-1781193600',
+    code: '[26/27] M04',
+    name: 'Studenckie Koło Naukowe Psychoonkologii WSKZ',
+    date: '2026-06-11',
+    dateFormatted: '11.06.2026, 18:00',
+    formattedDate: '11.06.2026, 18:00',
+    start_dt: '2026-06-11T18:00:00+02:00',
+    end_dt: '2026-06-11T20:00:00+02:00',
+    type: 'Warsztat',
+    title: '👨‍🏫 📊WARSZTATY - Kurs z psychoonkologii z mgr Pawłem Pilkiewiczem',
+    who: 'mgr Paweł Pilkiewicz',
+    speaker: 'mgr Paweł Pilkiewicz',
+    attendeesCount: 32,
+    attendees: [],
+    location: 'Online (Google Meet)',
+    isMandatory: true,
+    isLive: true,
+    isUpcoming: false,
+    notes: 'Warsztaty z zakresu psychoonkologii - część 2.',
+  },
+  {
+    id: '2114714561',
+    code: '[26/27] M05',
+    name: 'Studenckie Koło Naukowe Psychoonkologii WSKZ',
+    date: '2026-06-16',
+    dateFormatted: '16.06.2026, 18:00',
+    formattedDate: '16.06.2026, 18:00',
+    start_dt: '2026-06-16T18:00:00+02:00',
+    end_dt: '2026-06-16T19:30:00+02:00',
+    type: 'Wykład Merytoryczny',
+    title: '🏥🎗️ Rola psychoonkologa w zespole terapeutycznym | Joanna Głowacka',
+    who: 'Joanna Głowacka',
+    speaker: 'Joanna Głowacka',
+    attendeesCount: 45,
+    attendees: [],
+    location: 'Online (Google Meet)',
+    isMandatory: true,
+    isLive: true,
+    isUpcoming: false,
+    notes: 'Praca psychoonkologa w zespole medycznym, granice kompetencji, mapa drogowa wsparcia.',
+  },
+  {
+    id: '2093578855-rid-1781798400',
+    code: '[26/27] M06',
+    name: 'Studenckie Koło Naukowe Psychoonkologii WSKZ',
+    date: '2026-06-18',
+    dateFormatted: '18.06.2026, 18:00',
+    formattedDate: '18.06.2026, 18:00',
+    start_dt: '2026-06-18T18:00:00+02:00',
+    end_dt: '2026-06-18T20:00:00+02:00',
+    type: 'Warsztat',
+    title: '👨‍🏫 📊WARSZTATY - Kurs z psychoonkologii z mgr Pawłem Pilkiewiczem',
+    who: 'mgr Paweł Pilkiewicz',
+    speaker: 'mgr Paweł Pilkiewicz',
+    attendeesCount: 36,
+    attendees: [],
+    location: 'Online (Google Meet)',
+    isMandatory: true,
+    isLive: true,
+    isUpcoming: false,
+    notes: 'Warsztaty z zakresu psychoonkologii - część 3.',
+  },
+  {
+    id: '2093578855-rid-1782403200',
+    code: '[26/27] M07',
+    name: 'Studenckie Koło Naukowe Psychoonkologii WSKZ',
+    date: '2026-06-25',
+    dateFormatted: '25.06.2026, 18:00',
+    formattedDate: '25.06.2026, 18:00',
+    start_dt: '2026-06-25T18:00:00+02:00',
+    end_dt: '2026-06-25T20:00:00+02:00',
+    type: 'Warsztat',
+    title: '👨‍🏫 📊WARSZTATY - Kurs z psychoonkologii z mgr Pawłem Pilkiewiczem',
+    who: 'mgr Paweł Pilkiewicz',
+    speaker: 'mgr Paweł Pilkiewicz',
+    attendeesCount: 40,
+    attendees: [],
+    location: 'Online (Google Meet)',
+    isMandatory: true,
+    isLive: true,
+    isUpcoming: false,
+    notes: 'Warsztaty z zakresu psychoonkologii - część 4 (Podsumowanie cyklu).',
+  },
+];
+
 export function getCanonicalMeetingsForOrg(orgId = 'skn-psychoonkologia') {
   const cleanId = String(orgId || '').trim().toLowerCase();
   if (cleanId === 'skn-psychoonkologia' || cleanId === 'skn_psychoonkologia') {
-    return [];
+    return CANONICAL_MEETINGS_PSYCHOONKOLOGIA;
   }
   if (cleanId === 'sknu') {
     return CANONICAL_MEETINGS_SKNU;
@@ -280,11 +430,11 @@ export function getCanonicalMeetingsForOrg(orgId = 'skn-psychoonkologia') {
   if (cleanId === 'skn_seksuologii') {
     return CANONICAL_MEETINGS_2025_2026;
   }
-  return [];
+  return CANONICAL_MEETINGS_PSYCHOONKOLOGIA;
 }
 
 export function getCanonicalMeetings() {
-  return [];
+  return CANONICAL_MEETINGS_PSYCHOONKOLOGIA;
 }
 
-export default [];
+export default CANONICAL_MEETINGS_PSYCHOONKOLOGIA;

@@ -32,7 +32,7 @@ import { useOrg } from './context/OrgContext';
 import { useAcademicYear } from './context/AcademicYearContext';
 import { fetchAllData, AUTHORIZED_INDEXES } from './services/googleSheets';
 import { fetchTeamupEvents, fetchTeamupSubcalendars, DEFAULT_SUBCALENDAR_ID } from './services/teamupService';
-import { materials, initialMembers } from './data/mockData';
+import { materials, initialMembers, initialMeetings } from './data/mockData';
 import { getRecordKey } from './utils/helpers';
 import { getAcademicYearKey } from './utils/academicYear';
 import { getCanonicalMeetingsForOrg, filterLegitimateMeetings } from './utils/canonicalMeetings';
@@ -144,7 +144,7 @@ export default function App() {
   const [resignedKeys, setResignedKeys] = useState([]);
 
   // Teamup Meetings State & Academic Year Filter
-  const [meetings, setMeetings]     = useState([]);
+  const [meetings, setMeetings]     = useState(initialMeetings || []);
   const [subcalendars, setSubcalendars] = useState([
     { id: DEFAULT_SUBCALENDAR_ID || '15520558', name: 'Koła Naukowe > 07 🎗️ SKN Psychoonkologii' },
   ]);

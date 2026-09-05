@@ -1,13 +1,5 @@
 import { initialMembers as seedMembers } from '../data/seedMembers.js';
 
-// ─── Google Sheets gviz/tq fetcher with strict WHITELIST ────────────────────
-// Domyślny arkusz dla Studenckiego Koła Naukowego Psychoonkologii WSKZ
-export const SHEET_ID = '1HbpVQkKdtKqsg0Ew5d3AigZBq-wvQYmJ-vpSIIWLFpg';
-
-// ─── Data graniczna (Cut-off Watermark) dla nowych zgłoszeń w kwarantannie ──
-// Parser ignoruje zgłoszenia starsze niż 5 września 2026 r. 00:00:00
-export const CUTOFF_DATE = new Date('2026-09-05T00:00:00');
-
 export function extractSheetId(input) {
   if (!input) return '';
   const str = String(input).trim();
@@ -15,6 +7,16 @@ export function extractSheetId(input) {
   if (match && match[1]) return match[1];
   return str;
 }
+
+// ─── Google Sheets gviz/tq fetcher with strict WHITELIST ────────────────────
+// Domyślny arkusz dla Studenckiego Koła Naukowego Psychoonkologii WSKZ
+const envSheetInput = import.meta.env?.VITE_GOOGLE_SHEET_ID || import.meta.env?.VITE_SHEETS_URL;
+export const SHEET_ID = envSheetInput ? extractSheetId(envSheetInput) : '1HbpVQkKdtKqsg0Ew5d3AigZBq-wvQYmJ-vpSIIWLFpg';
+
+// ─── Data graniczna (Cut-off Watermark) dla nowych zgłoszeń w kwarantannie ──
+// Parser ignoruje zgłoszenia starsze niż 5 września 2026 r. 00:00:00
+export const CUTOFF_DATE = new Date('2026-09-05T00:00:00');
+
 
 export const AUTHORIZED_INDEXES = new Set([]);
 
