@@ -21,28 +21,27 @@ export const ROLES = {
   },
 };
 
+export const MASTER_ADMIN_EMAILS = [
+  'atomekb73@gmail.com',
+  'atonex73@gmail.com',
+  'psychoonkologia.wskz@gmail.com',
+];
+
 export const DEFAULT_USER = {
-  email: 'atomekb73@gmail.com',
-  name: 'Tomasz Bratkowski',
+  email: 'zarzad.psychoonkologia@wskz.pl',
+  name: 'Zarząd SKN Psychoonkologii',
   avatarUrl: '',
   role: 'SUPER_ADMIN',
-  accessibleOrgs: ['*'], // '*' oznacza dostęp do wszystkich kół
+  accessibleOrgs: ['*'], // Pełne uprawnienia administracyjne
 };
 
 export const DEMO_ACCOUNTS = [
   {
-    email: 'atomekb73@gmail.com',
-    name: 'Tomasz Bratkowski',
-    role: 'SUPER_ADMIN',
-    accessibleOrgs: ['*'],
-    description: 'Konto aktywne',
-  },
-  {
     email: 'zarzad.psychoonkologia@wskz.pl',
     name: 'Zarząd SKN Psychoonkologii',
-    role: 'COORDINATOR',
-    accessibleOrgs: ['skn-psychoonkologia'],
-    description: 'Dostęp dedykowany do koła',
+    role: 'SUPER_ADMIN',
+    accessibleOrgs: ['*'],
+    description: 'Dostęp zarządu (pełne uprawnienia)',
   },
   {
     email: 'opiekun.psychoonkologia@wskz.pl',
@@ -56,7 +55,7 @@ export const DEMO_ACCOUNTS = [
     name: 'Podgląd / Audyt',
     role: 'VIEWER',
     accessibleOrgs: ['*'],
-    description: 'Ewidencja i sprawozdania',
+    description: 'Ewidencja i sprawozdania (tylko odczyt)',
   },
 ];
 
@@ -85,7 +84,15 @@ export function AuthProvider({ children }) {
     try {
       const saved = localStorage.getItem('crm_psychoonkologia_auth_user');
       if (saved) {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (parsed) {
+          const email = (parsed.email || '').toLowerCase();
+          const name = (parsed.name || '').toLowerCase();
+          if (name.includes('bratkowski') && !parsed.token) {
+            return DEFAULT_USER;
+          }
+          return parsed;
+        }
       }
     } catch {}
     return DEFAULT_USER;
@@ -105,17 +112,22 @@ export function AuthProvider({ children }) {
     }
   }, [user]);
 
+  const isMasterUser = useMemo(() => {
+    const userEmail = (user?.email || '').toLowerCase().trim();
+    return MASTER_ADMIN_EMAILS.some(mEmail => mEmail.toLowerCase().trim() === userEmail);
+  }, [user]);
+
   /** Weryfikacja czy użytkownik ma uprawnienia do danego koła */
   const canAccessOrg = useCallback((orgId) => {
     if (!user) return false;
-    if (user.role === 'SUPER_ADMIN') return true;
+    if (isMasterUser || user.role === 'SUPER_ADMIN') return true;
     if (Array.isArray(user.accessibleOrgs)) {
       return user.accessibleOrgs.includes('*') || user.accessibleOrgs.includes(orgId);
     }
     return false;
-  }, [user]);
+  }, [user, isMasterUser]);
 
-  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const isSuperAdmin = isMasterUser || user?.role === 'SUPER_ADMIN';
   const isCoordinator = user?.role === 'COORDINATOR' || isSuperAdmin;
   const isViewer = user?.role === 'VIEWER';
 
@@ -133,14 +145,14 @@ export function AuthProvider({ children }) {
     }
 
     const email = payload.email.toLowerCase().trim();
-    const isOwner = email === 'atomekb73@gmail.com';
+    const isMaster = MASTER_ADMIN_EMAILS.some(mEmail => mEmail.toLowerCase().trim() === email);
 
     const newUser = {
       email,
       name: payload.name || payload.given_name || email.split('@')[0],
       avatarUrl: payload.picture || '',
-      role: isOwner ? 'SUPER_ADMIN' : 'COORDINATOR',
-      accessibleOrgs: isOwner ? ['*'] : ['skn-psychoonkologia'],
+      role: isMaster ? 'SUPER_ADMIN' : 'COORDINATOR',
+      accessibleOrgs: isMaster ? ['*'] : ['skn-psychoonkologia'],
       token: credentialResponse.credential,
     };
 

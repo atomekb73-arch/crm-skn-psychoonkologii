@@ -69,21 +69,11 @@ import {
 
 const DEFAULT_ACCESS_USERS = [
   {
-    id: 'usr_super_admin',
-    name: 'Tomasz Bratkowski',
-    email: 'atomekb73@gmail.com',
-    role: 'SUPER_ADMIN',
-    roleLabel: 'Użytkownik',
-    badgeColor: 'bg-slate-100 text-slate-700 border-slate-200',
-    addedAt: '2026-09-05',
-    isPermanent: true,
-  },
-  {
     id: 'usr_zarzad_01',
     name: 'Zarząd SKN Psychoonkologii',
     email: 'skn.psychoonkologia@wskz.pl',
     role: 'ADMIN',
-    roleLabel: 'Użytkownik',
+    roleLabel: 'Dostęp zarządu',
     badgeColor: 'bg-slate-100 text-slate-700 border-slate-200',
     addedAt: '2026-09-05',
     isPermanent: false,

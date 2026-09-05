@@ -441,8 +441,8 @@ export function BoardCertificateTemplate({
   const docNumber = generateDocumentNumber('BOARD', member?.index || member?.indexNumber || '00000', academicYear, orgTag);
   const activeSupervisors = getActiveSupervisors(supervisors, org);
 
-  const studentName = member?.fullName || `${member?.firstName || ''} ${member?.lastName || ''}`.trim() || 'Tomasz Bratkowski';
-  const indexNumber = member?.index || member?.indexNumber || '15998';
+  const studentName = member?.fullName || `${member?.firstName || ''} ${member?.lastName || ''}`.trim() || 'Imię i Nazwisko Członka';
+  const indexNumber = member?.index || member?.indexNumber || '00000';
   const fieldName = member?.field || 'Psychologia';
 
   return (
