@@ -134,43 +134,122 @@ export function getMeetingType(meeting, customTypes = {}) {
 }
 
 /**
- * Wylicza frekwencję członka na podstawie skategoryzowanych spotkań
+ * Wylicza frekwencję członka na podstawie skategoryzowanych i zakończonych spotkań
  */
-export function calculateCategorizedFrequency(memberIndex, meetings = [], customTypes = {}, fallbackPresent = 0, fallbackAbsent = 0) {
+export function calculateCategorizedFrequency(memberOrIndex, meetings = [], customTypes = {}, fallbackPresent = 0, fallbackAbsent = 0) {
   const safeMeetings = Array.isArray(meetings) ? meetings : [];
-  const conductedMandatory = safeMeetings.filter(
-    m => m && !m.isUpcoming && getMeetingType(m, customTypes) === 'mandatory'
-  );
 
-  if (conductedMandatory.length === 0) {
-    const p = typeof fallbackPresent === 'number' && !isNaN(fallbackPresent) ? fallbackPresent : 0;
-    const a = typeof fallbackAbsent === 'number' && !isNaN(fallbackAbsent) ? fallbackAbsent : 0;
-    const total = p + a;
-    if (total === 0) return { freq: 0, presentMandatory: 0, mandatoryTotal: 0, optionalBonus: 0, totalAttended: 0 };
-    return {
-      freq: Math.min(100, Math.round((p / total) * 100)),
-      presentMandatory: p,
-      mandatoryTotal: total,
-      optionalBonus: 0,
-      totalAttended: p,
-    };
+  // Wyodrębnij identyfikatory członka
+  let cleanIdx = '';
+  let email = '';
+  let fullName = '';
+
+  if (typeof memberOrIndex === 'object' && memberOrIndex !== null) {
+    cleanIdx = String(memberOrIndex.index || memberOrIndex.cleanIndex || memberOrIndex.indexNumber || '').replace(/\D/g, '').replace(/^0+/, '').trim();
+    email = String(memberOrIndex.email || '').trim().toLowerCase();
+    fullName = String(memberOrIndex.fullName || `${memberOrIndex.firstName || ''} ${memberOrIndex.lastName || ''}`).trim().toLowerCase();
+  } else {
+    cleanIdx = String(memberOrIndex || '').replace(/\D/g, '').replace(/^0+/, '').trim();
   }
 
-  const cleanIdx = String(memberIndex || '').replace(/\D/g, '').replace(/^0+/, '').trim();
+  // Spotkania zakończone (nie nadchodzące)
+  const conductedMeetings = safeMeetings.filter(m => m && !m.isUpcoming);
+  const conductedCount = conductedMeetings.length;
 
+  let presentCount = 0;
   let presentMandatory = 0;
   let optionalBonus = 0;
 
-  safeMeetings.forEach(m => {
-    if (!m || m.isUpcoming) return;
+  conductedMeetings.forEach(m => {
     const type = getMeetingType(m, customTypes);
+    let isPresent = false;
+
+    // 1. Sprawdź tablicę attendees
     const attendees = Array.isArray(m.attendees) ? m.attendees : [];
-    const isPresent = attendees.some(att => {
-      const cleanAtt = String(att || '').replace(/\D/g, '').replace(/^0+/, '').trim();
-      return cleanAtt === cleanIdx && cleanIdx !== '';
+    isPresent = attendees.some(att => {
+      if (!att) return false;
+      if (typeof att === 'object') {
+        const attIdx = String(att.index || att.member?.index || '').replace(/\D/g, '').replace(/^0+/, '').trim();
+        const attEmail = String(att.email || att.member?.email || '').trim().toLowerCase();
+        const attName = String(att.fullName || att.rawName || att.name || '').trim().toLowerCase();
+        const isApproved = att.manualApproved !== undefined ? Boolean(att.manualApproved) : (att.status === 'approved' || att.status === 'Zaliczona' || att.status === 'Zaliczono' || att.isEligible);
+        if (!isApproved) return false;
+        if (cleanIdx && attIdx && cleanIdx === attIdx) return true;
+        if (email && attEmail && email === attEmail) return true;
+        if (fullName && attName && (fullName === attName || attName.includes(fullName) || fullName.includes(attName))) return true;
+        return false;
+      }
+      const strAtt = String(att).trim();
+      const cleanAtt = strAtt.replace(/\D/g, '').replace(/^0+/, '').trim();
+      if (cleanIdx && cleanAtt && cleanAtt === cleanIdx) return true;
+      if (email && strAtt.toLowerCase() === email) return true;
+      return false;
     });
 
+    // 2. Sprawdź participantRecords
+    if (!isPresent && Array.isArray(m.participantRecords) && m.participantRecords.length > 0) {
+      isPresent = m.participantRecords.some(p => {
+        if (!p) return false;
+        const isApproved = p.manualApproved !== undefined
+          ? Boolean(p.manualApproved)
+          : (p.isEligible || p.status === 'approved' || p.status === 'Zaliczona' || p.status === 'Zaliczono');
+        if (!isApproved) return false;
+
+        const pIdx = String(p.member?.index || p.index || '').replace(/\D/g, '').replace(/^0+/, '').trim();
+        const pEmail = String(p.member?.email || p.email || '').trim().toLowerCase();
+        const pName = String(p.member?.fullName || p.rawName || '').trim().toLowerCase();
+
+        if (cleanIdx && pIdx && cleanIdx === pIdx) return true;
+        if (email && pEmail && email === pEmail) return true;
+        if (fullName && pName && (pName.includes(fullName) || fullName.includes(pName))) return true;
+        return false;
+      });
+    }
+
+    // 3. Sprawdź localStorage
+    if (!isPresent && typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      const storageKeys = [
+        `crm_attendance_${m.id}`,
+        `crm_attendance_${m.date}`,
+        m.code ? `crm_attendance_${m.code}` : null,
+      ].filter(Boolean);
+
+      for (const key of storageKeys) {
+        try {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            const atts = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.attendees) ? parsed.attendees : []);
+            const matched = atts.some(p => {
+              const isApproved = p.manualApproved !== undefined
+                ? Boolean(p.manualApproved)
+                : (p.isEligible || p.status === 'approved' || p.status === 'Zaliczona' || p.status === 'Zaliczono');
+              if (!isApproved) return false;
+              const pIdx = String(p.member?.index || p.index || '').replace(/\D/g, '').replace(/^0+/, '').trim();
+              const pEmail = String(p.member?.email || p.email || '').trim().toLowerCase();
+              const pName = String(p.member?.fullName || p.rawName || '').trim().toLowerCase();
+              if (cleanIdx && pIdx && cleanIdx === pIdx) return true;
+              if (email && pEmail && email === pEmail) return true;
+              if (fullName && pName && (pName.includes(fullName) || fullName.includes(pName))) return true;
+              return false;
+            });
+            if (matched) {
+              isPresent = true;
+              break;
+            }
+
+            const confIdxs = Array.isArray(parsed?.confirmedIndexes) ? parsed.confirmedIndexes : [];
+            if (cleanIdx && confIdxs.some(ci => String(ci).replace(/\D/g, '').replace(/^0+/, '').trim() === cleanIdx)) {
+              isPresent = true;
+              break;
+            }
+          }
+        } catch {}
+      }
+    }
+
     if (isPresent) {
+      presentCount++;
       if (type === 'mandatory') {
         presentMandatory++;
       } else {
@@ -179,15 +258,35 @@ export function calculateCategorizedFrequency(memberIndex, meetings = [], custom
     }
   });
 
-  const mandatoryTotal = conductedMandatory.length;
-  const totalAttended = presentMandatory + optionalBonus;
-  const freq = mandatoryTotal > 0 ? Math.min(100, Math.round((totalAttended / mandatoryTotal) * 100)) : 0;
+  // Jeśli brak spotkań w harmonogramie, a podano wartości początkowe
+  if (conductedCount === 0) {
+    const p = typeof fallbackPresent === 'number' && !isNaN(fallbackPresent) ? fallbackPresent : 0;
+    const a = typeof fallbackAbsent === 'number' && !isNaN(fallbackAbsent) ? fallbackAbsent : 0;
+    const total = p + a;
+    const freq = total > 0 ? Math.min(100, Math.round((p / total) * 100)) : 0;
+    return {
+      freq,
+      present: p,
+      absent: a,
+      presentMandatory: p,
+      mandatoryTotal: total,
+      optionalBonus: 0,
+      totalAttended: p,
+      conductedTotal: total,
+    };
+  }
+
+  const absentCount = Math.max(0, conductedCount - presentCount);
+  const freq = conductedCount > 0 ? Math.min(100, Math.round((presentCount / conductedCount) * 100)) : 0;
 
   return {
     freq: isNaN(freq) ? 0 : freq,
+    present: presentCount,
+    absent: absentCount,
     presentMandatory,
-    mandatoryTotal,
+    mandatoryTotal: conductedCount,
     optionalBonus,
-    totalAttended,
+    totalAttended: presentCount,
+    conductedTotal: conductedCount,
   };
 }

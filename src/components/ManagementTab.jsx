@@ -153,29 +153,25 @@ export default function ManagementTab({
     // ── DLA SKN PSYCHOONKOLOGII ORAZ NOWYCH INSTANCJI CRM ────────────────────
     if (!isSknSeks) {
       const calc = calculateCategorizedFrequency(
-        cleanIdx,
+        m,
         safeMeetings,
         customMeetingTypes || {},
         m?.present || 0,
         m?.absent || 0
       );
 
-      const rawAttended = typeof m?.present === 'number'
-        ? m.present
-        : (typeof m?.attended === 'number' ? m.attended : (calc?.totalAttended || 0));
-      const absent = Math.max(0, dynamicMandatoryTotal - (calc?.presentMandatory || rawAttended));
-      const freq = typeof m?.attendancePercent === 'number'
-        ? m.attendancePercent
-        : (calc?.freq || 0);
+      const present = calc?.totalAttended ?? calc?.present ?? 0;
+      const absent = calc?.absent ?? 0;
+      const freq = calc?.freq ?? 0;
 
       return {
         freq: isNaN(freq) ? 0 : freq,
-        present: rawAttended,
+        present,
         absent,
-        presentMandatory: calc?.presentMandatory || rawAttended,
-        mandatoryTotal: dynamicMandatoryTotal,
+        presentMandatory: calc?.presentMandatory ?? present,
+        mandatoryTotal: calc?.mandatoryTotal || dynamicMandatoryTotal,
         optionalBonus: calc?.optionalBonus || 0,
-        totalAttended: rawAttended,
+        totalAttended: present,
       };
     }
 
