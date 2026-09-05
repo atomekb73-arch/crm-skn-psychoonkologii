@@ -77,6 +77,8 @@ const DEFAULT_ACCESS_USERS = [
     badgeColor: 'bg-slate-100 text-slate-700 border-slate-200',
     addedAt: '2026-09-05',
     isPermanent: false,
+    isFirstLogin: true,
+    tempPassword: 'Psycho2026!',
   },
 ];
 
@@ -454,6 +456,8 @@ export default function SettingsTab({ members = [], meetings = [] }) {
       badgeColor: roleInfo.badgeColor,
       addedAt: new Date().toISOString().split('T')[0],
       isPermanent: false,
+      isFirstLogin: true,
+      tempPassword: 'Psycho2026!',
     };
 
     const updated = [...accessUsers.filter(u => u.email !== newUser.email), newUser];

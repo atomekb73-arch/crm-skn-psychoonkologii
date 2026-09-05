@@ -69,6 +69,51 @@ export const DEMO_ACCOUNTS = [
 
 const AuthContext = createContext(null);
 
+/** Pobierz zapisane hasło użytkownika */
+export function getUserStoredPassword(email) {
+  if (!email) return null;
+  try {
+    const raw = localStorage.getItem('skn_user_passwords');
+    if (raw) {
+      const passwords = JSON.parse(raw);
+      if (passwords && passwords[email.toLowerCase().trim()]) {
+        return passwords[email.toLowerCase().trim()];
+      }
+    }
+  } catch {}
+  return null;
+}
+
+/** Sprawdź czy użytkownik loguje się po raz pierwszy */
+export function getUserFirstLoginStatus(email, userRecord = null) {
+  if (!email) return true;
+  const cleanEmail = email.toLowerCase().trim();
+
+  try {
+    const raw = localStorage.getItem('skn_user_first_login_status');
+    if (raw) {
+      const statusMap = JSON.parse(raw);
+      if (statusMap && cleanEmail in statusMap) {
+        return !!statusMap[cleanEmail];
+      }
+    }
+  } catch {}
+
+  // Jeśli użytkownik ma już zapisane własne hasło w skn_user_passwords, to nie jest pierwsze logowanie
+  const customPass = getUserStoredPassword(cleanEmail);
+  if (customPass) {
+    return false;
+  }
+
+  // Jeśli rekord użytkownika ma jawnie isFirstLogin: false
+  if (userRecord && userRecord.isFirstLogin === false) {
+    return false;
+  }
+
+  // Domyślnie nowe konta wymagają zmiany hasła przy pierwszym wejściu
+  return true;
+}
+
 /** Prosty dekoder JWT Payload dla Google OAuth 2.0 Identity Services */
 function parseJwtPayload(token) {
   try {
@@ -155,7 +200,7 @@ export function AuthProvider({ children }) {
   const isCoordinator = user?.role === 'COORDINATOR' || isSuperAdmin;
   const isViewer = user?.role === 'VIEWER';
 
-  /** Logowanie z weryfikacją adresu e-mail i hasła dostępowego */
+  /** Logowanie z weryfikacją adresu e-mail, hasła i flagi pierwszego logowania */
   const loginWithCredentials = useCallback((inputEmail, inputPassword) => {
     if (!inputEmail || !inputPassword) {
       return { success: false, error: 'Wypełnij wszystkie pola formularza.' };
@@ -164,13 +209,7 @@ export function AuthProvider({ children }) {
     const cleanEmail = inputEmail.trim().toLowerCase();
     const cleanPassword = inputPassword.trim();
 
-    // 1. Sprawdź hasło dostępowe
-    const isPasswordValid = ACCESS_PASSWORDS.some(p => p && p.trim() === cleanPassword);
-    if (!isPasswordValid) {
-      return { success: false, error: 'Nieprawidłowe hasło dostępowe koła.' };
-    }
-
-    // 2. Zbierz listę autoryzowanych adresów e-mail
+    // 1. Zbierz listę autoryzowanych adresów e-mail
     const isMaster = MASTER_ADMIN_EMAILS.some(e => e.toLowerCase() === cleanEmail);
     const isDefaultBoard = cleanEmail === 'zarzad.psychoonkologia@wskz.pl' || cleanEmail === 'skn.psychoonkologia@wskz.pl';
     const demoMatch = DEMO_ACCOUNTS.find(d => d.email.toLowerCase() === cleanEmail);
@@ -191,6 +230,26 @@ export function AuthProvider({ children }) {
         success: false,
         error: 'Adres e-mail nie posiada uprawnień dostępu. Skontaktuj się z Zarządem Koła w celu dodania uprawnień w panelu Ustawienia.',
       };
+    }
+
+    // 2. Weryfikacja hasła dostępowego
+    const customPassword = getUserStoredPassword(cleanEmail);
+    let isPasswordValid = false;
+
+    if (customPassword) {
+      // Użytkownik ustawił już własne hasło
+      isPasswordValid = customPassword === cleanPassword;
+    } else {
+      // Użytkownik podaje hasło startowe / tymczasowe
+      const allowedTempPasswords = [
+        accessMatch?.tempPassword,
+        ...ACCESS_PASSWORDS,
+      ].filter(Boolean);
+      isPasswordValid = allowedTempPasswords.some(p => p && p.trim() === cleanPassword);
+    }
+
+    if (!isPasswordValid) {
+      return { success: false, error: 'Nieprawidłowe hasło dostępowe.' };
     }
 
     // 3. Utwórz profil zautoryzowanego użytkownika
@@ -224,6 +283,18 @@ export function AuthProvider({ children }) {
       loggedAt: new Date().toISOString(),
     };
 
+    // 4. Sprawdź czy to pierwsze logowanie
+    const isFirstLogin = getUserFirstLoginStatus(cleanEmail, accessMatch);
+
+    if (isFirstLogin) {
+      return {
+        success: true,
+        requiresPasswordChange: true,
+        user: authUser,
+      };
+    }
+
+    // Zalogowanie bez zmiany hasła
     setUser(authUser);
     setIsAuthenticated(true);
 
@@ -239,7 +310,92 @@ export function AuthProvider({ children }) {
       console.warn('Błąd zapisu sesji auth:', e);
     }
 
-    return { success: true };
+    return { success: true, requiresPasswordChange: false };
+  }, []);
+
+  /** Zmiana hasła przy pierwszym logowaniu lub na żądanie */
+  const changePassword = useCallback((email, newPassword, confirmPassword, userData = null) => {
+    if (!email || !newPassword || !confirmPassword) {
+      return { success: false, error: 'Wypełnij wszystkie pola formularza.' };
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const p1 = newPassword.trim();
+    const p2 = confirmPassword.trim();
+
+    if (p1.length < 8) {
+      return { success: false, error: 'Nowe hasło musi zawierać co najmniej 8 znaków.' };
+    }
+
+    if (p1 !== p2) {
+      return { success: false, error: 'Wprowadzone hasła nie są identyczne.' };
+    }
+
+    if (p1 === 'Psycho2026!' || p1 === 'Psychoonkologia2026!' || p1 === 'wskz2026') {
+      return { success: false, error: 'Nowe hasło nie może być hasłem startowym. Wybierz inne, bezpieczne hasło.' };
+    }
+
+    try {
+      // 1. Zapisz nowe hasło w rejestrze haseł użytkowników
+      let passwords = {};
+      try {
+        const rawPass = localStorage.getItem('skn_user_passwords');
+        if (rawPass) passwords = JSON.parse(rawPass);
+      } catch {}
+      passwords[cleanEmail] = p1;
+      localStorage.setItem('skn_user_passwords', JSON.stringify(passwords));
+
+      // 2. Oznacz isFirstLogin jako false
+      let statusMap = {};
+      try {
+        const rawStatus = localStorage.getItem('skn_user_first_login_status');
+        if (rawStatus) statusMap = JSON.parse(rawStatus);
+      } catch {}
+      statusMap[cleanEmail] = false;
+      localStorage.setItem('skn_user_first_login_status', JSON.stringify(statusMap));
+
+      // 3. Zaktualizuj rekord w skn_access_users jeśli istnieje
+      try {
+        const rawUsers = localStorage.getItem('skn_access_users');
+        if (rawUsers) {
+          const accessUsers = JSON.parse(rawUsers);
+          if (Array.isArray(accessUsers)) {
+            const updatedUsers = accessUsers.map(u => {
+              if ((u?.email || '').toLowerCase() === cleanEmail) {
+                return { ...u, isFirstLogin: false, tempPassword: null };
+              }
+              return u;
+            });
+            localStorage.setItem('skn_access_users', JSON.stringify(updatedUsers));
+          }
+        }
+      } catch {}
+
+      // 4. Utwórz obiekt zautoryzowanego użytkownika
+      const authUser = userData || {
+        email: cleanEmail,
+        name: cleanEmail.split('@')[0],
+        role: cleanEmail.includes('zarzad') ? 'SUPER_ADMIN' : 'COORDINATOR',
+        accessibleOrgs: ['*'],
+        loggedAt: new Date().toISOString(),
+      };
+
+      setUser(authUser);
+      setIsAuthenticated(true);
+
+      localStorage.setItem('crm_psychoonkologia_auth_session', JSON.stringify({
+        email: cleanEmail,
+        name: authUser.name,
+        role: authUser.role,
+        timestamp: Date.now(),
+      }));
+      localStorage.setItem('crm_psychoonkologia_auth_user', JSON.stringify(authUser));
+
+      return { success: true };
+    } catch (e) {
+      console.error('Błąd podczas zapisywania nowego hasła:', e);
+      return { success: false, error: 'Wystąpił błąd podczas zapisywania hasła.' };
+    }
   }, []);
 
   /** Logowanie za pomocą Google OAuth 2.0 (Google Identity Services / @react-oauth/google ready) */
@@ -300,6 +456,7 @@ export function AuthProvider({ children }) {
     isViewer,
     canAccessOrg,
     loginWithCredentials,
+    changePassword,
     loginWithGoogle,
     switchDemoAccount,
     logout,
@@ -312,6 +469,7 @@ export function AuthProvider({ children }) {
     isViewer,
     canAccessOrg,
     loginWithCredentials,
+    changePassword,
     loginWithGoogle,
     switchDemoAccount,
     logout,
@@ -331,3 +489,4 @@ export function useAuth() {
   }
   return ctx;
 }
+
