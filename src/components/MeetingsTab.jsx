@@ -79,6 +79,7 @@ export default function MeetingsTab({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [isSavingAttendance, setIsSavingAttendance] = useState(false);
+  const [isClearingAttendance, setIsClearingAttendance] = useState(false);
 
   // Protocol / Meeting Minutes state
   const [isProtocolModalOpen, setIsProtocolModalOpen] = useState(false);
@@ -752,6 +753,65 @@ export default function MeetingsTab({
       setSheetFeedback({ ok: false, error: err.message || 'Błąd odczytu arkusza' });
     } finally {
       setFetchingSheet(false);
+    }
+  }
+
+  async function handleClearAttendanceFromDB() {
+    if (!selectedMeeting) return;
+    const meetTitle = selectedMeeting.code || selectedMeeting.title || selectedMeeting.id;
+    const potw = window.confirm(`Czy na pewno chcesz usunąć wszystkie zapisane obecności dla spotkania "${meetTitle}" z arkusza Google?`);
+    if (!potw) return;
+
+    setIsClearingAttendance(true);
+    try {
+      await deleteMeetingAttendanceFromGAS(selectedMeeting.code || selectedMeeting.id);
+
+      // Czyszczenie stanu lokalnego
+      setRawList('');
+      setResults(null);
+      setParsedParticipants([]);
+      setManualOverrides({});
+
+      // Usunięcie kluczy z localStorage
+      const m = selectedMeeting;
+      const mId = m.id || m.code || m.date;
+      const keysToRemove = [
+        getStorageKey(`crm_attendance_${m.id}`),
+        getStorageKey(`crm_attendance_${m.date}`),
+        m.code ? getStorageKey(`crm_attendance_${m.code}`) : null,
+        getStorageKey(`meeting_${mId}_list`),
+        m.code ? getStorageKey(`meeting_${m.code}_list`) : null,
+        `crm_attendance_${m.id}`,
+        `crm_attendance_${m.date}`,
+        m.code ? `crm_attendance_${m.code}` : null,
+        `attendance_${m.id}`,
+        `attendance_${m.date}`,
+        getMeetingStorageKey(m),
+      ].filter(Boolean);
+
+      keysToRemove.forEach(k => {
+        try { localStorage.removeItem(k); } catch {}
+      });
+
+      if (onMarkAttendance) {
+        onMarkAttendance(m.id || m.date, [], {
+          meetingId: m.id || m.date,
+          meetingDate: m.date,
+          meetingCode: m.code,
+          attendees: [],
+          confirmedIndexes: [],
+          confirmedCount: 0,
+          savedAt: new Date().toISOString(),
+        });
+      }
+
+      setSheetFeedback({ ok: true, message: "Obecności dla tego spotkania zostały usunięte z arkusza Google" });
+      alert("Obecności dla tego spotkania zostały usunięte z arkusza Google");
+    } catch (err) {
+      console.error("Błąd podczas usuwania obecności z GAS:", err);
+      alert("Wystąpił błąd podczas usuwania obecności: " + (err.message || err));
+    } finally {
+      setIsClearingAttendance(false);
     }
   }
 
@@ -1460,15 +1520,28 @@ export default function MeetingsTab({
                       );
                     })()}
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleFetchFromSheet}
-                    disabled={fetchingSheet}
-                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 px-2 py-1 rounded-lg transition border border-indigo-200/80 cursor-pointer disabled:opacity-50"
-                  >
-                    <Download size={12} className={fetchingSheet ? 'animate-spin' : ''} />
-                    <span>{fetchingSheet ? 'Wczytywanie…' : 'Wczytaj z arkusza'}</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleFetchFromSheet}
+                      disabled={fetchingSheet}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 px-2 py-1 rounded-lg transition border border-indigo-200/80 cursor-pointer disabled:opacity-50"
+                    >
+                      <Download size={12} className={fetchingSheet ? 'animate-spin' : ''} />
+                      <span>{fetchingSheet ? 'Wczytywanie…' : 'Wczytaj z arkusza'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleClearAttendanceFromDB}
+                      disabled={isClearingAttendance || !selectedMeeting}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold border border-rose-300 text-rose-700 bg-rose-50 hover:bg-rose-100 px-2.5 py-1 rounded-lg transition cursor-pointer disabled:opacity-50"
+                      title="Usuwa zapisane obecności dla tego spotkania z arkusza Google"
+                    >
+                      <Trash2 size={12} className={isClearingAttendance ? 'animate-spin' : ''} />
+                      <span>{isClearingAttendance ? 'Usuwanie…' : 'Wyczyść obecności z bazy'}</span>
+                    </button>
+                  </div>
                 </div>
 
                 {sheetFeedback && (
