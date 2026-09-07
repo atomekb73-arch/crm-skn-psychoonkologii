@@ -152,16 +152,24 @@ export function calculateCategorizedFrequency(memberOrIndex, meetings = [], cust
     cleanIdx = String(memberOrIndex || '').replace(/\D/g, '').replace(/^0+/, '').trim();
   }
 
-  // Spotkania zakończone (nie nadchodzące)
-  const conductedMeetings = safeMeetings.filter(m => m && !m.isUpcoming);
+  // Spotkania zakończone (nie nadchodzące) - deduplikacja po unikalnym kodzie/ID spotkania
+  const uniqueConductedMap = new Map();
+  safeMeetings.filter(m => m && !m.isUpcoming).forEach(m => {
+    const meetKey = String(m.code || m.id || m.date || '').trim();
+    if (meetKey && !uniqueConductedMap.has(meetKey)) {
+      uniqueConductedMap.set(meetKey, m);
+    }
+  });
+  const conductedMeetings = Array.from(uniqueConductedMap.values());
   const conductedCount = conductedMeetings.length;
 
-  let presentCount = 0;
+  const attendedMeetingCodes = new Set();
   let presentMandatory = 0;
   let optionalBonus = 0;
 
   conductedMeetings.forEach(m => {
     const type = getMeetingType(m, customTypes);
+    const meetCode = String(m.code || m.id || m.date || '').trim();
     let isPresent = false;
 
     // 1. Sprawdź tablicę attendees
@@ -249,14 +257,18 @@ export function calculateCategorizedFrequency(memberOrIndex, meetings = [], cust
     }
 
     if (isPresent) {
-      presentCount++;
-      if (type === 'mandatory') {
-        presentMandatory++;
-      } else {
-        optionalBonus++;
+      if (!attendedMeetingCodes.has(meetCode)) {
+        attendedMeetingCodes.add(meetCode);
+        if (type === 'mandatory') {
+          presentMandatory++;
+        } else {
+          optionalBonus++;
+        }
       }
     }
   });
+
+  const presentCount = attendedMeetingCodes.size;
 
   // Jeśli brak spotkań w harmonogramie, a podano wartości początkowe
   if (conductedCount === 0) {

@@ -88,6 +88,19 @@ export async function deleteMeetingAttendanceFromGAS(kodSpotkania) {
   return await sendToGAS(payload);
 }
 
+/**
+ * Zastępuje obecności zarejestrowane dla gościa (nazwisko) nowo nadanym numerem indeksu w Google Apps Script.
+ */
+export async function claimGuestAttendance(nazwiskoGoscia, nowyNrIndeksu) {
+  const payload = {
+    action: "zastap_goscia_indeksem",
+    nazwiskoGoscia: String(nazwiskoGoscia || "").trim(),
+    nowyNrIndeksu: String(nowyNrIndeksu || "").trim()
+  };
+
+  return await sendToGAS(payload);
+}
+
 // ─── Data graniczna (Cut-off Watermark) dla nowych zgłoszeń w kwarantannie ──
 // Parser ignoruje zgłoszenia starsze niż 5 września 2026 r. 00:00:00
 export const CUTOFF_DATE = new Date('2026-09-05T00:00:00');

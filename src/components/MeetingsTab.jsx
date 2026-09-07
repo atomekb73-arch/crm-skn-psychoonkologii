@@ -579,14 +579,7 @@ export default function MeetingsTab({
       } catch {}
     }
 
-    // Filter confirmed attendee indexes for the meeting
-    const confirmedIndexes = updated
-      .filter(p => p.role === 'member' && p.manualApproved && p.member && p.member.index)
-      .map(p => p.member.index);
-
-    if (selectedMeeting) {
-      onMarkAttendance(selectedMeeting.id, confirmedIndexes);
-    }
+    // Recalculate without premature global state modification
   }
 
   async function processAttendanceFromLines(lines, threshold = minDurationThreshold) {
@@ -609,35 +602,43 @@ export default function MeetingsTab({
       const parsed = parseAttendanceLine(rawLine);
       if (!parsed) return;
 
+      const durMinutes = parseDurationToMinutes(parsed.duration);
+      const isEligible = durMinutes >= threshold;
+      const member = members.find(m => {
+        if (!m) return false;
+        const normRaw = normalizeDiacritics(parsed.rawName);
+        const normFull = normalizeDiacritics(m.fullName || `${m.firstName} ${m.lastName}`);
+        const normIdx = String(m.index || '').trim();
+        const normEmail = normalizeDiacritics(m.email);
+
+        if (normIdx && normRaw.includes(normIdx)) return true;
+        if (normEmail && normRaw.includes(normEmail)) return true;
+        if (normFull && (normRaw.includes(normFull) || normFull.includes(normRaw))) return true;
+        return false;
+      });
+
+      const role = detectParticipantRole(parsed.rawName, member);
       const isSup = isFacultySupervisor(parsed.rawName);
-      const member = !isSup ? findMemberMatch(parsed.rawName) : null;
       const isMonika = isMonikaLyniewska(parsed.rawName);
-      const isEligible = parsed.durationMinutes >= threshold;
-      const pid = `part_${idx}_${member?.index || parsed.rawName.slice(0, 8)}`;
+      const status = isSup ? 'supervisor' : ((isEligible && (member || isMonika)) ? 'approved' : (!isEligible ? 'short_time' : 'unmatched'));
 
-      let role = 'member';
-      if (isSup) role = 'supervisor';
-      else if (member || isMonika) role = 'member';
-
-      const partItem = {
-        id: pid,
+      const pObj = {
+        id: `p_${idx}_${Date.now()}`,
         rawName: parsed.rawName,
-        joinTime: parsed.joinTime || '—',
-        durationStr: parsed.durationStr || `${parsed.durationMinutes} min`,
-        durationMinutes: parsed.durationMinutes,
-        member: member || null,
+        joinTime: parsed.time || '18:00',
+        durationStr: parsed.duration,
+        durationMinutes: durMinutes,
+        member: member || (isMonika ? { fullName: 'Monika Łyniewska', index: '34327', email: '34327@student.wskz.pl' } : null),
         role,
-        isGuest: false,
-        isEligible: isSup ? true : isEligible,
-        manualApproved: isSup ? true : isEligible,
-        hasManualOverride: isSup,
-        status: isSup ? 'supervisor' : (!member ? 'unmatched' : isEligible ? 'approved' : 'rejected_short_time'),
+        isEligible,
+        manualApproved: isSup || isMonika || (isEligible && !!member),
+        hasManualOverride: false,
+        status,
       };
 
-      participants.push(partItem);
-
+      participants.push(pObj);
       if (isSup) {
-        // Faculty Supervisor
+        // Supervisor
       } else if (member) {
         if (isEligible) matched.push(member);
       } else {
@@ -653,20 +654,6 @@ export default function MeetingsTab({
       localStorage.setItem(storageKey, JSON.stringify(participants));
     } catch {}
 
-    const confirmedIndexes = participants
-      .filter(p => p.manualApproved && (p.member || isMonikaLyniewska(p.rawName)))
-      .map(p => p.member?.index || (isMonikaLyniewska(p.rawName) ? '34327' : (p.rawName.match(/\d{4,6}/)?.[0] || '')))
-      .filter(Boolean);
-
-    onMarkAttendance(selectedMeeting.id, confirmedIndexes, {
-      meetingId: selectedMeeting.id,
-      meetingDate: selectedMeeting.date,
-      meetingCode: selectedMeeting.code,
-      attendees: participants,
-      confirmedIndexes,
-      confirmedCount: confirmedIndexes.length,
-      savedAt: new Date().toISOString(),
-    });
     setResults({ matched, unmatched });
   }
 
@@ -679,9 +666,10 @@ export default function MeetingsTab({
       .map(p => p.member?.index || (isMonikaLyniewska(p.rawName) ? '34327' : (p.rawName.match(/\d{4,6}/)?.[0] || '')))
       .filter(Boolean);
 
+    const meetCode = String(selectedMeeting?.code || selectedMeeting?.id || "M00").trim();
     const payload = {
       action: "zapisz_obecnosci",
-      kodSpotkania: selectedMeeting?.code || "M00",
+      kodSpotkania: meetCode,
       dataSpotkania: selectedMeeting?.date || new Date().toISOString().slice(0, 10),
       obecnosci: verifiedList.map(item => ({
         nrIndeksu: String(item.nrIndeksu || item.index || item).trim()
@@ -742,13 +730,14 @@ export default function MeetingsTab({
 
   async function handleClearAttendanceFromDB() {
     if (!selectedMeeting) return;
+    const meetCode = String(selectedMeeting.code || selectedMeeting.id || '').trim();
     const meetTitle = selectedMeeting.code || selectedMeeting.title || selectedMeeting.id;
     const potw = window.confirm(`Czy na pewno chcesz usunąć wszystkie zapisane obecności dla spotkania "${meetTitle}" z arkusza Google?`);
     if (!potw) return;
 
     setIsClearingAttendance(true);
     try {
-      await deleteMeetingAttendanceFromGAS(selectedMeeting.code || selectedMeeting.id);
+      await deleteMeetingAttendanceFromGAS(meetCode);
 
       // Czyszczenie stanu lokalnego
       setRawList('');
@@ -770,6 +759,9 @@ export default function MeetingsTab({
         m.code ? `crm_attendance_${m.code}` : null,
         `attendance_${m.id}`,
         `attendance_${m.date}`,
+        m.code ? `attendance_${m.code}` : null,
+        `meeting_${mId}_list`,
+        m.code ? `meeting_${m.code}_list` : null,
         getMeetingStorageKey(m),
       ].filter(Boolean);
 
