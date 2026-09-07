@@ -442,60 +442,8 @@ export default function MeetingsTab({
       setRawList(preview);
       try { localStorage.setItem(listKey, preview); } catch {}
     } else {
-      // Direct reading from loaded members attendance column in sheet
-      const attendeesFromMembers = members.filter(mem => {
-        if (!mem) return false;
-        const attVal = mem.attendance?.[mId] ?? mem[mId] ?? mem[`att_${mId}`] ?? mem[`M0${String(mId).replace(/\D/g, '')}`];
-        return attVal === 1 || attVal === '1' || attVal === true;
-      });
-
-      if (attendeesFromMembers.length > 0) {
-        const reconstructed = attendeesFromMembers.map((mem, i) => ({
-          id: `att_${mId}_${i}_${mem.index || i}`,
-          rawName: mem.fullName || `${mem.firstName || ''} ${mem.lastName || ''}`.trim() || `Członek (${mem.index || mem.email})`,
-          joinTime: '18:00',
-          durationStr: '60 min',
-          durationMinutes: 60,
-          member: mem,
-          role: 'member',
-          isEligible: true,
-          manualApproved: true,
-          hasManualOverride: false,
-          status: 'approved',
-        }));
-        setParsedParticipants(reconstructed);
-        const preview = reconstructed.map(a => `${a.rawName} (${a.member?.index || a.member?.email || 'brak-nr'})\t18:00\t60 min`).join('\n');
-        setRawList(preview);
-        try { localStorage.setItem(listKey, preview); } catch {}
-      } else if (m.attendeesCount && m.attendeesCount > 0) {
-        // Fallback reconstruction for canonical meetings
-        const reconstructed = Array.from({ length: m.attendeesCount }).map((_, i) => {
-          const mem = members[i % Math.max(1, members.length)];
-          const name = mem
-            ? (mem.fullName || `${mem.firstName || ''} ${mem.lastName || ''}`.trim())
-            : `Uczestnik Spotkania ${i + 1}`;
-          return {
-            id: `att_${mId}_${i}`,
-            rawName: name,
-            joinTime: '18:00',
-            durationStr: '60 min',
-            durationMinutes: 60,
-            member: mem || null,
-            role: 'member',
-            isEligible: true,
-            manualApproved: true,
-            hasManualOverride: false,
-            status: mem ? 'approved' : 'unmatched',
-          };
-        });
-        setParsedParticipants(reconstructed);
-        const preview = reconstructed.map(p => `${p.rawName}\t18:00\t60 min`).join('\n');
-        setRawList(preview);
-        try { localStorage.setItem(listKey, preview); } catch {}
-      } else {
-        setParsedParticipants([]);
-        setRawList('');
-      }
+      setParsedParticipants([]);
+      setRawList('');
     }
   }
 

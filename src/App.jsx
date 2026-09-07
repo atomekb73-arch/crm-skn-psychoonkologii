@@ -419,6 +419,26 @@ export default function App() {
   }, [currentOrg, loadMeetings, getStorageKey]);
 
   useEffect(() => {
+    // Purge legacy mock attendance data for M01 from localStorage on startup
+    try {
+      const purgeKey = 'crm_mock_attendance_purged_v3';
+      if (!localStorage.getItem(purgeKey)) {
+        const keysToPurge = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (k.includes('2089952664') || k.includes('M01') || k.includes('2026-05-07'))) {
+            keysToPurge.push(k);
+          }
+        }
+        keysToPurge.forEach(k => {
+          try { localStorage.removeItem(k); } catch {}
+        });
+        localStorage.setItem(purgeKey, 'true');
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
     // Auto-switch subcalendar and re-load when switching active organization
     try {
       setApprovedKeys(JSON.parse(localStorage.getItem(getStorageKey('crm_approved_keys'))) || []);
