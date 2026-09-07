@@ -16,6 +16,36 @@ export const SHEET_ID = envSheetInput ? extractSheetId(envSheetInput) : '1HbpVQk
 export const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxh22FMWRfO4Euej5dtANPKz7JlJm4xDUvy6cEGQa-sIZgd7Zk0E5NptQWJdTnkFG-c/exec";
 export const GAS_ENDPOINT = GAS_WEBAPP_URL;
 
+/**
+ * Uniwersalna funkcja przesyłająca żądania POST do Google Apps Script
+ * bez wyzwalania pre-flight OPTIONS (CORS safe).
+ */
+export async function sendToGAS(payload) {
+  const GAS_URL = GAS_WEBAPP_URL;
+  
+  console.log("Wysyłam payload do GAS:", payload);
+
+  const response = await fetch(GAS_URL, {
+    method: "POST",
+    mode: "cors",
+    redirect: "follow",
+    headers: {
+      "Content-Type": "text/plain;charset=utf-8"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  let responseData = null;
+  try {
+    responseData = await response.json();
+  } catch {
+    responseData = { status: "success" };
+  }
+
+  console.log("Odpowiedź z GAS:", responseData);
+  return responseData;
+}
+
 export async function updateVerificationStatus(nrIndeksu, nowyStatus = "Zatwierdzony") {
   const payload = {
     action: "zmien_status",
@@ -24,18 +54,7 @@ export async function updateVerificationStatus(nrIndeksu, nowyStatus = "Zatwierd
     zatwierdzajacy: "Zarząd KNS"
   };
 
-  const response = await fetch(GAS_ENDPOINT, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify(payload),
-    redirect: "follow"
-  });
-
-  try {
-    return await response.json();
-  } catch {
-    return { status: "success" };
-  }
+  return await sendToGAS(payload);
 }
 
 export async function changeStudentStatusInGAS({ nrIndeksu, nowyStatus = "Zatwierdzony", zatwierdzajacy = "Zarząd KNS" }) {
@@ -56,24 +75,7 @@ export async function saveMeetingAttendanceToGAS({ kodSpotkania, dataSpotkania, 
     })).filter(item => item.nrIndeksu)
   };
 
-  console.log("Wysyłam payload obecności:", payload);
-
-  const response = await fetch(GAS_ENDPOINT, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify(payload),
-    redirect: "follow"
-  });
-
-  let responseData = null;
-  try {
-    responseData = await response.json();
-  } catch {
-    responseData = { status: "success" };
-  }
-
-  console.log("Odpowiedź z GAS:", responseData);
-  return responseData;
+  return await sendToGAS(payload);
 }
 
 // ─── Data graniczna (Cut-off Watermark) dla nowych zgłoszeń w kwarantannie ──
