@@ -32,7 +32,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { MEETING_TYPES, getMeetingType } from '../utils/meetingTypes';
-import { parseAttendanceLine, parseDurationToMinutes, fetchMeetingSheetAttendance, saveMeetingAttendanceToGAS } from '../services/googleSheets';
+import { parseAttendanceLine, parseDurationToMinutes, fetchMeetingSheetAttendance, saveMeetingAttendanceToGAS, sendToGAS } from '../services/googleSheets';
 import { isFacultySupervisor, isMonikaLyniewska, FACULTY_SUPERVISORS, PARTICIPANT_ROLES } from '../utils/specialRoles';
 import { useOrg } from '../context/OrgContext';
 import AttendanceModal from './AttendanceModal';
@@ -668,46 +668,26 @@ export default function MeetingsTab({
     });
     setResults({ matched, unmatched });
 
-    // Wyślij bezpośrednio do Apps Script z obsługą CORS
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbxh22FMWRfO4Euej5dtANPKz7JlJm4xDUvy6cEGQa-sIZgd7Zk0E5NptQWJdTnkFG-c/exec";
-    const payload = {
-      action: "zapisz_obecnosci",
-      kodSpotkania: selectedMeeting?.code || "M00",
-      dataSpotkania: selectedMeeting?.date || new Date().toISOString().slice(0, 10),
-      obecnosci: confirmedIndexes.map(item => ({
-        nrIndeksu: String(item.nrIndeksu || item.index || item).trim()
-      }))
-    };
-
+    // Wyślij bezpośrednio do Apps Script z obsługą simple request (no-cors)
     try {
-      const res = await fetch(GAS_URL, {
-        method: "POST",
-        mode: "cors",
-        redirect: "follow",
-        headers: {
-          "Content-Type": "text/plain;charset=utf-8"
-        },
-        body: JSON.stringify(payload)
+      await sendToGAS({
+        action: "zapisz_obecnosci",
+        kodSpotkania: selectedMeeting?.code || "M00",
+        dataSpotkania: selectedMeeting?.date || new Date().toISOString().slice(0, 10),
+        obecnosci: confirmedIndexes.map(item => ({
+          nrIndeksu: String(item.nrIndeksu || item.index || item).trim()
+        }))
       });
-      
-      const result = await res.json();
-      console.log("Wynik zapisu w GAS:", result);
-
-      if (result.status === "success") {
-        alert("Obecności zostały zapisane w arkuszu Google!");
-      } else {
-        alert("Błąd zapisu w arkuszu: " + (result.message || "Nieznany błąd"));
-      }
+      alert("Obecności zostały zapisane w arkuszu Google!");
     } catch (err) {
       console.error("Błąd sieciowy podczas zapisu do GAS:", err);
-      alert("Błąd połączenia z bazą Google Sheets: " + err.message);
+      alert("Błąd połączenia z bazą Google Sheets: " + (err.message || err));
     }
   }
 
   async function handleSaveSidebarAttendance() {
     if (!selectedMeeting || parsedParticipants.length === 0) return;
     setIsSavingAttendance(true);
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbxh22FMWRfO4Euej5dtANPKz7JlJm4xDUvy6cEGQa-sIZgd7Zk0E5NptQWJdTnkFG-c/exec";
 
     const verifiedList = parsedParticipants
       .filter(p => p.manualApproved && (p.member || isMonikaLyniewska(p.rawName)))
@@ -724,37 +704,23 @@ export default function MeetingsTab({
     };
 
     try {
-      const res = await fetch(GAS_URL, {
-        method: "POST",
-        mode: "cors",
-        redirect: "follow",
-        headers: {
-          "Content-Type": "text/plain;charset=utf-8"
-        },
-        body: JSON.stringify(payload)
-      });
-      
-      const result = await res.json();
+      const result = await sendToGAS(payload);
       console.log("Wynik zapisu w GAS:", result);
 
-      if (result.status === "success") {
-        const confirmedIndexes = verifiedList.map(item => String(item).trim());
-        onMarkAttendance(selectedMeeting.id, confirmedIndexes, {
-          meetingId: selectedMeeting.id,
-          meetingDate: selectedMeeting.date,
-          meetingCode: selectedMeeting.code,
-          attendees: parsedParticipants,
-          confirmedIndexes,
-          confirmedCount: confirmedIndexes.length,
-          savedAt: new Date().toISOString(),
-        });
-        alert("Obecności zostały zapisane w arkuszu Google!");
-      } else {
-        alert("Błąd zapisu w arkuszu: " + (result.message || "Nieznany błąd"));
-      }
+      const confirmedIndexes = verifiedList.map(item => String(item).trim());
+      onMarkAttendance(selectedMeeting.id, confirmedIndexes, {
+        meetingId: selectedMeeting.id,
+        meetingDate: selectedMeeting.date,
+        meetingCode: selectedMeeting.code,
+        attendees: parsedParticipants,
+        confirmedIndexes,
+        confirmedCount: confirmedIndexes.length,
+        savedAt: new Date().toISOString(),
+      });
+      alert("Obecności zostały zapisane w arkuszu Google!");
     } catch (err) {
       console.error("Błąd sieciowy podczas zapisu do GAS:", err);
-      alert("Błąd połączenia z bazą Google Sheets: " + err.message);
+      alert("Błąd połączenia z bazą Google Sheets: " + (err.message || err));
     } finally {
       setIsSavingAttendance(false);
     }

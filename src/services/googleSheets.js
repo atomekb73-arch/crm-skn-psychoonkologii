@@ -18,46 +18,43 @@ export const GAS_ENDPOINT = GAS_WEBAPP_URL;
 
 /**
  * Uniwersalna funkcja przesyłająca żądania POST do Google Apps Script
- * bez wyzwalania pre-flight OPTIONS (CORS safe).
+ * bez wyzwalania pre-flight OPTIONS (CORS safe proste żądanie POST).
  */
 export async function sendToGAS(payload) {
-  const GAS_URL = GAS_WEBAPP_URL;
-  
-  console.log("Wysyłam payload do GAS:", payload);
+  const GAS_URL = "https://script.google.com/macros/s/AKfycbxh22FMWRfO4Euej5dtANPKz7JlJm4xDUvy6cEGQa-sIZgd7Zk0E5NptQWJdTnkFG-c/exec";
 
-  const response = await fetch(GAS_URL, {
-    method: "POST",
-    mode: "cors",
-    redirect: "follow",
-    headers: {
-      "Content-Type": "text/plain;charset=utf-8"
-    },
-    body: JSON.stringify(payload)
-  });
-
-  let responseData = null;
+  // Wymuszenie prostego POST bez preflight OPTIONS:
+  // 1. Brak niestandardowych nagłówków
+  // 2. Content-Type: text/plain (Apps Script bez problemu parsuje to przez e.postData.contents)
+  // 3. mode: "no-cors" gwarantuje, że przeglądarka nie zablokuje transferu
   try {
-    responseData = await response.json();
-  } catch {
-    responseData = { status: "success" };
-  }
+    await fetch(GAS_URL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: {
+        "Content-Type": "text/plain"
+      },
+      body: JSON.stringify(payload)
+    });
 
-  console.log("Odpowiedź z GAS:", responseData);
-  return responseData;
+    console.log("Dane pomyślnie wysłane do GAS (no-cors):", payload);
+    return { status: "success" };
+  } catch (err) {
+    console.error("Błąd wysyłki do GAS:", err);
+    throw err;
+  }
 }
 
 export async function updateVerificationStatus(nrIndeksu, nowyStatus = "Zatwierdzony") {
-  const payload = {
+  return await sendToGAS({
     action: "zmien_status",
     nrIndeksu: String(nrIndeksu).trim(),
     nowyStatus: nowyStatus,
-    zatwierdzajacy: "Zarząd KNS"
-  };
-
-  return await sendToGAS(payload);
+    zatwierdzajacy: "Zarząd SKN"
+  });
 }
 
-export async function changeStudentStatusInGAS({ nrIndeksu, nowyStatus = "Zatwierdzony", zatwierdzajacy = "Zarząd KNS" }) {
+export async function changeStudentStatusInGAS({ nrIndeksu, nowyStatus = "Zatwierdzony", zatwierdzajacy = "Zarząd SKN" }) {
   return updateVerificationStatus(nrIndeksu, nowyStatus);
 }
 
