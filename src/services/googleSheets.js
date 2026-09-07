@@ -13,8 +13,8 @@ export function extractSheetId(input) {
 const envSheetInput = import.meta.env?.VITE_GOOGLE_SHEET_ID || import.meta.env?.VITE_SHEETS_URL;
 export const SHEET_ID = envSheetInput ? extractSheetId(envSheetInput) : '1HbpVQkKdtKqsg0Ew5d3AigZBq-wvQYmJ-vpSIIWLFpg';
 
-export const GAS_ENDPOINT = "https://script.google.com/macros/s/AKfycbzENoY3UiEBkZkS6Dev2HNuXgiAlrRnJJGS3cmM5co2OWtdebp1TrJHBz6poLByxJil/exec";
-export const GAS_WEBAPP_URL = GAS_ENDPOINT;
+export const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxh22FMWRfO4Euej5dtANPKz7JlJm4xDUvy6cEGQa-sIZgd7Zk0E5NptQWJdTnkFG-c/exec";
+export const GAS_ENDPOINT = GAS_WEBAPP_URL;
 
 export async function updateVerificationStatus(nrIndeksu, nowyStatus = "Zatwierdzony") {
   const payload = {
