@@ -16,35 +16,30 @@ export const SHEET_ID = envSheetInput ? extractSheetId(envSheetInput) : '1HbpVQk
 // ─── Produkcyjny adres Google Apps Script Web App (backend SKN 2026/2027) ────
 export const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzENoY3UiEBkZkS6Dev2HNuXgiAlrRnJJGS3cmM5co2OWtdebp1TrJHBz6poLByxJil/exec";
 
-/**
- * Obsługa akcji "zmien_status" (weryfikacja kwarantanny) w backendzie Google Apps Script.
- * Skrypt rejestruje wpis bezpośrednio w zakładce "Decyzje_Kwarantanny".
- */
-export async function changeStudentStatusInGAS({ nrIndeksu, nowyStatus = "Zatwierdzony", zatwierdzajacy = "Zarząd KNS" }) {
-  const cleanIndex = String(nrIndeksu || '').trim();
-  try {
-    const response = await fetch(GAS_WEBAPP_URL, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({
-        action: "zmien_status",
-        nrIndeksu: cleanIndex,
-        nowyStatus,
-        zatwierdzajacy,
-      }),
-      redirect: "follow",
-    });
+export async function updateVerificationStatus(nrIndeksu, nowyStatus = "Zatwierdzony") {
+  const payload = {
+    action: "zmien_status",
+    nrIndeksu: String(nrIndeksu).trim(),
+    nowyStatus: nowyStatus,
+    zatwierdzajacy: "Zarząd KNS"
+  };
 
-    try {
-      const data = await response.json();
-      return data;
-    } catch {
-      return { status: "success" };
-    }
-  } catch (error) {
-    console.warn("Błąd połączenia z backendem GAS (zmien_status):", error);
-    return { status: "success", fallback: true };
+  const response = await fetch(GAS_WEBAPP_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(payload),
+    redirect: "follow"
+  });
+
+  try {
+    return await response.json();
+  } catch {
+    return { status: "success" };
   }
+}
+
+export async function changeStudentStatusInGAS({ nrIndeksu, nowyStatus = "Zatwierdzony", zatwierdzajacy = "Zarząd KNS" }) {
+  return updateVerificationStatus(nrIndeksu, nowyStatus);
 }
 
 // ─── Data graniczna (Cut-off Watermark) dla nowych zgłoszeń w kwarantannie ──

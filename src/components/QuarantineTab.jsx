@@ -18,6 +18,7 @@ import {
   UserX,
   Mail,
   Send,
+  Loader2,
 } from 'lucide-react';
 import EditMemberModal from './EditMemberModal';
 import WelcomeMailModal from './WelcomeMailModal';
@@ -128,6 +129,10 @@ export default function QuarantineTab({
   const [deleteModalEntry, setDeleteModalEntry] = useState(null);
   const [editingMember, setEditingMember] = useState(null);
   const [welcomeMailMember, setWelcomeMailMember] = useState(null);
+
+  // Approval Loading State
+  const [approvingIds, setApprovingIds] = useState(new Set());
+  const [isBulkApproving, setIsBulkApproving] = useState(false);
 
   const [sortConfig, setSortConfig] = useState({ key: 'timestamp', direction: 'desc' });
 
@@ -299,10 +304,32 @@ export default function QuarantineTab({
     return validIds.every(id => selectedIds.includes(id));
   }, [evaluatedQuarantine, selectedIds]);
 
-  const handleBulkApproveClick = () => {
+  const handleSingleApprove = async (id) => {
+    setApprovingIds(prev => new Set([...prev, id]));
+    try {
+      if (onApprove) {
+        await onApprove(id);
+      }
+    } finally {
+      setApprovingIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  };
+
+  const handleBulkApproveClick = async () => {
     if (selectedIds.length === 0) return;
-    onBulkApprove(selectedIds);
-    setSelectedIds([]);
+    setIsBulkApproving(true);
+    try {
+      if (onBulkApprove) {
+        await onBulkApprove(selectedIds);
+      }
+      setSelectedIds([]);
+    } finally {
+      setIsBulkApproving(false);
+    }
   };
 
   const handleBulkArchiveClick = () => {
@@ -563,10 +590,11 @@ export default function QuarantineTab({
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleBulkApproveClick}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-sm transition-all border border-indigo-400/40"
+                  disabled={isBulkApproving}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-semibold shadow-sm transition-all border border-indigo-400/40"
                 >
-                  <CheckCircle2 size={13} />
-                  Zatwierdź zaznaczone ({selectedIds.length}) do Zarządzania
+                  {isBulkApproving ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+                  <span>{isBulkApproving ? 'Zapisywanie...' : `Zatwierdź zaznaczone (${selectedIds.length}) do Zarządzania`}</span>
                 </button>
 
                 <button
@@ -768,14 +796,20 @@ export default function QuarantineTab({
                               <span>Wyślij powitanie / potwierdzenie</span>
                             </button>
 
-                            <button
-                              onClick={() => onApprove(q.id)}
-                              className="inline-flex items-center gap-1 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg shadow-xs transition cursor-pointer"
-                              title="Zatwierdź studenta do widoku Zarządzania"
-                            >
-                              <CheckCircle2 size={13} />
-                              <span>Zatwierdź</span>
-                            </button>
+                            {(() => {
+                              const isApproving = approvingIds.has(q.id);
+                              return (
+                                <button
+                                  onClick={() => handleSingleApprove(q.id)}
+                                  disabled={isApproving}
+                                  className="inline-flex items-center gap-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg shadow-xs transition cursor-pointer"
+                                  title="Zatwierdź studenta do widoku Zarządzania"
+                                >
+                                  {isApproving ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+                                  <span>{isApproving ? 'Zapisywanie...' : 'Zatwierdź'}</span>
+                                </button>
+                              );
+                            })()}
 
                             <button
                               onClick={() => onArchive(q.id)}
