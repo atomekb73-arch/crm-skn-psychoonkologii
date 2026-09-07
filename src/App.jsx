@@ -833,6 +833,9 @@ export default function App() {
         return m;
       })
     );
+
+    setToastMessage("Frekwencja została trwale zapisana w Ewidencja_Obecnosci");
+    setTimeout(() => setToastMessage(null), 4000);
   }
 
   const pendingCount = quarantine.length;

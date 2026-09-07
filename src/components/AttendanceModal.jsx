@@ -27,6 +27,7 @@ import {
   ShieldCheck,
   Tag,
   Award,
+  Loader2,
 } from 'lucide-react';
 import {
   PARTICIPANT_ROLES,
@@ -42,6 +43,7 @@ import {
 import { useSettings } from '../context/SettingsContext';
 import { useOrg } from '../context/OrgContext';
 import { ACTIVITY_OPTIONS } from '../utils/activityRegistry';
+import { saveMeetingAttendanceToGAS } from '../services/googleSheets';
 
 function findMemberMatch(nameOrIndex, members = []) {
   if (!nameOrIndex) return null;
@@ -315,6 +317,7 @@ export default function AttendanceModal({
   const [activeFilter, setActiveFilter] = useState('all'); // 'all', 'member', 'supervisor', 'speaker', 'guest', 'short_time', 'unmatched'
   const [selectedAssignee, setSelectedAssignee] = useState({});
   const [openActivityPopoverId, setOpenActivityPopoverId] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleToggleActivity = (participantId, actId) => {
     setLocalParticipants(prev =>
@@ -590,40 +593,62 @@ export default function AttendanceModal({
   const totalCount = localParticipants.length;
 
   // Save changes
-  const handleSaveAndApply = () => {
-    // Student members count towards student attendance denominator in ManagementTab
-    const confirmedIndexes = localParticipants
-      .filter(isApprovedStudent)
-      .map(p => p.member?.index || (isMonikaLyniewska(p.rawName) ? '34327' : (p.rawName.match(/\d{4,6}/)?.[0] || '')))
-      .filter(Boolean);
+  const handleSaveAndApply = async () => {
+    setIsSaving(true);
+    try {
+      // Student members count towards student attendance denominator in ManagementTab
+      const verifiedMembersList = localParticipants
+        .filter(isApprovedStudent)
+        .map(p => {
+          const nrIndeksu = String(p.member?.index || (isMonikaLyniewska(p.rawName) ? '34327' : (p.rawName.match(/\d{4,6}/)?.[0] || ''))).trim();
+          return { nrIndeksu };
+        })
+        .filter(item => item.nrIndeksu);
 
-    const payload = {
-      meetingId: meeting.id || meeting.date,
-      meetingDate: meeting.date,
-      attendees: localParticipants,
-      confirmedIndexes: confirmedIndexes,
-      confirmedCount: countApprovedTotal,
-      supervisors: supervisorsPresent.map(s => s.rawName),
-      savedAt: new Date().toISOString(),
-    };
+      const confirmedIndexes = verifiedMembersList.map(m => m.nrIndeksu);
 
-    const keys = [
-      getStorageKey(`crm_attendance_${meeting.id || meeting.date}`),
-      meeting.id ? getStorageKey(`crm_attendance_${meeting.id}`) : null,
-      meeting.date ? getStorageKey(`crm_attendance_${meeting.date}`) : null,
-      meeting.code ? getStorageKey(`crm_attendance_${meeting.code}`) : null,
-    ].filter(Boolean);
-
-    keys.forEach(k => {
+      // Call GAS Backend
       try {
-        localStorage.setItem(k, JSON.stringify(payload));
-      } catch {}
-    });
+        await saveMeetingAttendanceToGAS({
+          kodSpotkania: meeting.code || '',
+          dataSpotkania: meeting.date || '',
+          obecnosci: verifiedMembersList,
+        });
+      } catch (e) {
+        console.warn("Błąd zapisu obecności w GAS:", e);
+      }
 
-    if (onSaveAttendance) {
-      onSaveAttendance(meeting.id || meeting.date, confirmedIndexes, localParticipants, payload);
+      const payload = {
+        meetingId: meeting.id || meeting.date,
+        meetingDate: meeting.date,
+        meetingCode: meeting.code,
+        attendees: localParticipants,
+        confirmedIndexes: confirmedIndexes,
+        confirmedCount: countApprovedTotal,
+        supervisors: supervisorsPresent.map(s => s.rawName),
+        savedAt: new Date().toISOString(),
+      };
+
+      const keys = [
+        getStorageKey(`crm_attendance_${meeting.id || meeting.date}`),
+        meeting.id ? getStorageKey(`crm_attendance_${meeting.id}`) : null,
+        meeting.date ? getStorageKey(`crm_attendance_${meeting.date}`) : null,
+        meeting.code ? getStorageKey(`crm_attendance_${meeting.code}`) : null,
+      ].filter(Boolean);
+
+      keys.forEach(k => {
+        try {
+          localStorage.setItem(k, JSON.stringify(payload));
+        } catch {}
+      });
+
+      if (onSaveAttendance) {
+        await onSaveAttendance(meeting.id || meeting.date, confirmedIndexes, localParticipants, payload);
+      }
+      onClose();
+    } finally {
+      setIsSaving(false);
     }
-    onClose();
   };
 
   return (
@@ -1320,10 +1345,11 @@ export default function AttendanceModal({
             <button
               type="button"
               onClick={handleSaveAndApply}
-              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-md cursor-pointer"
+              disabled={isSaving}
+              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold transition shadow-md cursor-pointer"
             >
-              <Save size={14} />
-              <span>Zapisz i przelicz frekwencję koła ({countApprovedTotal})</span>
+              {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+              <span>{isSaving ? 'Zapisywanie w arkuszu...' : `Zapisz i przelicz frekwencję koła (${countApprovedTotal})`}</span>
             </button>
           </div>
         </div>

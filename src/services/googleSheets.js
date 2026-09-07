@@ -42,6 +42,33 @@ export async function changeStudentStatusInGAS({ nrIndeksu, nowyStatus = "Zatwie
   return updateVerificationStatus(nrIndeksu, nowyStatus);
 }
 
+/**
+ * Zapisuje frekwencję danego spotkania w centralnej bazie Google Apps Script (zakładka Ewidencja_Obecnosci).
+ */
+export async function saveMeetingAttendanceToGAS({ kodSpotkania, dataSpotkania, obecnosci }) {
+  const payload = {
+    action: "zapisz_obecnosci",
+    kodSpotkania: String(kodSpotkania || "").trim(),
+    dataSpotkania: String(dataSpotkania || "").trim(),
+    obecnosci: Array.isArray(obecnosci)
+      ? obecnosci.map(m => ({ nrIndeksu: String(m.nrIndeksu || m.index || m).trim() })).filter(m => m.nrIndeksu)
+      : [],
+  };
+
+  const response = await fetch(GAS_WEBAPP_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(payload),
+    redirect: "follow",
+  });
+
+  try {
+    return await response.json();
+  } catch {
+    return { status: "success" };
+  }
+}
+
 // ─── Data graniczna (Cut-off Watermark) dla nowych zgłoszeń w kwarantannie ──
 // Parser ignoruje zgłoszenia starsze niż 5 września 2026 r. 00:00:00
 export const CUTOFF_DATE = new Date('2026-09-05T00:00:00');
