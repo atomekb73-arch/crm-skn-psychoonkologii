@@ -13,7 +13,7 @@ export function extractSheetId(input) {
 const envSheetInput = import.meta.env?.VITE_GOOGLE_SHEET_ID || import.meta.env?.VITE_SHEETS_URL;
 export const SHEET_ID = envSheetInput ? extractSheetId(envSheetInput) : '1HbpVQkKdtKqsg0Ew5d3AigZBq-wvQYmJ-vpSIIWLFpg';
 
-export const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxh22FMWRfO4Euej5dtANPKz7JlJm4xDUvy6cEGQa-sIZgd7Zk0E5NptQWJdTnkFG-c/exec";
+export const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxtJF-sNBAmWh0zYKkNHDr8Kc6FMrpCJ_d1VCeSNpn0FDS8JoVaKmPN90DRyVVF2RQ0/exec";
 export const GAS_ENDPOINT = GAS_WEBAPP_URL;
 
 /**
@@ -21,7 +21,7 @@ export const GAS_ENDPOINT = GAS_WEBAPP_URL;
  * bez wyzwalania pre-flight OPTIONS (CORS safe proste żądanie POST).
  */
 export async function sendToGAS(payload) {
-  const GAS_URL = "https://script.google.com/macros/s/AKfycbxh22FMWRfO4Euej5dtANPKz7JlJm4xDUvy6cEGQa-sIZgd7Zk0E5NptQWJdTnkFG-c/exec";
+  const GAS_URL = GAS_WEBAPP_URL;
 
   // Wymuszenie prostego POST bez preflight OPTIONS:
   // 1. Brak niestandardowych nagłówków
