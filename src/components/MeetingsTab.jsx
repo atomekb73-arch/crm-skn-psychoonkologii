@@ -29,9 +29,10 @@ import {
   Edit3,
   Trash2,
   Undo2,
+  Loader2,
 } from 'lucide-react';
 import { MEETING_TYPES, getMeetingType } from '../utils/meetingTypes';
-import { parseAttendanceLine, parseDurationToMinutes, fetchMeetingSheetAttendance } from '../services/googleSheets';
+import { parseAttendanceLine, parseDurationToMinutes, fetchMeetingSheetAttendance, saveMeetingAttendanceToGAS } from '../services/googleSheets';
 import { isFacultySupervisor, isMonikaLyniewska, FACULTY_SUPERVISORS, PARTICIPANT_ROLES } from '../utils/specialRoles';
 import { useOrg } from '../context/OrgContext';
 import AttendanceModal from './AttendanceModal';
@@ -77,6 +78,7 @@ export default function MeetingsTab({
   const [sheetFeedback, setSheetFeedback] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [isSavingAttendance, setIsSavingAttendance] = useState(false);
 
   // Protocol / Meeting Minutes state
   const [isProtocolModalOpen, setIsProtocolModalOpen] = useState(false);
@@ -651,11 +653,61 @@ export default function MeetingsTab({
     } catch {}
 
     const confirmedIndexes = participants
-      .filter(p => p.manualApproved && p.member && p.member.index)
-      .map(p => p.member.index);
+      .filter(p => p.manualApproved && (p.member || isMonikaLyniewska(p.rawName)))
+      .map(p => p.member?.index || (isMonikaLyniewska(p.rawName) ? '34327' : (p.rawName.match(/\d{4,6}/)?.[0] || '')))
+      .filter(Boolean);
 
-    onMarkAttendance(selectedMeeting.id, confirmedIndexes);
+    onMarkAttendance(selectedMeeting.id, confirmedIndexes, {
+      meetingId: selectedMeeting.id,
+      meetingDate: selectedMeeting.date,
+      meetingCode: selectedMeeting.code,
+      attendees: participants,
+      confirmedIndexes,
+      confirmedCount: confirmedIndexes.length,
+      savedAt: new Date().toISOString(),
+    });
     setResults({ matched, unmatched });
+
+    // Wyślij automatycznie do GAS po przetworzeniu
+    try {
+      saveMeetingAttendanceToGAS({
+        kodSpotkania: selectedMeeting.code || "M00",
+        dataSpotkania: selectedMeeting.date || new Date().toISOString().slice(0, 10),
+        obecnosci: confirmedIndexes.map(idx => ({ nrIndeksu: idx })),
+      }).catch(e => console.warn("Błąd zapisu obecności w GAS:", e));
+    } catch {}
+  }
+
+  async function handleSaveSidebarAttendance() {
+    if (!selectedMeeting || parsedParticipants.length === 0) return;
+    setIsSavingAttendance(true);
+    try {
+      const listToSave = parsedParticipants
+        .filter(p => p.manualApproved && (p.member || isMonikaLyniewska(p.rawName)))
+        .map(p => p.member?.index || (isMonikaLyniewska(p.rawName) ? '34327' : (p.rawName.match(/\d{4,6}/)?.[0] || '')))
+        .filter(Boolean);
+
+      await saveMeetingAttendanceToGAS({
+        kodSpotkania: selectedMeeting.code || "M00",
+        dataSpotkania: selectedMeeting.date || new Date().toISOString().slice(0, 10),
+        obecnosci: listToSave.map(idx => ({ nrIndeksu: idx })),
+      });
+
+      const confirmedIndexes = listToSave.map(item => String(item).trim());
+      onMarkAttendance(selectedMeeting.id, confirmedIndexes, {
+        meetingId: selectedMeeting.id,
+        meetingDate: selectedMeeting.date,
+        meetingCode: selectedMeeting.code,
+        attendees: parsedParticipants,
+        confirmedIndexes,
+        confirmedCount: confirmedIndexes.length,
+        savedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.warn("Błąd zapisu obecności w GAS:", err);
+    } finally {
+      setIsSavingAttendance(false);
+    }
   }
 
   function handleProcessAttendance() {
@@ -1598,6 +1650,19 @@ export default function MeetingsTab({
                         })}
                       </tbody>
                     </table>
+                  </div>
+
+                  {/* Explicit Save & Sync Button */}
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={handleSaveSidebarAttendance}
+                      disabled={isSavingAttendance}
+                      className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold transition shadow-sm cursor-pointer"
+                    >
+                      {isSavingAttendance ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                      <span>{isSavingAttendance ? 'Zapisywanie w arkuszu...' : `Zatwierdź i zapisz obecności (${approvedParticipantsCount}) w Google Sheets`}</span>
+                    </button>
                   </div>
                 </div>
               )}

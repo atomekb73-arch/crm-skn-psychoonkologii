@@ -610,8 +610,8 @@ export default function AttendanceModal({
       // Call GAS Backend
       try {
         await saveMeetingAttendanceToGAS({
-          kodSpotkania: meeting.code || '',
-          dataSpotkania: meeting.date || '',
+          kodSpotkania: meeting.code || "M00",
+          dataSpotkania: meeting.date || new Date().toISOString().slice(0, 10),
           obecnosci: verifiedMembersList,
         });
       } catch (e) {

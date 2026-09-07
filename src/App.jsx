@@ -834,7 +834,7 @@ export default function App() {
       })
     );
 
-    setToastMessage("Frekwencja została trwale zapisana w Ewidencja_Obecnosci");
+    setToastMessage("Obecności zostały trwale zapisane w arkuszu");
     setTimeout(() => setToastMessage(null), 4000);
   }
 

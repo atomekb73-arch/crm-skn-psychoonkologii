@@ -13,8 +13,8 @@ export function extractSheetId(input) {
 const envSheetInput = import.meta.env?.VITE_GOOGLE_SHEET_ID || import.meta.env?.VITE_SHEETS_URL;
 export const SHEET_ID = envSheetInput ? extractSheetId(envSheetInput) : '1HbpVQkKdtKqsg0Ew5d3AigZBq-wvQYmJ-vpSIIWLFpg';
 
-// ─── Produkcyjny adres Google Apps Script Web App (backend SKN 2026/2027) ────
-export const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzENoY3UiEBkZkS6Dev2HNuXgiAlrRnJJGS3cmM5co2OWtdebp1TrJHBz6poLByxJil/exec";
+export const GAS_ENDPOINT = "https://script.google.com/macros/s/AKfycbzENoY3UiEBkZkS6Dev2HNuXgiAlrRnJJGS3cmM5co2OWtdebp1TrJHBz6poLByxJil/exec";
+export const GAS_WEBAPP_URL = GAS_ENDPOINT;
 
 export async function updateVerificationStatus(nrIndeksu, nowyStatus = "Zatwierdzony") {
   const payload = {
@@ -24,7 +24,7 @@ export async function updateVerificationStatus(nrIndeksu, nowyStatus = "Zatwierd
     zatwierdzajacy: "Zarząd KNS"
   };
 
-  const response = await fetch(GAS_WEBAPP_URL, {
+  const response = await fetch(GAS_ENDPOINT, {
     method: "POST",
     headers: { "Content-Type": "text/plain;charset=utf-8" },
     body: JSON.stringify(payload),
@@ -46,27 +46,34 @@ export async function changeStudentStatusInGAS({ nrIndeksu, nowyStatus = "Zatwie
  * Zapisuje frekwencję danego spotkania w centralnej bazie Google Apps Script (zakładka Ewidencja_Obecnosci).
  */
 export async function saveMeetingAttendanceToGAS({ kodSpotkania, dataSpotkania, obecnosci }) {
+  const listToSave = Array.isArray(obecnosci) ? obecnosci : [];
   const payload = {
     action: "zapisz_obecnosci",
-    kodSpotkania: String(kodSpotkania || "").trim(),
-    dataSpotkania: String(dataSpotkania || "").trim(),
-    obecnosci: Array.isArray(obecnosci)
-      ? obecnosci.map(m => ({ nrIndeksu: String(m.nrIndeksu || m.index || m).trim() })).filter(m => m.nrIndeksu)
-      : [],
+    kodSpotkania: String(kodSpotkania || "M00").trim(),
+    dataSpotkania: String(dataSpotkania || new Date().toISOString().slice(0, 10)).trim(),
+    obecnosci: listToSave.map(item => ({
+      nrIndeksu: String(item.nrIndeksu || item.index || item || "").trim()
+    })).filter(item => item.nrIndeksu)
   };
 
-  const response = await fetch(GAS_WEBAPP_URL, {
+  console.log("Wysyłam payload obecności:", payload);
+
+  const response = await fetch(GAS_ENDPOINT, {
     method: "POST",
     headers: { "Content-Type": "text/plain;charset=utf-8" },
     body: JSON.stringify(payload),
-    redirect: "follow",
+    redirect: "follow"
   });
 
+  let responseData = null;
   try {
-    return await response.json();
+    responseData = await response.json();
   } catch {
-    return { status: "success" };
+    responseData = { status: "success" };
   }
+
+  console.log("Odpowiedź z GAS:", responseData);
+  return responseData;
 }
 
 // ─── Data graniczna (Cut-off Watermark) dla nowych zgłoszeń w kwarantannie ──
