@@ -13,7 +13,7 @@ export function extractSheetId(input) {
 const envSheetInput = import.meta.env?.VITE_GOOGLE_SHEET_ID || import.meta.env?.VITE_SHEETS_URL;
 export const SHEET_ID = envSheetInput ? extractSheetId(envSheetInput) : '1HbpVQkKdtKqsg0Ew5d3AigZBq-wvQYmJ-vpSIIWLFpg';
 
-export const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbx86gh1qJe0aWjfNIJ8ycRRIIIezjs1CDIqZKRcs-R5LJhpbrHDgqzzORFNluaz-iUU/exec";
+export const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzg5ugCPLllyfSyxEDy22wzoau6B3KFt0ts5t7gGCgWf2aeu03ClwDMC0aN56EELhQA/exec";
 export const GAS_ENDPOINT = GAS_WEBAPP_URL;
 
 /**
@@ -45,6 +45,21 @@ export async function sendToGAS(payload) {
   }
 }
 
+/**
+ * Pobiera kompletne dane z backendu Google Apps Script (GET ?action=pobierz_dane).
+ */
+export async function fetchGasData() {
+  try {
+    const res = await fetch(`${GAS_WEBAPP_URL}?action=pobierz_dane`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return data;
+  } catch (err) {
+    console.warn("Błąd pobierania danych z GAS pobierz_dane:", err);
+    return null;
+  }
+}
+
 export async function updateVerificationStatus(nrIndeksu, nowyStatus = "Zatwierdzony") {
   return await sendToGAS({
     action: "zmien_status",
@@ -60,6 +75,7 @@ export async function changeStudentStatusInGAS({ nrIndeksu, nowyStatus = "Zatwie
 
 /**
  * Zapisuje frekwencję danego spotkania w centralnej bazie Google Apps Script (zakładka Ewidencja_Obecnosci).
+ * Przesyła obiekt { nrIndeksu, name, rola } dla każdego uczestnika (członek, gość, opiekun, prelegent).
  */
 export async function saveMeetingAttendanceToGAS({ kodSpotkania, dataSpotkania, obecnosci }) {
   const listToSave = Array.isArray(obecnosci) ? obecnosci : [];
@@ -67,9 +83,23 @@ export async function saveMeetingAttendanceToGAS({ kodSpotkania, dataSpotkania, 
     action: "zapisz_obecnosci",
     kodSpotkania: String(kodSpotkania || "M00").trim(),
     dataSpotkania: String(dataSpotkania || new Date().toISOString().slice(0, 10)).trim(),
-    obecnosci: listToSave.map(item => ({
-      nrIndeksu: String(item.nrIndeksu || item.index || item || "").trim()
-    })).filter(item => item.nrIndeksu)
+    obecnosci: listToSave.map(item => {
+      if (typeof item === 'string') {
+        return {
+          nrIndeksu: item.trim(),
+          name: item.trim(),
+          rola: 'Uczestnik'
+        };
+      }
+      const nrIndeksu = String(item.nrIndeksu || item.index || '').trim();
+      const name = String(item.name || item.fullName || item.rawName || nrIndeksu).trim();
+      const rola = String(item.rola || item.role || (nrIndeksu ? 'Członek koła' : 'Gość')).trim();
+      return {
+        nrIndeksu,
+        name,
+        rola
+      };
+    }).filter(item => item.nrIndeksu || item.name)
   };
 
   return await sendToGAS(payload);
@@ -473,55 +503,90 @@ export async function fetchAllData(sheetId = SHEET_ID) {
       console.warn('Błąd pobierania Baza_Kwarantanna z Google Sheets:', err);
     }
 
-    // 3. Pobierz ewidencję obecności ze spotkań z kolumn w Zarządzanie / Ewidencja_Obecnosci
+    // 3. Pobierz ewidencję obecności ze spotkań z backendu Google Apps Script (GET ?action=pobierz_dane)
     const attendanceByMeeting = {};
     try {
-      const attendanceTable = (usedTab === 'Zarządzanie' && activeTable) ? activeTable : await fetchSheet('Ewidencja_Obecnosci', cleanId);
-      if (attendanceTable && attendanceTable.rows && attendanceTable.rows.length > 1) {
-        const rows = attendanceTable.rows;
-        const headerRow = rows[1]?.c || [];
-        const meetingCols = [];
+      const gasData = await fetchGasData();
+      if (gasData && gasData.ewidencja && Array.isArray(gasData.ewidencja)) {
+        gasData.ewidencja.forEach(item => {
+          const rawCode = String(item.kodSpotkania || '').trim();
+          if (!rawCode) return;
+          const cleanCode = rawCode.toUpperCase().replace(/^\[.*?\]\s*/, '');
+          const entry = {
+            nrIndeksu: String(item.nrIndeksu || '').trim(),
+            index: String(item.nrIndeksu || '').trim(),
+            name: String(item.name || item.fullName || item.nrIndeksu || '').trim(),
+            fullName: String(item.name || item.fullName || item.nrIndeksu || '').trim(),
+            rola: String(item.rola || (item.nrIndeksu ? 'Członek koła' : 'Gość')).trim(),
+            email: item.email || '',
+            joinTime: item.dataSpotkania || '18:00',
+            durationStr: '60 min',
+            durationMinutes: 60,
+          };
 
-        for (let col = 20; col < headerRow.length; col++) {
-          const hVal = cellStr(headerRow[col]);
-          if (!hVal) continue;
-          const firstLine = hVal.split(/[\n\r]+/)[0].trim();
-          const codeMatch = firstLine.match(/^([A-Z0-9-]+)/i);
-          if (codeMatch) {
-            const code = codeMatch[1].trim().toUpperCase();
-            if (code.startsWith('M') || code.startsWith('SP') || code.includes('SPR')) {
-              meetingCols.push({ col, code });
-            }
-          }
-        }
+          if (!attendanceByMeeting[rawCode]) attendanceByMeeting[rawCode] = [];
+          attendanceByMeeting[rawCode].push(entry);
 
-        meetingCols.forEach(({ col, code }) => {
-          if (!attendanceByMeeting[code]) attendanceByMeeting[code] = [];
-          for (let r = 2; r < rows.length; r++) {
-            const rowCells = rows[r]?.c;
-            if (!rowCells) continue;
-            const val = cellVal(rowCells[col]);
-            const isAttended = val === 1 || val === '1' || String(val).trim().toLowerCase() === 'tak' || String(val).trim().toLowerCase() === 'true';
-            if (isAttended) {
-              const email = cellStr(rowCells[0]);
-              const fullName = cellStr(rowCells[1]);
-              const rawIndex = String(cellNum(rowCells[3]) ?? cellStr(rowCells[3]) ?? cellStr(rowCells[1]) ?? '');
-              const cleanIndex = normalizeIndex(rawIndex);
-              attendanceByMeeting[code].push({
-                nrIndeksu: cleanIndex || rawIndex,
-                index: cleanIndex || rawIndex,
-                fullName: fullName || email,
-                email: email,
-                joinTime: '18:00',
-                durationStr: '60 min',
-                durationMinutes: 60
-              });
-            }
+          if (cleanCode && cleanCode !== rawCode) {
+            if (!attendanceByMeeting[cleanCode]) attendanceByMeeting[cleanCode] = [];
+            attendanceByMeeting[cleanCode].push(entry);
           }
         });
       }
     } catch (err) {
-      console.warn('Błąd pobierania obecności ze spotkań z Google Sheets:', err);
+      console.warn('Błąd pobierania ewidencji z GAS pobierz_dane:', err);
+    }
+
+    // Fallback do odczytu kolumn spotkań z tabeli Zarządzanie / Ewidencja_Obecnosci (jeśli GAS nie zwrócił obecności)
+    if (Object.keys(attendanceByMeeting).length === 0) {
+      try {
+        const attendanceTable = (usedTab === 'Zarządzanie' && activeTable) ? activeTable : await fetchSheet('Ewidencja_Obecnosci', cleanId);
+        if (attendanceTable && attendanceTable.rows && attendanceTable.rows.length > 1) {
+          const rows = attendanceTable.rows;
+          const headerRow = rows[1]?.c || [];
+          const meetingCols = [];
+
+          for (let col = 20; col < headerRow.length; col++) {
+            const hVal = cellStr(headerRow[col]);
+            if (!hVal) continue;
+            const firstLine = hVal.split(/[\n\r]+/)[0].trim();
+            const codeMatch = firstLine.match(/^([A-Z0-9-]+)/i);
+            if (codeMatch) {
+              const code = codeMatch[1].trim().toUpperCase();
+              if (code.startsWith('M') || code.startsWith('SP') || code.includes('SPR')) {
+                meetingCols.push({ col, code });
+              }
+            }
+          }
+
+          meetingCols.forEach(({ col, code }) => {
+            if (!attendanceByMeeting[code]) attendanceByMeeting[code] = [];
+            for (let r = 2; r < rows.length; r++) {
+              const rowCells = rows[r]?.c;
+              if (!rowCells) continue;
+              const val = cellVal(rowCells[col]);
+              const isAttended = val === 1 || val === '1' || String(val).trim().toLowerCase() === 'tak' || String(val).trim().toLowerCase() === 'true';
+              if (isAttended) {
+                const email = cellStr(rowCells[0]);
+                const fullName = cellStr(rowCells[1]);
+                const rawIndex = String(cellNum(rowCells[3]) ?? cellStr(rowCells[3]) ?? cellStr(rowCells[1]) ?? '');
+                const cleanIndex = normalizeIndex(rawIndex);
+                attendanceByMeeting[code].push({
+                  nrIndeksu: cleanIndex || rawIndex,
+                  index: cleanIndex || rawIndex,
+                  fullName: fullName || email,
+                  email: email,
+                  joinTime: '18:00',
+                  durationStr: '60 min',
+                  durationMinutes: 60
+                });
+              }
+            }
+          });
+        }
+      } catch (err) {
+        console.warn('Błąd pobierania obecności ze spotkań z tabeli Google Sheets:', err);
+      }
     }
 
     // 4. Pobierz ewidencję poczty z dedykowanej zakładki Ewidencja_Poczty
@@ -826,6 +891,44 @@ export function parseAttendanceLine(rawLine) {
 export async function fetchMeetingSheetAttendance(meetingCode, sheetId = SHEET_ID) {
   const cleanId = extractSheetId(sheetId) || SHEET_ID;
   if (!meetingCode) return { ok: false, error: 'Brak kodu spotkania' };
+
+  const rawCodeUpper = String(meetingCode).trim().toUpperCase();
+  const cleanCodeUpper = rawCodeUpper.replace(/^\[.*?\]\s*/, '');
+
+  // 1. Sprawdź najpierw w centralnym backendzie GAS (action=pobierz_dane)
+  try {
+    const gasData = await fetchGasData();
+    if (gasData && gasData.ewidencja && Array.isArray(gasData.ewidencja)) {
+      const matching = gasData.ewidencja.filter(item => {
+        const itemCode = String(item.kodSpotkania || '').trim().toUpperCase();
+        const itemCleanCode = itemCode.replace(/^\[.*?\]\s*/, '');
+        return itemCode === rawCodeUpper || itemCleanCode === cleanCodeUpper || itemCode.includes(cleanCodeUpper) || cleanCodeUpper.includes(itemCleanCode);
+      });
+
+      if (matching.length > 0) {
+        const participants = matching.map((item, idx) => {
+          const idxStr = String(item.nrIndeksu || '').trim();
+          const nameStr = String(item.name || item.fullName || idxStr || '').trim();
+          const roleStr = String(item.rola || (idxStr ? 'Członek koła' : 'Gość')).trim();
+          return {
+            id: `p_gas_${idx}`,
+            rawName: nameStr && idxStr && !nameStr.includes(idxStr) ? `${nameStr} (${idxStr})` : (nameStr || idxStr),
+            fullName: nameStr,
+            index: idxStr,
+            email: item.email || '',
+            role: roleStr,
+            joinTime: item.dataSpotkania || '18:00',
+            durationStr: '60 min',
+            durationMinutes: 60,
+          };
+        });
+
+        return { ok: true, tabName: 'Ewidencja_Obecnosci (GAS)', participants };
+      }
+    }
+  } catch (gasErr) {
+    console.warn('Błąd odczytu z GAS pobierz_dane:', gasErr);
+  }
 
   const candidates = [
     meetingCode,

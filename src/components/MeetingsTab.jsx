@@ -612,25 +612,32 @@ export default function MeetingsTab({
     setIsSavingAttendance(true);
 
     const verifiedList = parsedParticipants
-      .filter(p => p.manualApproved && (p.member || isMonikaLyniewska(p.rawName)))
-      .map(p => p.member?.index || (isMonikaLyniewska(p.rawName) ? '34327' : (p.rawName.match(/\d{4,6}/)?.[0] || '')))
-      .filter(Boolean);
+      .filter(p => p.manualApproved)
+      .map(p => {
+        const nrIndeksu = p.member?.index || (isMonikaLyniewska(p.rawName) ? '34327' : (p.rawName.match(/\d{4,6}/)?.[0] || ''));
+        const name = p.member?.fullName || p.fullName || p.rawName || '';
+        const rola = p.role || (isFacultySupervisor(p.rawName) ? 'Opiekun' : (nrIndeksu ? 'Członek koła' : 'Gość'));
+        return {
+          nrIndeksu: String(nrIndeksu).trim(),
+          name: String(name).trim(),
+          rola: String(rola).trim()
+        };
+      })
+      .filter(p => p.nrIndeksu || p.name);
 
     const meetCode = String(selectedMeeting?.code || selectedMeeting?.id || "M00").trim();
     const payload = {
       action: "zapisz_obecnosci",
       kodSpotkania: meetCode,
       dataSpotkania: selectedMeeting?.date || new Date().toISOString().slice(0, 10),
-      obecnosci: verifiedList.map(item => ({
-        nrIndeksu: String(item.nrIndeksu || item.index || item).trim()
-      }))
+      obecnosci: verifiedList
     };
 
     try {
       const result = await sendToGAS(payload);
       console.log("Wynik zapisu w GAS:", result);
 
-      const confirmedIndexes = verifiedList.map(item => String(item).trim());
+      const confirmedIndexes = verifiedList.map(item => item.nrIndeksu || item.name).filter(Boolean);
       onMarkAttendance(selectedMeeting.id, confirmedIndexes, {
         meetingId: selectedMeeting.id,
         meetingDate: selectedMeeting.date,

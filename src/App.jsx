@@ -271,10 +271,22 @@ export default function App() {
 
       // Zastosuj frekwencję z Google Sheets jako Jedyne Źródło Prawdy (SSOT)
       const syncedMeetings = finalMeetings.map(m => {
-        const cleanCode = String(m.code || m.id || '').toUpperCase().trim().replace(/^\[.*?\]\s*/, '');
         if (sheetAttendanceMap) {
-          const sheetRecords = sheetAttendanceMap[cleanCode] || sheetAttendanceMap[m.code] || [];
-          const attendeesList = sheetRecords.map(p => p.index || p.nrIndeksu || p.fullName);
+          const rawCode = String(m.code || m.id || '').toUpperCase().trim();
+          const cleanCode = rawCode.replace(/^\[.*?\]\s*/, '');
+          
+          let sheetRecords = sheetAttendanceMap[m.code] || sheetAttendanceMap[rawCode] || sheetAttendanceMap[cleanCode] || null;
+          if (!sheetRecords) {
+            for (const [k, records] of Object.entries(sheetAttendanceMap)) {
+              const kClean = k.toUpperCase().trim().replace(/^\[.*?\]\s*/, '');
+              if (kClean === cleanCode || k.toUpperCase().includes(cleanCode)) {
+                sheetRecords = records;
+                break;
+              }
+            }
+          }
+
+          const attendeesList = (sheetRecords || []).map(p => p.index || p.nrIndeksu || p.fullName);
           const count = attendeesList.length;
           return {
             ...m,
@@ -310,10 +322,22 @@ export default function App() {
         });
 
       const syncedFallback = finalFallback.map(m => {
-        const cleanCode = String(m.code || m.id || '').toUpperCase().trim().replace(/^\[.*?\]\s*/, '');
         if (sheetAttendanceMap) {
-          const sheetRecords = sheetAttendanceMap[cleanCode] || sheetAttendanceMap[m.code] || [];
-          const attendeesList = sheetRecords.map(p => p.index || p.nrIndeksu || p.fullName);
+          const rawCode = String(m.code || m.id || '').toUpperCase().trim();
+          const cleanCode = rawCode.replace(/^\[.*?\]\s*/, '');
+
+          let sheetRecords = sheetAttendanceMap[m.code] || sheetAttendanceMap[rawCode] || sheetAttendanceMap[cleanCode] || null;
+          if (!sheetRecords) {
+            for (const [k, records] of Object.entries(sheetAttendanceMap)) {
+              const kClean = k.toUpperCase().trim().replace(/^\[.*?\]\s*/, '');
+              if (kClean === cleanCode || k.toUpperCase().includes(cleanCode)) {
+                sheetRecords = records;
+                break;
+              }
+            }
+          }
+
+          const attendeesList = (sheetRecords || []).map(p => p.index || p.nrIndeksu || p.fullName);
           const count = attendeesList.length;
           return {
             ...m,
