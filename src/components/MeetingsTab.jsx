@@ -588,7 +588,7 @@ export default function MeetingsTab({
     }
   }
 
-  function processAttendanceFromLines(lines, threshold = minDurationThreshold) {
+  async function processAttendanceFromLines(lines, threshold = minDurationThreshold) {
     if (!selectedMeeting) return;
 
     // Save raw list text in org-scoped storage
@@ -668,52 +668,102 @@ export default function MeetingsTab({
     });
     setResults({ matched, unmatched });
 
-    // Wyślij automatycznie do GAS po przetworzeniu
+    // Wyślij bezpośrednio do Apps Script z obsługą CORS
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxh22FMWRfO4Euej5dtANPKz7JlJm4xDUvy6cEGQa-sIZgd7Zk0E5NptQWJdTnkFG-c/exec";
+    const payload = {
+      action: "zapisz_obecnosci",
+      kodSpotkania: selectedMeeting?.code || "M00",
+      dataSpotkania: selectedMeeting?.date || new Date().toISOString().slice(0, 10),
+      obecnosci: confirmedIndexes.map(item => ({
+        nrIndeksu: String(item.nrIndeksu || item.index || item).trim()
+      }))
+    };
+
     try {
-      saveMeetingAttendanceToGAS({
-        kodSpotkania: selectedMeeting.code || "M00",
-        dataSpotkania: selectedMeeting.date || new Date().toISOString().slice(0, 10),
-        obecnosci: confirmedIndexes.map(idx => ({ nrIndeksu: idx })),
-      }).catch(e => console.warn("Błąd zapisu obecności w GAS:", e));
-    } catch {}
+      const res = await fetch(GAS_URL, {
+        method: "POST",
+        mode: "cors",
+        redirect: "follow",
+        headers: {
+          "Content-Type": "text/plain;charset=utf-8"
+        },
+        body: JSON.stringify(payload)
+      });
+      
+      const result = await res.json();
+      console.log("Wynik zapisu w GAS:", result);
+
+      if (result.status === "success") {
+        alert("Obecności zostały zapisane w arkuszu Google!");
+      } else {
+        alert("Błąd zapisu w arkuszu: " + (result.message || "Nieznany błąd"));
+      }
+    } catch (err) {
+      console.error("Błąd sieciowy podczas zapisu do GAS:", err);
+      alert("Błąd połączenia z bazą Google Sheets: " + err.message);
+    }
   }
 
   async function handleSaveSidebarAttendance() {
     if (!selectedMeeting || parsedParticipants.length === 0) return;
     setIsSavingAttendance(true);
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxh22FMWRfO4Euej5dtANPKz7JlJm4xDUvy6cEGQa-sIZgd7Zk0E5NptQWJdTnkFG-c/exec";
+
+    const verifiedList = parsedParticipants
+      .filter(p => p.manualApproved && (p.member || isMonikaLyniewska(p.rawName)))
+      .map(p => p.member?.index || (isMonikaLyniewska(p.rawName) ? '34327' : (p.rawName.match(/\d{4,6}/)?.[0] || '')))
+      .filter(Boolean);
+
+    const payload = {
+      action: "zapisz_obecnosci",
+      kodSpotkania: selectedMeeting?.code || "M00",
+      dataSpotkania: selectedMeeting?.date || new Date().toISOString().slice(0, 10),
+      obecnosci: verifiedList.map(item => ({
+        nrIndeksu: String(item.nrIndeksu || item.index || item).trim()
+      }))
+    };
+
     try {
-      const listToSave = parsedParticipants
-        .filter(p => p.manualApproved && (p.member || isMonikaLyniewska(p.rawName)))
-        .map(p => p.member?.index || (isMonikaLyniewska(p.rawName) ? '34327' : (p.rawName.match(/\d{4,6}/)?.[0] || '')))
-        .filter(Boolean);
-
-      await saveMeetingAttendanceToGAS({
-        kodSpotkania: selectedMeeting.code || "M00",
-        dataSpotkania: selectedMeeting.date || new Date().toISOString().slice(0, 10),
-        obecnosci: listToSave.map(idx => ({ nrIndeksu: idx })),
+      const res = await fetch(GAS_URL, {
+        method: "POST",
+        mode: "cors",
+        redirect: "follow",
+        headers: {
+          "Content-Type": "text/plain;charset=utf-8"
+        },
+        body: JSON.stringify(payload)
       });
+      
+      const result = await res.json();
+      console.log("Wynik zapisu w GAS:", result);
 
-      const confirmedIndexes = listToSave.map(item => String(item).trim());
-      onMarkAttendance(selectedMeeting.id, confirmedIndexes, {
-        meetingId: selectedMeeting.id,
-        meetingDate: selectedMeeting.date,
-        meetingCode: selectedMeeting.code,
-        attendees: parsedParticipants,
-        confirmedIndexes,
-        confirmedCount: confirmedIndexes.length,
-        savedAt: new Date().toISOString(),
-      });
+      if (result.status === "success") {
+        const confirmedIndexes = verifiedList.map(item => String(item).trim());
+        onMarkAttendance(selectedMeeting.id, confirmedIndexes, {
+          meetingId: selectedMeeting.id,
+          meetingDate: selectedMeeting.date,
+          meetingCode: selectedMeeting.code,
+          attendees: parsedParticipants,
+          confirmedIndexes,
+          confirmedCount: confirmedIndexes.length,
+          savedAt: new Date().toISOString(),
+        });
+        alert("Obecności zostały zapisane w arkuszu Google!");
+      } else {
+        alert("Błąd zapisu w arkuszu: " + (result.message || "Nieznany błąd"));
+      }
     } catch (err) {
-      console.warn("Błąd zapisu obecności w GAS:", err);
+      console.error("Błąd sieciowy podczas zapisu do GAS:", err);
+      alert("Błąd połączenia z bazą Google Sheets: " + err.message);
     } finally {
       setIsSavingAttendance(false);
     }
   }
 
-  function handleProcessAttendance() {
+  async function handleProcessAttendance() {
     if (!rawList.trim()) return;
     const lines = rawList.split('\n').map(l => l.trim()).filter(Boolean);
-    processAttendanceFromLines(lines);
+    await processAttendanceFromLines(lines);
   }
 
   async function handleFetchFromSheet() {
