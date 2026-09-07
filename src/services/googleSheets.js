@@ -505,8 +505,12 @@ export async function fetchAllData(sheetId = SHEET_ID) {
 
     // 3. Pobierz ewidencję obecności ze spotkań z backendu Google Apps Script (GET ?action=pobierz_dane)
     const attendanceByMeeting = {};
+    let gasDecyzje = [];
     try {
       const gasData = await fetchGasData();
+      if (gasData && Array.isArray(gasData.decyzjeKwarantanny)) {
+        gasDecyzje = gasData.decyzjeKwarantanny;
+      }
       if (gasData && gasData.ewidencja && Array.isArray(gasData.ewidencja)) {
         gasData.ewidencja.forEach(item => {
           const rawCode = String(item.kodSpotkania || '').trim();
@@ -600,7 +604,7 @@ export async function fetchAllData(sheetId = SHEET_ID) {
       console.warn('Błąd pobierania Ewidencja_Poczty z Google Sheets:', err);
     }
 
-    return { members, quarantine, mailLog, attendanceByMeeting };
+    return { members, quarantine, mailLog, attendanceByMeeting, gasDecyzje };
   }
 
   const zarzadzanieTable = await fetchSheet('Zarz%C4%85dzanie', cleanId);
@@ -888,7 +892,7 @@ export function parseAttendanceLine(rawLine) {
   return { rawName: line, joinTime: '—', durationStr: '—', durationMinutes: 60, isMultiColumn: false };
 }
 
-export async function fetchMeetingSheetAttendance(meetingCode, sheetId = SHEET_ID) {
+export async function fetchMeetingSheetAttendance(meetingCode, sheetId = SHEET_ID, members = []) {
   const cleanId = extractSheetId(sheetId) || SHEET_ID;
   if (!meetingCode) return { ok: false, error: 'Brak kodu spotkania' };
 
@@ -908,15 +912,38 @@ export async function fetchMeetingSheetAttendance(meetingCode, sheetId = SHEET_I
       if (matching.length > 0) {
         const participants = matching.map((item, idx) => {
           const idxStr = String(item.nrIndeksu || '').trim();
-          const nameStr = String(item.name || item.fullName || idxStr || '').trim();
-          const roleStr = String(item.rola || (idxStr ? 'Członek koła' : 'Gość')).trim();
+          const nameStr = String(item.name || item.fullName || '').trim();
+          const isExplicitGuest = idxStr.includes('[GOŚĆ]') || idxStr.includes('GOSC') || nameStr.includes('[GOŚĆ]') || nameStr.includes('GOSC') || item.rola === 'Gość' || item.rola === 'guest';
+
+          let matchedMember = null;
+          if (!isExplicitGuest && Array.isArray(members) && members.length > 0) {
+            const cleanIdx = normalizeIndex(idxStr);
+            matchedMember = members.find(m => {
+              if (!m) return false;
+              if (cleanIdx && normalizeIndex(m.index) === cleanIdx) return true;
+              if (nameStr && (m.fullName === nameStr || normalizeDiacritics(m.fullName) === normalizeDiacritics(nameStr))) return true;
+              return false;
+            });
+          }
+
+          let finalName = matchedMember ? (matchedMember.fullName || `${matchedMember.firstName} ${matchedMember.lastName}`) : (nameStr || idxStr || 'Uczestnik');
+          let finalIndex = isExplicitGuest ? '' : (matchedMember?.index || (idxStr && !idxStr.includes('GOŚĆ') ? idxStr : ''));
+          let finalRole = isExplicitGuest ? 'Gość' : (item.rola || matchedMember?.role || (finalIndex ? 'Członek koła' : 'Gość'));
+
+          let formattedRawName = finalName;
+          if (finalRole === 'Gość' || isExplicitGuest) {
+            formattedRawName = finalName.startsWith('[GOŚĆ]') ? finalName : `[GOŚĆ]: ${finalName}`;
+          } else if (finalIndex && !finalName.includes(finalIndex)) {
+            formattedRawName = `${finalName} (${finalIndex})`;
+          }
+
           return {
             id: `p_gas_${idx}`,
-            rawName: nameStr && idxStr && !nameStr.includes(idxStr) ? `${nameStr} (${idxStr})` : (nameStr || idxStr),
-            fullName: nameStr,
-            index: idxStr,
-            email: item.email || '',
-            role: roleStr,
+            rawName: formattedRawName,
+            fullName: finalName,
+            index: finalIndex,
+            email: matchedMember?.email || item.email || '',
+            role: finalRole,
             joinTime: item.dataSpotkania || '18:00',
             durationStr: '60 min',
             durationMinutes: 60,

@@ -568,9 +568,10 @@ export default function MeetingsTab({
       });
 
       const role = detectParticipantRole(parsed.rawName, member);
+      const isGuest = role === 'guest' || parsed.rawName.includes('[GOŚĆ]') || parsed.rawName.includes('GOSC') || parsed.rawName.toLowerCase().startsWith('gość');
       const isSup = isFacultySupervisor(parsed.rawName);
       const isMonika = isMonikaLyniewska(parsed.rawName);
-      const status = isSup ? 'supervisor' : ((isEligible && (member || isMonika)) ? 'approved' : (!isEligible ? 'short_time' : 'unmatched'));
+      const status = isSup ? 'supervisor' : (isGuest ? 'guest' : ((isEligible && (member || isMonika)) ? 'approved' : (!isEligible ? 'short_time' : 'unmatched')));
 
       const pObj = {
         id: `p_${idx}_${Date.now()}`,
@@ -578,10 +579,11 @@ export default function MeetingsTab({
         joinTime: parsed.joinTime || parsed.time || '18:00',
         durationStr: parsed.durationStr || parsed.duration || '60 min',
         durationMinutes: durMinutes,
-        member: member || (isMonika ? { fullName: 'Monika Łyniewska', index: '34327', email: '34327@student.wskz.pl' } : null),
-        role,
-        isEligible,
-        manualApproved: isSup || isMonika || (isEligible && !!member),
+        member: isGuest || isSup ? null : (member || (isMonika ? { fullName: 'Monika Łyniewska', index: '34327', email: '34327@student.wskz.pl' } : null)),
+        role: isGuest ? 'guest' : role,
+        isGuest: !!isGuest,
+        isEligible: isGuest || isEligible,
+        manualApproved: isSup || isGuest || isMonika || (isEligible && !!member),
         hasManualOverride: false,
         status,
       };
@@ -589,6 +591,8 @@ export default function MeetingsTab({
       participants.push(pObj);
       if (isSup) {
         // Supervisor
+      } else if (isGuest) {
+        // Guest
       } else if (member) {
         if (isEligible) matched.push(member);
       } else {
@@ -616,7 +620,7 @@ export default function MeetingsTab({
       .map(p => {
         const nrIndeksu = p.member?.index || (isMonikaLyniewska(p.rawName) ? '34327' : (p.rawName.match(/\d{4,6}/)?.[0] || ''));
         const name = p.member?.fullName || p.fullName || p.rawName || '';
-        const rola = p.role || (isFacultySupervisor(p.rawName) ? 'Opiekun' : (nrIndeksu ? 'Członek koła' : 'Gość'));
+        const rola = p.role || (isFacultySupervisor(p.rawName) ? 'Opiekun' : (p.isGuest ? 'Gość' : (nrIndeksu ? 'Członek koła' : 'Gość')));
         return {
           nrIndeksu: String(nrIndeksu).trim(),
           name: String(name).trim(),
@@ -667,7 +671,7 @@ export default function MeetingsTab({
     setFetchingSheet(true);
     setSheetFeedback(null);
     try {
-      const res = await fetchMeetingSheetAttendance(selectedMeeting.code || selectedMeeting.id);
+      const res = await fetchMeetingSheetAttendance(selectedMeeting.code || selectedMeeting.id, SHEET_ID, members);
       if (res.ok && res.participants?.length > 0) {
         setSheetFeedback({ ok: true, message: `Wczytano ${res.participants.length} uczestników z arkusza "${res.tabName}"` });
 

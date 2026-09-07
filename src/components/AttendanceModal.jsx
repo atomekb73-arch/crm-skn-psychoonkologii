@@ -596,23 +596,24 @@ export default function AttendanceModal({
   const handleSaveAndApply = async () => {
     setIsSaving(true);
     try {
-      // Student members count towards student attendance denominator in ManagementTab
-      const verifiedMembersList = localParticipants
-        .filter(isApprovedStudent)
+      const allVerifiedList = localParticipants
+        .filter(isApprovedParticipant)
         .map(p => {
           const nrIndeksu = String(p.member?.index || (isMonikaLyniewska(p.rawName) ? '34327' : (p.rawName.match(/\d{4,6}/)?.[0] || ''))).trim();
-          return { nrIndeksu };
+          const name = String(p.member?.fullName || p.fullName || p.rawName || '').trim();
+          const rola = String(p.role || (isFacultySupervisor(p.rawName) ? 'Opiekun' : (p.isGuest ? 'Gość' : (nrIndeksu ? 'Członek koła' : 'Gość')))).trim();
+          return { nrIndeksu, name, rola };
         })
-        .filter(item => item.nrIndeksu);
+        .filter(item => item.nrIndeksu || item.name);
 
-      const confirmedIndexes = verifiedMembersList.map(m => m.nrIndeksu);
+      const confirmedIndexes = allVerifiedList.map(m => m.nrIndeksu || m.name).filter(Boolean);
 
       // Call GAS Backend
       try {
         await saveMeetingAttendanceToGAS({
           kodSpotkania: meeting.code || "M00",
           dataSpotkania: meeting.date || new Date().toISOString().slice(0, 10),
-          obecnosci: verifiedMembersList,
+          obecnosci: allVerifiedList,
         });
       } catch (e) {
         console.warn("Błąd zapisu obecności w GAS:", e);

@@ -155,6 +155,11 @@ export function isFacultySupervisor(nameOrEmail, customSupervisors = null) {
  * Automatyczne wykrycie roli uczestnika
  */
 export function detectParticipantRole(rawName, member = null, customSupervisors = null) {
+  if (!rawName) return 'member';
+  const norm = normalizeDiacritics(rawName);
+  if (norm.includes('[gosc]') || norm.includes('gosc:') || norm.startsWith('gosc ') || norm.includes('wolny sluchacz') || norm.includes('(gosc)')) {
+    return 'guest';
+  }
   if (isFacultySupervisor(rawName, customSupervisors) || (member && isFacultySupervisor(member.fullName, customSupervisors))) {
     return 'supervisor';
   }

@@ -415,11 +415,18 @@ export default function App() {
         }
       });
 
+      const gasDecyzjeApproved = new Set(
+        (sheetsData.gasDecyzje || [])
+          .filter(d => (d.nowyStatus || '').toLowerCase().includes('zatwierdz') || (d.status || '').toLowerCase().includes('zatwierdz'))
+          .map(d => String(d.nrIndeksu || '').trim())
+          .filter(Boolean)
+      );
+
       sheetsData.quarantine.forEach(q => {
         const overridden = applyOverride(q);
         const isBlacklisted = isMemberBlacklisted(overridden, blacklist) || isMemberBlacklisted(q, blacklist);
         const isArchived = isBlacklisted || currentArchivedRowIds.has(q.id) || overridden.isArchived || overridden.status === 'archived';
-        const isApproved = currentApprovedKeys.has(q.id) || currentApprovedKeys.has(q.memberKey);
+        const isApproved = currentApprovedKeys.has(q.id) || currentApprovedKeys.has(q.memberKey) || (q.cleanIndex && gasDecyzjeApproved.has(q.cleanIndex));
 
         if (isArchived) {
           archivedList.push({ ...overridden, status: 'archived', isArchived: true, isBlacklisted: !!isBlacklisted });
