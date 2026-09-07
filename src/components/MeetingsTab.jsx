@@ -668,22 +668,6 @@ export default function MeetingsTab({
       savedAt: new Date().toISOString(),
     });
     setResults({ matched, unmatched });
-
-    // Wyślij bezpośrednio do Apps Script z obsługą simple request (no-cors)
-    try {
-      await sendToGAS({
-        action: "zapisz_obecnosci",
-        kodSpotkania: selectedMeeting?.code || "M00",
-        dataSpotkania: selectedMeeting?.date || new Date().toISOString().slice(0, 10),
-        obecnosci: confirmedIndexes.map(item => ({
-          nrIndeksu: String(item.nrIndeksu || item.index || item).trim()
-        }))
-      });
-      alert("Obecności zostały zapisane w arkuszu Google!");
-    } catch (err) {
-      console.error("Błąd sieciowy podczas zapisu do GAS:", err);
-      alert("Błąd połączenia z bazą Google Sheets: " + (err.message || err));
-    }
   }
 
   async function handleSaveSidebarAttendance() {

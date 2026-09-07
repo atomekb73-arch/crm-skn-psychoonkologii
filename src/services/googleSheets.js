@@ -13,7 +13,7 @@ export function extractSheetId(input) {
 const envSheetInput = import.meta.env?.VITE_GOOGLE_SHEET_ID || import.meta.env?.VITE_SHEETS_URL;
 export const SHEET_ID = envSheetInput ? extractSheetId(envSheetInput) : '1HbpVQkKdtKqsg0Ew5d3AigZBq-wvQYmJ-vpSIIWLFpg';
 
-export const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycby0DJSlv3co7Zqbu7FAVyWJleN1mUiRJ-f6P7sHlP7pV7gdVL7IsOz-3vt_DDehbN-a/exec";
+export const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbx86gh1qJe0aWjfNIJ8ycRRIIIezjs1CDIqZKRcs-R5LJhpbrHDgqzzORFNluaz-iUU/exec";
 export const GAS_ENDPOINT = GAS_WEBAPP_URL;
 
 /**
