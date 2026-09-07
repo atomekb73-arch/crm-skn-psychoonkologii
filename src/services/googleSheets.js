@@ -473,7 +473,58 @@ export async function fetchAllData(sheetId = SHEET_ID) {
       console.warn('Błąd pobierania Baza_Kwarantanna z Google Sheets:', err);
     }
 
-    // 3. Pobierz ewidencję poczty z dedykowanej zakładki Ewidencja_Poczty
+    // 3. Pobierz ewidencję obecności ze spotkań z kolumn w Zarządzanie / Ewidencja_Obecnosci
+    const attendanceByMeeting = {};
+    try {
+      const attendanceTable = (usedTab === 'Zarządzanie' && activeTable) ? activeTable : await fetchSheet('Ewidencja_Obecnosci', cleanId);
+      if (attendanceTable && attendanceTable.rows && attendanceTable.rows.length > 1) {
+        const rows = attendanceTable.rows;
+        const headerRow = rows[1]?.c || [];
+        const meetingCols = [];
+
+        for (let col = 20; col < headerRow.length; col++) {
+          const hVal = cellStr(headerRow[col]);
+          if (!hVal) continue;
+          const firstLine = hVal.split(/[\n\r]+/)[0].trim();
+          const codeMatch = firstLine.match(/^([A-Z0-9-]+)/i);
+          if (codeMatch) {
+            const code = codeMatch[1].trim().toUpperCase();
+            if (code.startsWith('M') || code.startsWith('SP') || code.includes('SPR')) {
+              meetingCols.push({ col, code });
+            }
+          }
+        }
+
+        meetingCols.forEach(({ col, code }) => {
+          if (!attendanceByMeeting[code]) attendanceByMeeting[code] = [];
+          for (let r = 2; r < rows.length; r++) {
+            const rowCells = rows[r]?.c;
+            if (!rowCells) continue;
+            const val = cellVal(rowCells[col]);
+            const isAttended = val === 1 || val === '1' || String(val).trim().toLowerCase() === 'tak' || String(val).trim().toLowerCase() === 'true';
+            if (isAttended) {
+              const email = cellStr(rowCells[0]);
+              const fullName = cellStr(rowCells[1]);
+              const rawIndex = String(cellNum(rowCells[3]) ?? cellStr(rowCells[3]) ?? cellStr(rowCells[1]) ?? '');
+              const cleanIndex = normalizeIndex(rawIndex);
+              attendanceByMeeting[code].push({
+                nrIndeksu: cleanIndex || rawIndex,
+                index: cleanIndex || rawIndex,
+                fullName: fullName || email,
+                email: email,
+                joinTime: '18:00',
+                durationStr: '60 min',
+                durationMinutes: 60
+              });
+            }
+          }
+        });
+      }
+    } catch (err) {
+      console.warn('Błąd pobierania obecności ze spotkań z Google Sheets:', err);
+    }
+
+    // 4. Pobierz ewidencję poczty z dedykowanej zakładki Ewidencja_Poczty
     let mailLog = [];
     try {
       const mailRes = await fetchMailRegistryFromSheet(cleanId);
@@ -484,7 +535,7 @@ export async function fetchAllData(sheetId = SHEET_ID) {
       console.warn('Błąd pobierania Ewidencja_Poczty z Google Sheets:', err);
     }
 
-    return { members, quarantine, mailLog };
+    return { members, quarantine, mailLog, attendanceByMeeting };
   }
 
   const zarzadzanieTable = await fetchSheet('Zarz%C4%85dzanie', cleanId);
@@ -831,7 +882,61 @@ export async function fetchMeetingSheetAttendance(meetingCode, sheetId = SHEET_I
     }
   }
 
-  return { ok: false, error: `Nie znaleziono arkusza dla spotkania "${meetingCode}"` };
+  // Sprawdź w głównej ewidencji obecności (Ewidencja_Obecnosci lub Zarządzanie)
+  try {
+    const tabsToTry = ['Ewidencja_Obecnosci', 'Zarządzanie', 'Zarz%C4%85dzanie'];
+    const cleanMeetingCode = meetingCode.toUpperCase().trim().replace(/^\[.*?\]\s*/, '');
+    for (const mainTab of tabsToTry) {
+      try {
+        const table = await fetchSheet(mainTab, cleanId);
+        if (table && table.rows && table.rows.length > 1) {
+          const rows = table.rows;
+          const headerRow = rows[1]?.c || [];
+          let targetCol = -1;
+
+          for (let col = 20; col < headerRow.length; col++) {
+            const hVal = cellStr(headerRow[col]);
+            if (!hVal) continue;
+            const firstLine = hVal.split(/[\n\r]+/)[0].trim().toUpperCase();
+            if (firstLine === cleanMeetingCode || firstLine.startsWith(cleanMeetingCode) || cleanMeetingCode.startsWith(firstLine)) {
+              targetCol = col;
+              break;
+            }
+          }
+
+          if (targetCol !== -1) {
+            const participants = [];
+            for (let r = 2; r < rows.length; r++) {
+              const rowCells = rows[r]?.c;
+              if (!rowCells) continue;
+              const val = cellVal(rowCells[targetCol]);
+              const isAttended = val === 1 || val === '1' || String(val).trim().toLowerCase() === 'tak' || String(val).trim().toLowerCase() === 'true';
+              if (isAttended) {
+                const email = cellStr(rowCells[0]);
+                const fullName = cellStr(rowCells[1]);
+                const rawIndex = String(cellNum(rowCells[3]) ?? cellStr(rowCells[3]) ?? '');
+                const cleanIndex = normalizeIndex(rawIndex);
+                participants.push({
+                  id: `p_sheet_${r}`,
+                  rawName: cleanIndex ? `${fullName} (${cleanIndex})` : fullName,
+                  fullName: fullName || email,
+                  index: cleanIndex || rawIndex,
+                  email: email,
+                  joinTime: '18:00',
+                  durationStr: '60 min',
+                  durationMinutes: 60,
+                });
+              }
+            }
+
+            return { ok: true, tabName: mainTab, participants };
+          }
+        }
+      } catch (tabErr) {}
+    }
+  } catch (err) {}
+
+  return { ok: false, error: `Nie znaleziono obecności dla spotkania "${meetingCode}" w arkuszu Google` };
 }
 
 // ─── 4. EWIDENCJA POCZTY (Google Sheets Sync: Ewidencja_Poczty) ───────────────

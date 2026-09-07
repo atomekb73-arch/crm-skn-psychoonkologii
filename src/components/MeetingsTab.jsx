@@ -550,7 +550,9 @@ export default function MeetingsTab({
       const parsed = parseAttendanceLine(rawLine);
       if (!parsed) return;
 
-      const durMinutes = parseDurationToMinutes(parsed.duration);
+      const durMinutes = (parsed.durationMinutes !== undefined && parsed.durationMinutes > 0)
+        ? parsed.durationMinutes
+        : parseDurationToMinutes(parsed.durationStr || parsed.duration || '60 min');
       const isEligible = durMinutes >= threshold;
       const member = members.find(m => {
         if (!m) return false;
@@ -573,8 +575,8 @@ export default function MeetingsTab({
       const pObj = {
         id: `p_${idx}_${Date.now()}`,
         rawName: parsed.rawName,
-        joinTime: parsed.time || '18:00',
-        durationStr: parsed.duration,
+        joinTime: parsed.joinTime || parsed.time || '18:00',
+        durationStr: parsed.durationStr || parsed.duration || '60 min',
         durationMinutes: durMinutes,
         member: member || (isMonika ? { fullName: 'Monika Łyniewska', index: '34327', email: '34327@student.wskz.pl' } : null),
         role,

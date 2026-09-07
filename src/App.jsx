@@ -227,7 +227,8 @@ export default function App() {
     subId = selectedSubcalendar,
     yr = academicYear,
     cStart = customStartDate,
-    cEnd = customEndDate
+    cEnd = customEndDate,
+    sheetAttendanceMap = null
   ) => {
     setLoadingMeetings(true);
     try {
@@ -268,8 +269,24 @@ export default function App() {
           return ov ? { ...m, ...ov, code: ov.code || m.code } : m;
         });
 
-      const mergedMeetings = finalMeetings.map(mergeMeetingWithLocalStorage);
-      setMeetings(mergedMeetings);
+      // Zastosuj frekwencję z Google Sheets jako Jedyne Źródło Prawdy (SSOT)
+      const syncedMeetings = finalMeetings.map(m => {
+        const cleanCode = String(m.code || m.id || '').toUpperCase().trim().replace(/^\[.*?\]\s*/, '');
+        if (sheetAttendanceMap) {
+          const sheetRecords = sheetAttendanceMap[cleanCode] || sheetAttendanceMap[m.code] || [];
+          const attendeesList = sheetRecords.map(p => p.index || p.nrIndeksu || p.fullName);
+          const count = attendeesList.length;
+          return {
+            ...m,
+            attendees: attendeesList,
+            attendeesCount: count,
+            status: count > 0 ? `Zakończone (${count})` : 'Nierozliczone',
+          };
+        }
+        return mergeMeetingWithLocalStorage(m);
+      });
+
+      setMeetings(syncedMeetings);
     } catch (err) {
       console.error('Błąd pobierania spotkań:', err);
       const fallback = getCanonicalMeetingsForOrg(currentOrg.id);
@@ -292,7 +309,23 @@ export default function App() {
           return ov ? { ...m, ...ov, code: ov.code || m.code } : m;
         });
 
-      setMeetings(finalFallback.map(mergeMeetingWithLocalStorage));
+      const syncedFallback = finalFallback.map(m => {
+        const cleanCode = String(m.code || m.id || '').toUpperCase().trim().replace(/^\[.*?\]\s*/, '');
+        if (sheetAttendanceMap) {
+          const sheetRecords = sheetAttendanceMap[cleanCode] || sheetAttendanceMap[m.code] || [];
+          const attendeesList = sheetRecords.map(p => p.index || p.nrIndeksu || p.fullName);
+          const count = attendeesList.length;
+          return {
+            ...m,
+            attendees: attendeesList,
+            attendeesCount: count,
+            status: count > 0 ? `Zakończone (${count})` : 'Nierozliczone',
+          };
+        }
+        return mergeMeetingWithLocalStorage(m);
+      });
+
+      setMeetings(syncedFallback);
     } finally {
       setLoadingMeetings(false);
     }
@@ -401,7 +434,7 @@ export default function App() {
         }
       }
 
-      await loadMeetings();
+      await loadMeetings(selectedSubcalendar, academicYear, customStartDate, customEndDate, sheetsData.attendanceByMeeting);
 
       setLastSync(new Date());
 
