@@ -75,6 +75,19 @@ export async function saveMeetingAttendanceToGAS({ kodSpotkania, dataSpotkania, 
   return await sendToGAS(payload);
 }
 
+/**
+ * Usuwa frekwencję danego spotkania z centralnej bazy Google Apps Script (zakładka Ewidencja_Obecnosci).
+ * Używane przy cofaniu / resecie listy obecności dla spotkania.
+ */
+export async function deleteMeetingAttendanceFromGAS(kodSpotkania) {
+  const payload = {
+    action: "usun_obecnosci_spotkania",
+    kodSpotkania: String(kodSpotkania || "").trim()
+  };
+
+  return await sendToGAS(payload);
+}
+
 // ─── Data graniczna (Cut-off Watermark) dla nowych zgłoszeń w kwarantannie ──
 // Parser ignoruje zgłoszenia starsze niż 5 września 2026 r. 00:00:00
 export const CUTOFF_DATE = new Date('2026-09-05T00:00:00');

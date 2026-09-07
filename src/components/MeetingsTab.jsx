@@ -32,7 +32,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { MEETING_TYPES, getMeetingType } from '../utils/meetingTypes';
-import { parseAttendanceLine, parseDurationToMinutes, fetchMeetingSheetAttendance, saveMeetingAttendanceToGAS, sendToGAS } from '../services/googleSheets';
+import { parseAttendanceLine, parseDurationToMinutes, fetchMeetingSheetAttendance, saveMeetingAttendanceToGAS, deleteMeetingAttendanceFromGAS, sendToGAS } from '../services/googleSheets';
 import { isFacultySupervisor, isMonikaLyniewska, FACULTY_SUPERVISORS, PARTICIPANT_ROLES } from '../utils/specialRoles';
 import { useOrg } from '../context/OrgContext';
 import AttendanceModal from './AttendanceModal';
