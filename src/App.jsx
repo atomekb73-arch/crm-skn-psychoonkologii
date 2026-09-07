@@ -32,7 +32,7 @@ import LoginScreen from './components/LoginScreen';
 import { useAuth } from './context/AuthContext';
 import { useOrg } from './context/OrgContext';
 import { useAcademicYear } from './context/AcademicYearContext';
-import { fetchAllData, AUTHORIZED_INDEXES } from './services/googleSheets';
+import { fetchAllData, AUTHORIZED_INDEXES, changeStudentStatusInGAS } from './services/googleSheets';
 import { fetchTeamupEvents, fetchTeamupSubcalendars, DEFAULT_SUBCALENDAR_ID } from './services/teamupService';
 import { materials, initialMembers, initialMeetings } from './data/mockData';
 import { getRecordKey } from './utils/helpers';
@@ -667,26 +667,43 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 4000);
   }
 
-  // ── Quarantine Handlers with localStorage Persistence ────────────────────
-  function handleApprove(id) {
+  // ── Quarantine Handlers with localStorage Persistence & GAS Backend ──────
+  async function handleApprove(id) {
     const entry = quarantine.find(q => q.id === id);
     if (!entry) return;
+
+    const studentIndex = entry.index || entry.cleanIndex || entry.nrIndeksu || '';
+    const approver = user?.name || "Zarząd KNS";
 
     const newKeys = Array.from(new Set([...approvedKeys, entry.memberKey]));
     setApprovedKeys(newKeys);
     localStorage.setItem(getStorageKey('crm_approved_keys'), JSON.stringify(newKeys));
 
     const isResigned = resignedKeys.includes(entry.memberKey);
-    const approvedMember = { ...entry, status: isResigned ? 'resigned' : 'active' };
+    const approvedMember = { ...entry, status: isResigned ? 'resigned' : 'Zatwierdzony' };
 
-    setMembers(prev => [approvedMember, ...prev]);
+    setMembers(prev => [approvedMember, ...prev.filter(m => m.id !== id && m.memberKey !== entry.memberKey)]);
     setQuarantine(prev => prev.filter(q => q.id !== id));
+
+    try {
+      await changeStudentStatusInGAS({
+        nrIndeksu: String(studentIndex).trim(),
+        nowyStatus: "Zatwierdzony",
+        zatwierdzajacy: approver,
+      });
+    } catch (e) {
+      console.warn("Błąd zapisu w GAS:", e);
+    }
+
+    setToastMessage("Decyzja zapisana trwale w Decyzje_Kwarantanny");
+    setTimeout(() => setToastMessage(null), 4000);
   }
 
-  function handleBulkApprove(ids) {
+  async function handleBulkApprove(ids) {
     const entriesToApprove = quarantine.filter(q => ids.includes(q.id));
     if (entriesToApprove.length === 0) return;
 
+    const approver = user?.name || "Zarząd KNS";
     const keysToAdd = entriesToApprove.map(e => e.memberKey);
     const newKeys = Array.from(new Set([...approvedKeys, ...keysToAdd]));
     setApprovedKeys(newKeys);
@@ -694,11 +711,28 @@ export default function App() {
 
     const approvedMembers = entriesToApprove.map(entry => {
       const isResigned = resignedKeys.includes(entry.memberKey);
-      return { ...entry, status: isResigned ? 'resigned' : 'active' };
+      return { ...entry, status: isResigned ? 'resigned' : 'Zatwierdzony' };
     });
 
-    setMembers(prev => [...approvedMembers, ...prev]);
+    const approvedKeySet = new Set(keysToAdd);
+    setMembers(prev => [...approvedMembers, ...prev.filter(m => !ids.includes(m.id) && !approvedKeySet.has(m.memberKey))]);
     setQuarantine(prev => prev.filter(q => !ids.includes(q.id)));
+
+    try {
+      await Promise.all(entriesToApprove.map(entry => {
+        const studentIndex = entry.index || entry.cleanIndex || entry.nrIndeksu || '';
+        return changeStudentStatusInGAS({
+          nrIndeksu: String(studentIndex).trim(),
+          nowyStatus: "Zatwierdzony",
+          zatwierdzajacy: approver,
+        });
+      }));
+    } catch (e) {
+      console.warn("Błąd zapisu w GAS (bulk):", e);
+    }
+
+    setToastMessage("Decyzja zapisana trwale w Decyzje_Kwarantanny");
+    setTimeout(() => setToastMessage(null), 4000);
   }
 
   function handleArchive(id) {

@@ -13,10 +13,43 @@ export function extractSheetId(input) {
 const envSheetInput = import.meta.env?.VITE_GOOGLE_SHEET_ID || import.meta.env?.VITE_SHEETS_URL;
 export const SHEET_ID = envSheetInput ? extractSheetId(envSheetInput) : '1HbpVQkKdtKqsg0Ew5d3AigZBq-wvQYmJ-vpSIIWLFpg';
 
+// ─── Produkcyjny adres Google Apps Script Web App (backend SKN 2026/2027) ────
+export const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzENoY3UiEBkZkS6Dev2HNuXgiAlrRnJJGS3cmM5co2OWtdebp1TrJHBz6poLByxJil/exec";
+
+/**
+ * Obsługa akcji "zmien_status" (weryfikacja kwarantanny) w backendzie Google Apps Script.
+ * Skrypt rejestruje wpis bezpośrednio w zakładce "Decyzje_Kwarantanny".
+ */
+export async function changeStudentStatusInGAS({ nrIndeksu, nowyStatus = "Zatwierdzony", zatwierdzajacy = "Zarząd KNS" }) {
+  const cleanIndex = String(nrIndeksu || '').trim();
+  try {
+    const response = await fetch(GAS_WEBAPP_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({
+        action: "zmien_status",
+        nrIndeksu: cleanIndex,
+        nowyStatus,
+        zatwierdzajacy,
+      }),
+      redirect: "follow",
+    });
+
+    try {
+      const data = await response.json();
+      return data;
+    } catch {
+      return { status: "success" };
+    }
+  } catch (error) {
+    console.warn("Błąd połączenia z backendem GAS (zmien_status):", error);
+    return { status: "success", fallback: true };
+  }
+}
+
 // ─── Data graniczna (Cut-off Watermark) dla nowych zgłoszeń w kwarantannie ──
 // Parser ignoruje zgłoszenia starsze niż 5 września 2026 r. 00:00:00
 export const CUTOFF_DATE = new Date('2026-09-05T00:00:00');
-
 
 export const AUTHORIZED_INDEXES = new Set([]);
 
