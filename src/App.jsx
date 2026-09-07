@@ -833,9 +833,6 @@ export default function App() {
         return m;
       })
     );
-
-    setToastMessage("Obecności zostały trwale zapisane w arkuszu");
-    setTimeout(() => setToastMessage(null), 4000);
   }
 
   const pendingCount = quarantine.length;
