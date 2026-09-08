@@ -568,10 +568,11 @@ export default function MeetingsTab({
       });
 
       const role = detectParticipantRole(parsed.rawName, member);
-      const isGuest = role === 'guest' || parsed.rawName.includes('[GOŚĆ]') || parsed.rawName.includes('GOSC') || parsed.rawName.toLowerCase().startsWith('gość');
       const isSup = isFacultySupervisor(parsed.rawName);
       const isMonika = isMonikaLyniewska(parsed.rawName);
-      const status = isSup ? 'supervisor' : (isGuest ? 'guest' : ((isEligible && (member || isMonika)) ? 'approved' : (!isEligible ? 'short_time' : 'unmatched')));
+      const isMemberInDB = Boolean(member || isMonika);
+      const isGuest = !isSup && (role === 'guest' || !isMemberInDB || parsed.rawName.includes('[GOŚĆ]') || parsed.rawName.includes('GOSC') || parsed.rawName.toLowerCase().startsWith('gość'));
+      const status = isSup ? 'supervisor' : (isGuest ? 'guest' : (isEligible ? 'approved' : 'short_time'));
 
       const pObj = {
         id: `p_${idx}_${Date.now()}`,
@@ -580,9 +581,10 @@ export default function MeetingsTab({
         durationStr: parsed.durationStr || parsed.duration || '60 min',
         durationMinutes: durMinutes,
         member: isGuest || isSup ? null : (member || (isMonika ? { fullName: 'Monika Łyniewska', index: '34327', email: '34327@student.wskz.pl' } : null)),
-        role: isGuest ? 'guest' : role,
+        role: isSup ? 'supervisor' : (isGuest ? 'guest' : role),
         isGuest: !!isGuest,
-        isEligible: isGuest || isEligible,
+        isExternalGuest: !isSup && !isMemberInDB,
+        isEligible: isGuest || isSup || isEligible,
         manualApproved: isSup || isGuest || isMonika || (isEligible && !!member),
         hasManualOverride: false,
         status,
@@ -600,15 +602,27 @@ export default function MeetingsTab({
       }
     });
 
-    setParsedParticipants(participants);
+    // Deduplicate: keep only first occurrence per index or normalized name
+    const seenKeys = new Set();
+    const dedupedParticipants = participants.filter(p => {
+      const key = p.member?.index
+        ? String(p.member.index).trim()
+        : normalizeDiacritics(p.rawName || '').toLowerCase().trim();
+      if (!key || seenKeys.has(key)) return false;
+      seenKeys.add(key);
+      return true;
+    });
+
+    setParsedParticipants(dedupedParticipants);
     setManualOverrides({});
 
     const storageKey = getMeetingStorageKey(selectedMeeting);
     try {
-      localStorage.setItem(storageKey, JSON.stringify(participants));
+      localStorage.setItem(storageKey, JSON.stringify(dedupedParticipants));
     } catch {}
 
     setResults({ matched, unmatched });
+    return dedupedParticipants;
   }
 
   async function handleSaveSidebarAttendance() {
@@ -664,6 +678,7 @@ export default function MeetingsTab({
     if (!rawList.trim()) return;
     const lines = rawList.split('\n').map(l => l.trim()).filter(Boolean);
     await processAttendanceFromLines(lines);
+    setIsModalOpen(true);
   }
 
   async function handleFetchFromSheet() {
@@ -671,19 +686,20 @@ export default function MeetingsTab({
     setFetchingSheet(true);
     setSheetFeedback(null);
     try {
-      const res = await fetchMeetingSheetAttendance(selectedMeeting.code || selectedMeeting.id, SHEET_ID, members);
+      const res = await fetchMeetingSheetAttendance(selectedMeeting.code || selectedMeeting.id, null, members);
       if (res.ok && res.participants?.length > 0) {
         setSheetFeedback({ ok: true, message: `Wczytano ${res.participants.length} uczestników z arkusza "${res.tabName}"` });
 
         // Map to lines
         const lines = res.participants.map(p => `${p.rawName}\t${p.joinTime}\t${p.durationStr}`);
-        setRawList(lines.join('\n'));
-        processAttendanceFromLines(lines);
+        const rawText = lines.join('\n');
+        setRawList(rawText);
+        await processAttendanceFromLines(lines);
       } else {
-        setSheetFeedback({ ok: false, error: res.error || 'Nie odnaleziono zakładki dla tego spotkania' });
+        setSheetFeedback({ ok: false, error: res.error || 'Nie odnaleziono zapisanych obecności w arkuszu.' });
       }
     } catch (err) {
-      setSheetFeedback({ ok: false, error: err.message || 'Błąd odczytu arkusza' });
+      setSheetFeedback({ ok: false, error: err.message || 'Błąd odczytu z arkusza' });
     } finally {
       setFetchingSheet(false);
     }
@@ -1550,9 +1566,10 @@ export default function MeetingsTab({
 
                       <button
                         type="button"
-                        onClick={() => {
-                          if (rawList.trim() && parsedParticipants.length === 0) {
-                            handleProcessAttendance();
+                        onClick={async () => {
+                          if (rawList.trim()) {
+                            const lines = rawList.split('\n').map(l => l.trim()).filter(Boolean);
+                            await processAttendanceFromLines(lines);
                           }
                           setIsModalOpen(true);
                         }}

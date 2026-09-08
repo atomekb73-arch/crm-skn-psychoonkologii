@@ -290,7 +290,7 @@ export const CANONICAL_MEETINGS_SKNU = [
 export const CANONICAL_MEETINGS_PSYCHOONKOLOGIA = [
   {
     id: '2089952664',
-    code: '[26/27] M01',
+    code: '[25/26] M01',
     name: 'Studenckie Koło Naukowe Psychoonkologii WSKZ',
     date: '2026-05-07',
     dateFormatted: '07.05.2026, 18:00',
@@ -312,7 +312,7 @@ export const CANONICAL_MEETINGS_PSYCHOONKOLOGIA = [
   },
   {
     id: '2098131141',
-    code: '[26/27] M02',
+    code: '[25/26] M02',
     name: 'Studenckie Koło Naukowe Psychoonkologii WSKZ',
     date: '2026-05-21',
     dateFormatted: '21.05.2026, 18:00',
@@ -334,7 +334,7 @@ export const CANONICAL_MEETINGS_PSYCHOONKOLOGIA = [
   },
   {
     id: '2093151269-rid-1779984000',
-    code: '[26/27] M03',
+    code: '[25/26] M03',
     name: 'Studenckie Koło Naukowe Psychoonkologii WSKZ',
     date: '2026-05-28',
     dateFormatted: '28.05.2026, 18:00',
@@ -356,7 +356,7 @@ export const CANONICAL_MEETINGS_PSYCHOONKOLOGIA = [
   },
   {
     id: '2093578855-rid-1781193600',
-    code: '[26/27] M04',
+    code: '[25/26] M04',
     name: 'Studenckie Koło Naukowe Psychoonkologii WSKZ',
     date: '2026-06-11',
     dateFormatted: '11.06.2026, 18:00',
@@ -378,7 +378,7 @@ export const CANONICAL_MEETINGS_PSYCHOONKOLOGIA = [
   },
   {
     id: '2114714561',
-    code: '[26/27] M05',
+    code: '[25/26] M05',
     name: 'Studenckie Koło Naukowe Psychoonkologii WSKZ',
     date: '2026-06-16',
     dateFormatted: '16.06.2026, 18:00',
@@ -400,7 +400,7 @@ export const CANONICAL_MEETINGS_PSYCHOONKOLOGIA = [
   },
   {
     id: '2093578855-rid-1781798400',
-    code: '[26/27] M06',
+    code: '[25/26] M06',
     name: 'Studenckie Koło Naukowe Psychoonkologii WSKZ',
     date: '2026-06-18',
     dateFormatted: '18.06.2026, 18:00',
@@ -422,7 +422,7 @@ export const CANONICAL_MEETINGS_PSYCHOONKOLOGIA = [
   },
   {
     id: '2093578855-rid-1782403200',
-    code: '[26/27] M07',
+    code: '[25/26] M07',
     name: 'Studenckie Koło Naukowe Psychoonkologii WSKZ',
     date: '2026-06-25',
     dateFormatted: '25.06.2026, 18:00',

@@ -893,6 +893,10 @@ export function parseAttendanceLine(rawLine) {
 }
 
 export async function fetchMeetingSheetAttendance(meetingCode, sheetId = SHEET_ID, members = []) {
+  if (Array.isArray(sheetId)) {
+    members = sheetId;
+    sheetId = SHEET_ID;
+  }
   const cleanId = extractSheetId(sheetId) || SHEET_ID;
   if (!meetingCode) return { ok: false, error: 'Brak kodu spotkania' };
 
