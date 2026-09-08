@@ -587,17 +587,113 @@ export async function fetchAllData(sheetId = SHEET_ID) {
       console.warn('Błąd pobierania Baza_Kwarantanna z Google Sheets:', err);
     }
 
-    // 3. Pobierz ewidencję obecności ze spotkań z backendu Google Apps Script (GET ?action=pobierz_dane)
+    // 3. Pobierz ewidencję obecności oraz członków z Rejestru Zgłoszeń z backendu Google Apps Script (GET ?action=pobierz_dane)
     const attendanceByMeeting = {};
     let gasDecyzje = [];
     try {
       const gasData = await fetchGasData();
+
+      // Jeżeli GAS zwrócił listę członków z Rejestr_Zgloszen, zaktualizuj/zasil listę members
+      const gasMembersRaw = (gasData && Array.isArray(gasData.czlonkowie) && gasData.czlonkowie.length > 0)
+        ? gasData.czlonkowie
+        : ((gasData && Array.isArray(gasData.data) && gasData.data.length > 0) ? gasData.data : null);
+
+      if (gasMembersRaw && gasMembersRaw.length > 0) {
+        const mappedGasMembers = gasMembersRaw.map((item, index) => {
+          // Obsługa obiektu lub surowego wiersza z GAS
+          if (Array.isArray(item)) {
+            const rawIdx = String(item[1] || '').trim();
+            const cleanIndex = normalizeIndex(rawIdx);
+            const imieNazwisko = String(item[2] || '').trim();
+            const email = String(item[3] || '').trim();
+            const phone = String(item[4] || '').trim();
+            const kierunekSemestr = String(item[5] || '').trim();
+            const zgodaMailing = String(item[6] || '').trim();
+            const statusWeryfikacji = String(item[7] || '').trim();
+            const parts = imieNazwisko.split(' ');
+            const firstName = parts[0] || '';
+            const lastName = parts.slice(1).join(' ') || '';
+
+            return {
+              id: `psy_m_gas_${index + 1}`,
+              memberKey: cleanIndex ? `idx_${cleanIndex}` : (email ? `email_${email.toLowerCase()}` : `psy_m_${index + 1}`),
+              fullName: imieNazwisko,
+              imieNazwisko,
+              name: imieNazwisko,
+              firstName,
+              lastName,
+              index: cleanIndex || rawIdx,
+              cleanIndex,
+              email: email ? email.toLowerCase().trim() : '',
+              phone,
+              field: kierunekSemestr || 'Psychologia',
+              year: kierunekSemestr || '',
+              status: statusWeryfikacji === 'Archiwum' ? 'archived' : (statusWeryfikacji === 'Rezygnacja' ? 'resigned' : 'active'),
+              mailingConsent: zgodaMailing === 'Zgoda na mailing' || zgodaMailing === 'true' || zgodaMailing === true,
+              zgodaNaMailing: zgodaMailing || 'Zgoda na mailing',
+              consentStatus: (zgodaMailing === 'Zgoda na mailing' || zgodaMailing === 'true' || zgodaMailing === true) ? 'Zgody OK' : 'Brak zgody',
+              points: 0,
+              present: 0,
+              absent: 0,
+              attendancePercent: 0,
+              certStatus: 'W toku',
+              timestamp: String(item[0] || item[8] || new Date().toISOString().slice(0, 10)),
+              fromSheet: 'Rejestr_Zgloszen',
+            };
+          }
+
+          const rawIdx = String(item.nrIndeksu || item.index || item.cleanIndex || '').trim();
+          const cleanIndex = normalizeIndex(rawIdx);
+          const imieNazwisko = String(item.imieNazwisko || item.fullName || `${item.firstName || ''} ${item.lastName || ''}`).trim();
+          const email = String(item.email || '').trim();
+          const phone = String(item.telefon || item.phone || '').trim();
+          const kierunekSemestr = String(item.kierunek || item.field || '').trim();
+          const zgodaMailing = item.zgodaMailing || item.zgodaNaMailing || (item.mailingConsent ? 'Zgoda na mailing' : 'Brak zgody');
+          const statusWeryfikacji = String(item.statusWeryfikacji || item.status || 'active').trim();
+          const parts = imieNazwisko.split(' ');
+          const firstName = parts[0] || '';
+          const lastName = parts.slice(1).join(' ') || '';
+
+          return {
+            id: `psy_m_gas_${index + 1}`,
+            memberKey: cleanIndex ? `idx_${cleanIndex}` : (email ? `email_${email.toLowerCase()}` : `psy_m_${index + 1}`),
+            fullName: imieNazwisko,
+            imieNazwisko,
+            name: imieNazwisko,
+            firstName,
+            lastName,
+            index: cleanIndex || rawIdx,
+            cleanIndex,
+            email: email ? email.toLowerCase().trim() : '',
+            phone,
+            field: kierunekSemestr || 'Psychologia',
+            year: kierunekSemestr || '',
+            status: (statusWeryfikacji === 'Archiwum' || statusWeryfikacji === 'archived') ? 'archived' : ((statusWeryfikacji === 'Rezygnacja' || statusWeryfikacji === 'resigned') ? 'resigned' : 'active'),
+            mailingConsent: Boolean(item.mailingConsent || zgodaMailing === 'Zgoda na mailing' || zgodaMailing === 'true' || zgodaMailing === true),
+            zgodaNaMailing: (Boolean(item.mailingConsent || zgodaMailing === 'Zgoda na mailing' || zgodaMailing === 'true' || zgodaMailing === true)) ? 'Zgoda na mailing' : 'Brak zgody',
+            consentStatus: (Boolean(item.mailingConsent || zgodaMailing === 'Zgoda na mailing' || zgodaMailing === 'true' || zgodaMailing === true)) ? 'Zgody OK' : 'Brak zgody',
+            points: 0,
+            present: 0,
+            absent: 0,
+            attendancePercent: 0,
+            certStatus: 'W toku',
+            timestamp: String(item.dataWplywu || item.dataWeryfikacji || item.timestamp || new Date().toISOString().slice(0, 10)),
+            fromSheet: 'Rejestr_Zgloszen',
+          };
+        }).filter(m => m.fullName && (m.index || m.email));
+
+        if (mappedGasMembers.length > 0) {
+          members = mappedGasMembers;
+        }
+      }
+
       if (gasData && Array.isArray(gasData.decyzjeKwarantanny)) {
         gasDecyzje = gasData.decyzjeKwarantanny;
       }
       if (gasData && gasData.ewidencja && Array.isArray(gasData.ewidencja)) {
         gasData.ewidencja.forEach(item => {
           const rawCode = String(item.kodSpotkania || '').trim();
+
           if (!rawCode) return;
           const cleanCode = rawCode.toUpperCase().replace(/^\[.*?\]\s*/, '');
           const entry = {

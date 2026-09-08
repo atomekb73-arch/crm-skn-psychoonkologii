@@ -42,15 +42,50 @@ function doGet(e) {
 
     if (action === "pobierz_dane") {
       let sheet = ss.getSheetByName(SHEET_NAME_ZGLOSZENIA);
-      let data = [];
+      let rawData = [];
+      let czlonkowie = [];
+
       if (sheet && sheet.getLastRow() > 1) {
-        data = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+        rawData = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+        czlonkowie = rawData.map(row => {
+          const dataWplywu = String(row[0] || '').trim();
+          const nrIndeksu = String(row[1] || '').trim();
+          const imieNazwisko = String(row[2] || '').trim();
+          const email = String(row[3] || '').trim();
+          const telefon = String(row[4] || '').trim();
+          const kierunekSemestr = String(row[5] || '').trim();
+          const zgodaMailing = String(row[6] || '').trim();
+          const statusWeryfikacji = String(row[7] || '').trim();
+          const dataWeryfikacji = String(row[8] || '').trim();
+          const aliasy = String(row[9] || '').trim();
+
+          return {
+            dataWplywu: dataWplywu,
+            nrIndeksu: nrIndeksu,
+            cleanIndex: nrIndeksu,
+            imieNazwisko: imieNazwisko,
+            fullName: imieNazwisko,
+            email: email,
+            telefon: telefon,
+            phone: telefon,
+            kierunek: kierunekSemestr,
+            zgodaMailing: zgodaMailing,
+            mailingConsent: zgodaMailing === "Zgoda na mailing" || zgodaMailing === "true" || zgodaMailing === true,
+            statusWeryfikacji: statusWeryfikacji,
+            status: statusWeryfikacji === "Archiwum" ? "archived" : (statusWeryfikacji === "Rezygnacja" ? "resigned" : "active"),
+            dataWeryfikacji: dataWeryfikacji,
+            aliasy: aliasy,
+            aliases: aliasy
+          };
+        });
       }
+
       return ContentService.createTextOutput(JSON.stringify({
         status: "success",
         action: action,
-        count: data.length,
-        data: data
+        count: czlonkowie.length,
+        czlonkowie: czlonkowie,
+        data: rawData
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -58,6 +93,7 @@ function doGet(e) {
       status: "success",
       message: "SKN Psychoonkologii WSKZ GAS API Ready"
     })).setMimeType(ContentService.MimeType.JSON);
+
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({
       status: "error",

@@ -466,16 +466,22 @@ export default function QuarantineTab({
         id: `manual_${cleanIdx}_${Date.now()}`,
         memberKey: `idx_${cleanIdx}`,
         fullName: cleanName,
+        imieNazwisko: cleanName,
+        name: cleanName,
         firstName,
         lastName,
         index: cleanIdx,
         cleanIndex: cleanIdx,
+        nrIndeksu: cleanIdx,
         email,
         phone,
+        telefon: phone,
         field,
+        kierunek: field && year ? `${field} (${year})` : (field || year),
         year,
         status,
         mailingConsent,
+        zgodaMailing: mailingConsent ? 'Zgoda na mailing' : 'Brak zgody',
         zgodaNaMailing: mailingConsent ? 'Zgoda na mailing' : 'Brak zgody',
         consentStatus: mailingConsent ? 'Zgody OK' : 'Brak zgody',
         aliases: meetAlias ? [meetAlias] : [],
@@ -487,6 +493,7 @@ export default function QuarantineTab({
         attendancePercent: 0,
         certStatus: 'W toku'
       };
+
 
       // 1. Zapisz alias Google Meet jeśli podano
       if (meetAlias) {
