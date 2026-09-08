@@ -1157,5 +1157,26 @@ export function saveEmailConfig(orgId, config) {
   return updated;
 }
 
+// ─── GOOGLE MEET ALIASES (crm_meet_aliases) ──────────────────────────────
+
+export function getAliasesFromStorage(orgId = 'skn-psychoonkologia') {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(getOrgKey(orgId, 'meet_aliases')) || localStorage.getItem('crm_meet_aliases');
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveAliasesToStorage(aliases, orgId = 'skn-psychoonkologia') {
+  if (typeof window === 'undefined') return;
+  try {
+    const json = JSON.stringify(aliases || {});
+    localStorage.setItem(getOrgKey(orgId, 'meet_aliases'), json);
+    localStorage.setItem('crm_meet_aliases', json);
+  } catch {}
+}
+
 
 

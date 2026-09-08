@@ -44,10 +44,23 @@ import { useSettings } from '../context/SettingsContext';
 import { useOrg } from '../context/OrgContext';
 import { ACTIVITY_OPTIONS } from '../utils/activityRegistry';
 import { saveMeetingAttendanceToGAS } from '../services/googleSheets';
+import { getAliasesFromStorage, saveAliasesToStorage } from '../utils/storage';
 
-function findMemberMatch(nameOrIndex, members = []) {
+function findMemberMatch(nameOrIndex, members = [], aliasesMap = {}) {
   if (!nameOrIndex) return null;
   const clean = String(nameOrIndex).trim();
+  const normQuery = normalizeDiacritics(clean).toLowerCase();
+
+  // 0. Alias matching (Google Meet pseudonym -> Member profile)
+  if (aliasesMap && aliasesMap[normQuery]) {
+    const target = aliasesMap[normQuery];
+    const matchByAlias = members.find(
+      m => String(m.index || '').trim() === String(target).trim() ||
+           m.id === target ||
+           normalizeDiacritics(m.fullName || `${m.firstName} ${m.lastName}`).toLowerCase() === normalizeDiacritics(target).toLowerCase()
+    );
+    if (matchByAlias) return matchByAlias;
+  }
 
   // 1. Explicit check for custom mapped members (e.g. Monika Łyniewska - 34327)
   const customMapped = getCustomMappedMember(clean);
@@ -60,14 +73,12 @@ function findMemberMatch(nameOrIndex, members = []) {
     return foundInDb || customMapped;
   }
 
-  const normQuery = normalizeDiacritics(clean);
-
   // 2. Exact or sub-match against members with diacritics normalization
   return members.find(m => {
     const idx = String(m.index || '').trim();
-    const fn = normalizeDiacritics(m.fullName || `${m.firstName} ${m.lastName}`);
-    const ln = normalizeDiacritics(m.lastName);
-    const em = normalizeDiacritics(m.email);
+    const fn = normalizeDiacritics(m.fullName || `${m.firstName} ${m.lastName}`).toLowerCase();
+    const ln = normalizeDiacritics(m.lastName).toLowerCase();
+    const em = normalizeDiacritics(m.email).toLowerCase();
 
     if (idx && (normQuery === idx || normQuery.includes(idx))) return true;
     if (em && (normQuery === em || normQuery.includes(em))) return true;
@@ -77,7 +88,7 @@ function findMemberMatch(nameOrIndex, members = []) {
   }) || null;
 }
 
-function resolveInitialParticipants(meeting, members = [], participants = [], threshold = 15, supervisors = null, getStorageKey = (k) => k) {
+function resolveInitialParticipants(meeting, members = [], participants = [], threshold = 15, supervisors = null, getStorageKey = (k) => k, aliasesMap = {}) {
   const processParticipant = (p, idx = 0) => {
     const rawName = p.rawName || p.name || String(p);
     const matchedSup = findMatchingSupervisor(rawName, supervisors);
@@ -86,7 +97,7 @@ function resolveInitialParticipants(meeting, members = [], participants = [], th
 
     const isMonika = isMonikaLyniewska(rawName) || (p.member && isMonikaLyniewska(p.member.index || p.member.fullName));
     const customMember = getCustomMappedMember(rawName);
-    const matchedMember = !isSup ? (customMember || findMemberMatch(rawName, members) || p.member) : null;
+    const matchedMember = !isSup ? (customMember || findMemberMatch(rawName, members, aliasesMap) || p.member) : null;
 
     let role = p.role || (isSup ? 'supervisor' : (matchedMember || isMonika ? 'member' : (p.isGuest ? 'guest' : 'member')));
     if (isSup) role = 'supervisor';
@@ -428,8 +439,10 @@ export default function AttendanceModal({
 
   const { supervisors, weights } = useSettings();
   const [localThreshold, setLocalThreshold] = useState(minDurationThreshold);
+  const [aliasesMap, setAliasesMap] = useState(() => getAliasesFromStorage());
+  const [linkingParticipantId, setLinkingParticipantId] = useState(null);
   const [localParticipants, setLocalParticipants] = useState(() =>
-    resolveInitialParticipants(meeting, members, participants, minDurationThreshold, supervisors)
+    resolveInitialParticipants(meeting, members, participants, minDurationThreshold, supervisors, (k) => k, getAliasesFromStorage())
   );
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all'); // 'all', 'member', 'supervisor', 'speaker', 'guest', 'short_time', 'unmatched'
@@ -453,6 +466,41 @@ export default function AttendanceModal({
     );
   };
 
+  // Connect guest pseudonym to member profile (Alias Matching)
+  const handleLinkAlias = (participant, memberId) => {
+    const targetMember = members.find(m => m.id === memberId || m.index === memberId) || getCustomMappedMember(memberId);
+    if (!targetMember) return;
+
+    const rawKey = normalizeDiacritics(participant.rawName).toLowerCase().trim();
+    const targetName = targetMember.fullName || `${targetMember.firstName} ${targetMember.lastName}`;
+
+    const updatedAliases = {
+      ...aliasesMap,
+      [rawKey]: targetName,
+    };
+
+    setAliasesMap(updatedAliases);
+    saveAliasesToStorage(updatedAliases);
+
+    setLocalParticipants(prev =>
+      prev.map(p => {
+        if (p.id !== participant.id) return p;
+        return {
+          ...p,
+          member: targetMember,
+          role: 'member',
+          isGuest: false,
+          isExternalGuest: false,
+          manualApproved: true,
+          hasManualOverride: true,
+          status: 'approved',
+        };
+      })
+    );
+
+    setLinkingParticipantId(null);
+  };
+
   // Manual participant add form
   const [isAddFormOpen, setIsAddFormOpen] = useState(false);
   const [addRawInput, setAddRawInput] = useState('');
@@ -468,7 +516,9 @@ export default function AttendanceModal({
     if (isOpen && meeting) {
       setActiveFilter('all');
       setSearchQuery('');
-      setLocalParticipants(resolveInitialParticipants(meeting, members, participants, localThreshold, supervisors, getStorageKey));
+      const currentAliases = getAliasesFromStorage();
+      setAliasesMap(currentAliases);
+      setLocalParticipants(resolveInitialParticipants(meeting, members, participants, localThreshold, supervisors, getStorageKey, currentAliases));
     }
   }, [isOpen, meeting, participants, members, supervisors, getStorageKey]);
 
@@ -834,6 +884,7 @@ export default function AttendanceModal({
           kodSpotkania: meeting.code || "M00",
           dataSpotkania: meeting.date || new Date().toISOString().slice(0, 10),
           obecnosci: allVerifiedList,
+          aliasy: aliasesMap,
         });
       } catch (e) {
         console.warn("Błąd zapisu obecności w GAS:", e);
@@ -847,6 +898,7 @@ export default function AttendanceModal({
         confirmedIndexes: confirmedIndexes,
         confirmedCount: countApprovedTotal,
         supervisors: supervisorsPresent.map(s => s.rawName),
+        aliasy: aliasesMap,
         savedAt: new Date().toISOString(),
       };
 
@@ -1342,13 +1394,42 @@ export default function AttendanceModal({
                               </div>
                             </div>
                           ) : isGuestRole ? (
-                            <div className="flex items-center gap-2 bg-purple-50 border border-purple-200 p-2 rounded-xl text-purple-900">
-                              <User size={16} className="text-purple-600 shrink-0" />
-                              <div>
-                                <p className="font-bold text-xs leading-tight">Gość zewnętrzny (brak w bazie SKN)</p>
-                                <p className="text-[10px] text-purple-600">Nie podlega frekwencji</p>
+                            linkingParticipantId === p.id ? (
+                              <div className="space-y-1">
+                                <MemberAutocomplete
+                                  members={members}
+                                  value=""
+                                  onChange={val => {
+                                    if (val) handleLinkAlias(p, val);
+                                  }}
+                                  placeholder="Wybierz członka z bazy..."
+                                  className="w-full"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setLinkingParticipantId(null)}
+                                  className="text-[10px] text-slate-500 hover:text-slate-800 font-semibold underline cursor-pointer"
+                                >
+                                  Anuluj
+                                </button>
                               </div>
-                            </div>
+                            ) : (
+                              <div className="flex items-center justify-between gap-2 bg-purple-50 border border-purple-200 p-2 rounded-xl text-purple-900">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <User size={16} className="text-purple-600 shrink-0" />
+                                  <div className="min-w-0">
+                                    <p className="font-bold text-xs leading-tight truncate">Gość zewnętrzny (brak w bazie SKN)</p>
+                                    <button
+                                      type="button"
+                                      onClick={() => setLinkingParticipantId(p.id)}
+                                      className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 underline cursor-pointer mt-0.5 block text-left"
+                                    >
+                                      🔗 Połącz z członkiem
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )
                           ) : p.member ? (
                             <div className="flex items-center justify-between gap-2 bg-emerald-50/70 border border-emerald-200 p-2 rounded-xl">
                               <div className="min-w-0">
@@ -1474,7 +1555,7 @@ export default function AttendanceModal({
                                         ✕
                                       </button>
                                     </div>
-                                    <div className="max-h-56 overflow-y-auto space-y-0.5 py-1">
+                                    <div className="max-h-[400px] overflow-y-auto space-y-0.5 py-1">
                                       {ACTIVITY_OPTIONS.map(opt => {
                                         const isChecked = extraActs.includes(opt.id);
                                         const pts = weights?.[opt.id]?.points || opt.points;
