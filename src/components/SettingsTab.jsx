@@ -124,28 +124,7 @@ const BOARD_ROLE_WEIGHTS = {
   'Koordynator ds. Badań': { code: 'BADANIA', defaultPtsPerMonth: 4 },
 };
 
-const DEFAULT_BOARD_TENURES = [
-  {
-    id: 'tenure_01',
-    memberName: 'Monika Łyniewska',
-    memberIndex: '34327',
-    memberEmail: 'monikaa.lyniewska@gmail.com',
-    roleName: 'Sekretarz Koła',
-    startDate: '2025-10-01',
-    endDate: '', // W trakcie
-    isActive: true,
-  },
-  {
-    id: 'tenure_02',
-    memberName: 'Adrian Puczkowski',
-    memberIndex: '10372',
-    memberEmail: 'adrian.puczkowski@gmail.com',
-    roleName: 'Moderator Social Media / Grup',
-    startDate: '2025-10-01',
-    endDate: '', // W trakcie
-    isActive: true,
-  },
-];
+const DEFAULT_BOARD_TENURES = [];
 
 export default function SettingsTab({ members = [], meetings = [] }) {
   const { currentOrg, currentOrgId } = useOrg();
@@ -1309,47 +1288,55 @@ export default function SettingsTab({ members = [], meetings = [] }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {boardTenures.map(t => {
-                const points = calculateTenurePoints(t.startDate, t.endDate, t.isActive, t.roleName);
-                return (
-                  <tr key={t.id} className="hover:bg-slate-50/60 transition-colors">
-                    <td className="px-4 py-2.5">
-                      <div className="font-bold text-slate-800">{t.memberName}</div>
-                      {t.memberIndex && <div className="text-[11px] text-slate-400 font-mono">Indeks: {t.memberIndex}</div>}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                        {t.roleName}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2.5 font-mono text-slate-600">{t.startDate}</td>
-                    <td className="px-4 py-2.5">
-                      {t.isActive ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                          W trakcie
+              {boardTenures.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-slate-400 text-xs">
+                    Brak zarejestrowanych kadencji w zarządzie. Dodaj pierwszy wpis powyżej.
+                  </td>
+                </tr>
+              ) : (
+                boardTenures.map(t => {
+                  const points = calculateTenurePoints(t.startDate, t.endDate, t.isActive, t.roleName);
+                  return (
+                    <tr key={t.id} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="px-4 py-2.5">
+                        <div className="font-bold text-slate-800">{t.memberName}</div>
+                        {t.memberIndex && <div className="text-[11px] text-slate-400 font-mono">Indeks: {t.memberIndex}</div>}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                          {t.roleName}
                         </span>
-                      ) : (
-                        <span className="font-mono text-slate-600">{t.endDate || '—'}</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5 text-center">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 font-mono shadow-2xs">
-                        +{points} pkt
-                      </span>
-                    </td>
-                    <td className="px-4 py-2.5 text-right">
-                      <button
-                        onClick={() => handleDeleteTenure(t.id)}
-                        className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition cursor-pointer"
-                        title="Usuń ten wpis z rejestru"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
+                      </td>
+                      <td className="px-4 py-2.5 font-mono text-slate-600">{t.startDate}</td>
+                      <td className="px-4 py-2.5">
+                        {t.isActive ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            W trakcie
+                          </span>
+                        ) : (
+                          <span className="font-mono text-slate-600">{t.endDate || '—'}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-center">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 font-mono shadow-2xs">
+                          +{points} pkt
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <button
+                          onClick={() => handleDeleteTenure(t.id)}
+                          className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition cursor-pointer"
+                          title="Usuń ten wpis z rejestru"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
