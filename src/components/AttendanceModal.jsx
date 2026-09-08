@@ -296,6 +296,124 @@ function MemberAutocomplete({
   );
 }
 
+/**
+ * Autocomplete i inteligentny input do ręcznego dodawania uczestników (członkowie SKN oraz goście zewnętrzni)
+ */
+function AddParticipantInput({
+  members = [],
+  value,
+  onChange,
+  onSelectMember,
+  selectedMember,
+  placeholder = "Wpisz imię, nazwisko lub wklej wpis z Meet...",
+  className = "",
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const sortedMembers = useMemo(() => {
+    return [...members].sort((a, b) => {
+      const nameA = (a.fullName || `${a.firstName} ${a.lastName}`).trim();
+      const nameB = (b.fullName || `${b.firstName} ${b.lastName}`).trim();
+      return nameA.localeCompare(nameB, 'pl', { sensitivity: 'base' });
+    });
+  }, [members]);
+
+  const filtered = useMemo(() => {
+    if (!value || !value.trim()) return sortedMembers.slice(0, 20);
+    const q = normalizeDiacritics(value).toLowerCase().trim();
+    return sortedMembers.filter(m => {
+      const name = normalizeDiacritics(m.fullName || `${m.firstName} ${m.lastName}`).toLowerCase();
+      const idx = String(m.index || '').toLowerCase();
+      const em = normalizeDiacritics(m.email || '').toLowerCase();
+      return name.includes(q) || idx.includes(q) || em.includes(q);
+    });
+  }, [sortedMembers, value]);
+
+  return (
+    <div className={`relative ${className}`}>
+      <div className="relative">
+        <input
+          id="add-participant-name-input"
+          name="addParticipantNameInput"
+          type="text"
+          value={value}
+          onChange={e => {
+            onChange(e.target.value);
+            if (!isOpen) setIsOpen(true);
+          }}
+          onFocus={() => setIsOpen(true)}
+          onBlur={() => setTimeout(() => setIsOpen(false), 240)}
+          placeholder={placeholder}
+          className="w-full text-xs border border-purple-300 rounded-xl pl-8 pr-8 py-2 bg-white text-slate-900 font-semibold focus:ring-2 focus:ring-purple-400 outline-none shadow-2xs transition"
+        />
+        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-purple-400" />
+
+        {value && (
+          <button
+            type="button"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              onChange('');
+              if (onSelectMember) onSelectMember(null);
+            }}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-600 transition cursor-pointer p-0.5"
+            title="Wyczyść"
+          >
+            <X size={13} />
+          </button>
+        )}
+      </div>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 right-0 mt-1.5 max-h-60 overflow-y-auto bg-white rounded-2xl shadow-xl border border-purple-200 z-50 p-1.5 space-y-1 scrollbar-thin scrollbar-thumb-purple-200 animate-in fade-in zoom-in-95 duration-100">
+          {filtered.length === 0 ? (
+            <div className="px-3 py-2.5 text-center text-xs text-purple-800 bg-purple-50/80 rounded-xl font-medium">
+              👤 Brak w bazie SKN &mdash; zostanie dodany jako <strong>Gość zewnętrzny</strong>
+            </div>
+          ) : (
+            filtered.map(m => {
+              const name = m.fullName || `${m.firstName} ${m.lastName}`;
+              const isSelected = selectedMember && (selectedMember.id === m.id || selectedMember.index === m.index);
+              const isActive = m.status === 'active' || !m.status;
+
+              return (
+                <button
+                  key={m.id || m.index}
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    if (onSelectMember) onSelectMember(m);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between p-2 rounded-xl text-left text-xs transition cursor-pointer ${
+                    isSelected
+                      ? 'bg-purple-100 text-purple-950 font-bold'
+                      : 'hover:bg-purple-50 text-slate-800'
+                  }`}
+                >
+                  <div className="min-w-0 pr-2">
+                    <p className="font-bold truncate">{name}</p>
+                    <p className="text-[10px] text-slate-500 font-mono">
+                      Indeks: <strong>{m.index}</strong> {m.field ? `• ${m.field}` : ''}
+                    </p>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 border ${
+                    isActive
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-slate-100 text-slate-500 border-slate-200'
+                  }`}>
+                    {isActive ? '🟢 Członek' : '⚪ Baza'}
+                  </span>
+                </button>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AttendanceModal({
   isOpen,
   onClose,
@@ -337,10 +455,11 @@ export default function AttendanceModal({
 
   // Manual participant add form
   const [isAddFormOpen, setIsAddFormOpen] = useState(false);
-  const [addMemberId, setAddMemberId] = useState('');
+  const [addRawInput, setAddRawInput] = useState('');
+  const [addSelectedMember, setAddSelectedMember] = useState(null);
   const [addDuration, setAddDuration] = useState('60');
   const [addJoinTime, setAddJoinTime] = useState('18:00');
-  const [addRole, setAddRole] = useState('member');
+  const [addRole, setAddRole] = useState('guest');
 
   const { getStorageKey } = useOrg();
 
@@ -490,37 +609,132 @@ export default function AttendanceModal({
     );
   };
 
-  // Add new participant manually
+  const handleAddInputChange = (rawVal) => {
+    // 1. Intelligent parsing of pasted / typed text (strip date/time signatures)
+    const cleanName = rawVal
+      .replace(/\d{4}-\d{2}-\d{2}.*$/, '')
+      .replace(/\d{1,2}:\d{2}.*$/, '')
+      .trim();
+
+    setAddRawInput(cleanName);
+
+    // 2. Check if cleanName matches any member in SKN database
+    const normClean = normalizeDiacritics(cleanName).toLowerCase().trim();
+    if (!normClean) {
+      setAddSelectedMember(null);
+      setAddRole('guest');
+      return;
+    }
+
+    const matched = members.find(m => {
+      if (!m) return false;
+      const normFull = normalizeDiacritics(m.fullName || `${m.firstName} ${m.lastName}`).toLowerCase().trim();
+      const normIdx = String(m.index || '').trim();
+      const normEmail = normalizeDiacritics(m.email || '').toLowerCase().trim();
+      if (normIdx && normClean === normIdx) return true;
+      if (normFull && (normClean === normFull || normClean === normFull.split(' ').reverse().join(' '))) return true;
+      if (normEmail && normClean === normEmail) return true;
+      return false;
+    });
+
+    if (matched) {
+      setAddSelectedMember(matched);
+      if (isFacultySupervisor(matched.fullName || `${matched.firstName} ${matched.lastName}`)) {
+        setAddRole('supervisor');
+      } else {
+        setAddRole('member');
+      }
+    } else {
+      setAddSelectedMember(null);
+      setAddRole('guest');
+    }
+  };
+
+  const handleSelectMemberForAdd = (member) => {
+    if (!member) {
+      setAddSelectedMember(null);
+      setAddRole('guest');
+      return;
+    }
+    const name = member.fullName || `${member.firstName} ${member.lastName}`;
+    setAddRawInput(name);
+    setAddSelectedMember(member);
+    if (isFacultySupervisor(name)) {
+      setAddRole('supervisor');
+    } else {
+      setAddRole('member');
+    }
+  };
+
+  // Add new participant manually (member or external guest / speaker / supervisor)
   const handleAddParticipantSubmit = (e) => {
     e.preventDefault();
-    if (!addMemberId) return;
+    const cleanName = (addRawInput || '')
+      .replace(/\d{4}-\d{2}-\d{2}.*$/, '')
+      .replace(/\d{1,2}:\d{2}.*$/, '')
+      .trim();
 
-    const targetMember = members.find(m => m.id === addMemberId || m.index === addMemberId) || getCustomMappedMember(addMemberId);
-    if (!targetMember) return;
+    if (!cleanName) return;
+
+    // Resolve target member from state or fuzzy lookup in loaded database
+    const targetMember = addSelectedMember || members.find(m => {
+      if (!m) return false;
+      const normClean = normalizeDiacritics(cleanName).toLowerCase().trim();
+      const normFull = normalizeDiacritics(m.fullName || `${m.firstName} ${m.lastName}`).toLowerCase().trim();
+      const normIdx = String(m.index || '').trim();
+      if (normIdx && normClean === normIdx) return true;
+      if (normFull && (normClean === normFull || normClean === normFull.split(' ').reverse().join(' '))) return true;
+      return false;
+    }) || getCustomMappedMember(cleanName);
+
+    const displayName = targetMember
+      ? (targetMember.fullName || `${targetMember.firstName} ${targetMember.lastName}`)
+      : cleanName;
+    const targetIndex = targetMember ? String(targetMember.index).trim() : '';
+    const normDisplayName = normalizeDiacritics(displayName).toLowerCase().trim();
+
+    // 3. Blokada dodawania duplikatów (po indeksie lub nazwisku case-insensitive)
+    const isDuplicate = localParticipants.some(a => {
+      const aIndex = a.member?.index ? String(a.member.index).trim() : '';
+      const aName = normalizeDiacritics(a.member?.fullName || a.rawName || '').toLowerCase().trim();
+      if (targetIndex && aIndex && targetIndex === aIndex) return true;
+      if (normDisplayName && aName && normDisplayName === aName) return true;
+      return false;
+    });
+
+    if (isDuplicate) {
+      alert(`Uczestnik "${displayName}${targetIndex ? ` (${targetIndex})` : ''}" już znajduje się na liście tego spotkania!`);
+      return;
+    }
 
     const dur = parseInt(addDuration, 10) || 60;
-    const isOver = dur >= localThreshold;
-    const name = targetMember.fullName || `${targetMember.firstName} ${targetMember.lastName}`;
+    const effectiveRole = addRole || (targetMember ? 'member' : 'guest');
+    const isGuest = effectiveRole === 'guest' || !targetMember;
+    const isSup = effectiveRole === 'supervisor' || isFacultySupervisor(displayName);
+    const isSpeaker = effectiveRole === 'speaker';
 
     const newParticipant = {
-      id: `manual_${Date.now()}_${targetMember.index}`,
-      rawName: name,
+      id: `manual_${Date.now()}_${targetMember ? targetMember.index : Math.random().toString(36).substring(2, 7)}`,
+      rawName: displayName,
       joinTime: addJoinTime || '18:00',
       durationStr: `${dur} min`,
       durationMinutes: dur,
-      member: targetMember,
-      role: addRole || 'member',
-      isGuest: false,
-      isEligible: isOver,
+      member: targetMember || null,
+      role: effectiveRole,
+      isGuest: Boolean(isGuest && !isSup && !isSpeaker),
+      isEligible: true,
       manualApproved: true,
       hasManualOverride: true,
-      status: 'approved',
+      status: isSup ? 'supervisor' : (isSpeaker ? 'speaker' : (isGuest ? 'guest' : 'approved')),
+      isExternalGuest: !targetMember,
     };
 
     setLocalParticipants(prev => [newParticipant, ...prev]);
     setIsAddFormOpen(false);
-    setAddMemberId('');
+    setAddRawInput('');
+    setAddSelectedMember(null);
     setAddDuration('60');
+    setAddRole('guest');
   };
 
   // List of faculty supervisors present on this meeting
@@ -532,13 +746,14 @@ export default function AttendanceModal({
   const isApprovedParticipant = (p) => {
     if (p.role === 'supervisor' || isFacultySupervisor(p.rawName)) return true;
     if (p.role === 'speaker') return true;
+    if (p.role === 'guest' || p.isGuest || p.isExternalGuest) return true;
     if (p.manualApproved !== undefined) return Boolean(p.manualApproved);
     return Boolean(p.isEligible || p.status === 'approved' || p.status === 'Zaliczona');
   };
 
   // Helper to determine if participant is an approved student member
   const isApprovedStudent = (p) => {
-    if (p.role === 'supervisor' || p.role === 'speaker' || p.role === 'guest' || p.isGuest) return false;
+    if (p.role === 'supervisor' || p.role === 'speaker' || p.role === 'guest' || p.isGuest || p.isExternalGuest) return false;
     const isApproved = p.manualApproved !== undefined ? p.manualApproved : (p.isEligible || p.status === 'approved' || p.status === 'Zaliczona');
     return isApproved && (!!p.member || isMonikaLyniewska(p.rawName));
   };
@@ -556,11 +771,11 @@ export default function AttendanceModal({
       } else if (activeFilter === 'speaker') {
         if (p.role !== 'speaker') return false;
       } else if (activeFilter === 'guest') {
-        if (p.role !== 'guest' && !p.isGuest) return false;
+        if (p.role !== 'guest' && !p.isGuest && !p.isExternalGuest) return false;
       } else if (activeFilter === 'short_time') {
-        if (p.role === 'supervisor' || p.role === 'speaker' || p.role === 'guest' || p.isGuest || (p.durationMinutes >= localThreshold || p.manualApproved)) return false;
+        if (p.role === 'supervisor' || p.role === 'speaker' || p.role === 'guest' || p.isGuest || p.isExternalGuest || (p.durationMinutes >= localThreshold || p.manualApproved)) return false;
       } else if (activeFilter === 'unmatched') {
-        if (p.role === 'supervisor' || p.role === 'speaker' || p.role === 'guest' || p.isGuest || p.member || isMonikaLyniewska(p.rawName)) return false;
+        if (p.role === 'supervisor' || p.role === 'speaker' || p.role === 'guest' || p.isGuest || p.isExternalGuest || p.member || isMonikaLyniewska(p.rawName)) return false;
       }
 
       // 2. Query search
@@ -587,9 +802,9 @@ export default function AttendanceModal({
   const countApprovedMembers = localParticipants.filter(isApprovedStudent).length;
   const countSupervisors = localParticipants.filter(p => p.role === 'supervisor' || isFacultySupervisor(p.rawName)).length;
   const countSpeakers = localParticipants.filter(p => p.role === 'speaker').length;
-  const countGuests = localParticipants.filter(p => p.role === 'guest' || p.isGuest).length;
-  const countShortTime = localParticipants.filter(p => (p.role === 'member' || !p.role) && !p.isGuest && !isFacultySupervisor(p.rawName) && p.durationMinutes < localThreshold && !p.manualApproved).length;
-  const countUnmatched = localParticipants.filter(p => (p.role === 'member' || !p.role) && !p.member && !p.isGuest && !isFacultySupervisor(p.rawName) && !isMonikaLyniewska(p.rawName)).length;
+  const countGuests = localParticipants.filter(p => p.role === 'guest' || p.isGuest || p.isExternalGuest).length;
+  const countShortTime = localParticipants.filter(p => (p.role === 'member' || !p.role) && !p.isGuest && !p.isExternalGuest && !isFacultySupervisor(p.rawName) && p.durationMinutes < localThreshold && !p.manualApproved).length;
+  const countUnmatched = localParticipants.filter(p => (p.role === 'member' || !p.role) && !p.member && !p.isGuest && !p.isExternalGuest && !isFacultySupervisor(p.rawName) && !isMonikaLyniewska(p.rawName)).length;
   const totalCount = localParticipants.length;
 
   // Save changes
@@ -601,7 +816,10 @@ export default function AttendanceModal({
         .map(p => {
           const nrIndeksu = String(p.member?.index || (isMonikaLyniewska(p.rawName) ? '34327' : (p.rawName.match(/\d{4,6}/)?.[0] || ''))).trim();
           const name = String(p.member?.fullName || p.fullName || p.rawName || '').trim();
-          const rola = String(p.role || (isFacultySupervisor(p.rawName) ? 'Opiekun' : (p.isGuest ? 'Gość' : (nrIndeksu ? 'Członek koła' : 'Gość')))).trim();
+          const isSup = p.role === 'supervisor' || isFacultySupervisor(p.rawName);
+          const isSpk = p.role === 'speaker';
+          const isGst = p.role === 'guest' || p.isGuest || p.isExternalGuest || !nrIndeksu;
+          const rola = String(isSup ? 'Opiekun' : (isSpk ? 'Prelegent' : (isGst ? 'Gość' : 'Członek koła'))).trim();
           return { nrIndeksu, name, rola };
         })
         .filter(item => item.nrIndeksu || item.name);
@@ -746,13 +964,27 @@ export default function AttendanceModal({
             </div>
 
             <form onSubmit={handleAddParticipantSubmit} className="flex items-center gap-2.5 flex-wrap flex-1 md:justify-end">
-              <MemberAutocomplete
+              <AddParticipantInput
                 members={members}
-                value={addMemberId}
-                onChange={val => setAddMemberId(val)}
-                placeholder="Wpisz imię, nazwisko lub nr indeksu (141 osób)..."
+                value={addRawInput}
+                onChange={handleAddInputChange}
+                onSelectMember={handleSelectMemberForAdd}
+                selectedMember={addSelectedMember}
+                placeholder="Wpisz imię, nazwisko lub wklej wpis z Meet..."
                 className="flex-1 max-w-sm"
               />
+
+              {addSelectedMember ? (
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100/90 px-2.5 py-1.5 rounded-xl border border-emerald-300 shadow-2xs">
+                  <UserCheck size={12} className="text-emerald-700" />
+                  <span>W bazie SKN ({addSelectedMember.index})</span>
+                </span>
+              ) : addRawInput.trim() ? (
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-800 bg-purple-100/90 px-2.5 py-1.5 rounded-xl border border-purple-300 shadow-2xs">
+                  <User size={12} className="text-purple-700" />
+                  <span>Gość zewnętrzny</span>
+                </span>
+              ) : null}
 
               <div className="flex items-center gap-1 bg-white border border-purple-300 rounded-xl px-3 py-1.5 text-xs shadow-2xs">
                 <Clock size={13} className="text-purple-600" />
@@ -773,17 +1005,17 @@ export default function AttendanceModal({
               <select
                 value={addRole}
                 onChange={e => setAddRole(e.target.value)}
-                className="text-xs font-bold border border-purple-300 rounded-xl px-2.5 py-1.5 bg-white text-purple-900 shadow-2xs"
+                className="text-xs font-bold border border-purple-300 rounded-xl px-2.5 py-1.5 bg-white text-purple-900 shadow-2xs cursor-pointer"
               >
+                <option value="guest">👤 Gość</option>
                 <option value="member">🟢 Członek koła</option>
                 <option value="supervisor">🎓 Opiekun Koła</option>
                 <option value="speaker">🎤 Prelegent</option>
-                <option value="guest">👤 Gość</option>
               </select>
 
               <button
                 type="submit"
-                disabled={!addMemberId}
+                disabled={!addRawInput.trim()}
                 className="px-4 py-2 rounded-xl bg-purple-700 hover:bg-purple-800 disabled:opacity-50 text-white font-bold text-xs shadow-2xs transition cursor-pointer"
               >
                 Dopisz
@@ -793,7 +1025,9 @@ export default function AttendanceModal({
                 type="button"
                 onClick={() => {
                   setIsAddFormOpen(false);
-                  setAddMemberId('');
+                  setAddRawInput('');
+                  setAddSelectedMember(null);
+                  setAddRole('guest');
                 }}
                 className="px-3.5 py-2 rounded-xl bg-white border border-purple-200 text-slate-600 hover:bg-slate-100 font-semibold text-xs transition cursor-pointer"
               >
@@ -993,7 +1227,7 @@ export default function AttendanceModal({
                     <th className="p-3 w-10 text-center">LP.</th>
                     <th className="p-3 min-w-[170px]">Wpis z Meet / Uczestnik</th>
                     <th className="p-3 w-32">Rola na Spotkaniu</th>
-                    <th className="p-3 min-w-[190px]">Powiązany Profil (Baza 141)</th>
+                    <th className="p-3 min-w-[190px]">Powiązany Profil z bazy SKN</th>
                     <th className="p-3 text-center w-20">Wejście</th>
                     <th className="p-3 text-center w-24">Czas</th>
                     <th className="p-3 text-center w-24">Status</th>
@@ -1006,7 +1240,7 @@ export default function AttendanceModal({
                   {sortedAndFilteredParticipants.map((p, idx) => {
                     const isSupervisorRole = p.role === 'supervisor' || isFacultySupervisor(p.rawName);
                     const isSpeakerRole = p.role === 'speaker';
-                    const isGuestRole = p.role === 'guest';
+                    const isGuestRole = p.role === 'guest' || p.isGuest || p.isExternalGuest;
                     const isMemberRole = !isSupervisorRole && !isSpeakerRole && !isGuestRole;
 
                     const isApproved = p.manualApproved !== undefined ? p.manualApproved : (p.isEligible || p.status === 'approved' || p.status === 'Zaliczona');
@@ -1109,7 +1343,7 @@ export default function AttendanceModal({
                             <div className="flex items-center gap-2 bg-purple-50 border border-purple-200 p-2 rounded-xl text-purple-900">
                               <User size={16} className="text-purple-600 shrink-0" />
                               <div>
-                                <p className="font-bold text-xs leading-tight">Gość zewnętrzny</p>
+                                <p className="font-bold text-xs leading-tight">Gość zewnętrzny (brak w bazie SKN)</p>
                                 <p className="text-[10px] text-purple-600">Nie podlega frekwencji</p>
                               </div>
                             </div>
