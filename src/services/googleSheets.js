@@ -849,47 +849,144 @@ export function parseDurationToMinutes(val) {
 }
 
 export function parseAttendanceLine(rawLine) {
-  if (!rawLine || !rawLine.trim()) return null;
+  if (!rawLine || typeof rawLine !== 'string') return null;
   const line = rawLine.trim();
+  if (!line) return null;
 
-  // Sprawdź podział po tabulatorze, średniku lub separatorze kolumn
-  let parts = [];
-  if (line.includes('\t')) {
-    parts = line.split('\t').map(p => p.trim());
-  } else if (line.includes(';') && line.split(';').length >= 2) {
-    parts = line.split(';').map(p => p.trim());
-  } else if (line.includes(',') && line.split(',').length >= 3) {
-    parts = line.split(',').map(p => p.trim());
+  // Ignore header lines or empty lines
+  const lower = line.toLowerCase();
+  if (
+    lower.startsWith('imię i nazwisko') ||
+    lower.startsWith('uczestnik') ||
+    lower.startsWith('lp.') ||
+    lower.startsWith('lista obecności') ||
+    lower.startsWith('data spotkania') ||
+    lower.startsWith('kod spotkania')
+  ) {
+    return null;
   }
 
-  if (parts.length >= 3) {
-    const rawName = parts[0];
-    const joinTime = parts[1] || '—';
-    const durationStr = parts[2] || '';
-    const durationMinutes = parseDurationToMinutes(durationStr);
-    return { rawName, joinTime, durationStr, durationMinutes, isMultiColumn: true };
-  }
+  try {
+    let rawName = line;
+    let joinTime = '18:00';
+    let durationStr = '60 min';
+    let durationMinutes = 60;
+    let extractedIndex = '';
+    let isExplicitGuest = false;
 
-  if (parts.length === 2) {
-    const rawName = parts[0];
-    const secondCol = parts[1];
-    const durationMinutes = parseDurationToMinutes(secondCol);
-    if (durationMinutes > 0) {
-      return { rawName, joinTime: '—', durationStr: secondCol, durationMinutes, isMultiColumn: true };
+    // Check if line contains "Sprawdź opis"
+    if (line.includes('Sprawdź opis')) {
+      isExplicitGuest = true;
     }
-    return { rawName, joinTime: secondCol, durationStr: '—', durationMinutes: 60, isMultiColumn: true };
-  }
 
-  // Linia pojedyncza: sprawdź czy na końcu nie ma podanego czasu (np. "Anna Kowalska 45 min" lub "15998 3m")
-  const durationEndMatch = line.match(/\s+(\d{1,2}:\d{2}(?::\d{2})?|\d+\s*(?:m|min|minut|h|godz))\s*$/i);
-  if (durationEndMatch) {
-    const durationStr = durationEndMatch[1];
-    const rawName = line.slice(0, durationEndMatch.index).trim();
-    const durationMinutes = parseDurationToMinutes(durationStr);
-    return { rawName, joinTime: '—', durationStr, durationMinutes, isMultiColumn: false };
-  }
+    // Extract index if present (e.g., "Zgodny ✔️ 5589", "indeks 12345", or 4-6 digits at end)
+    const indexMatch = line.match(/(?:Zgodny\s*✔️?\s*|indeks[:\s]*|nr[:\s]*)(\d{3,6})/i) || line.match(/\b(\d{4,6})\b$/);
+    if (indexMatch) {
+      extractedIndex = indexMatch[1];
+    }
 
-  return { rawName: line, joinTime: '—', durationStr: '—', durationMinutes: 60, isMultiColumn: false };
+    // 1. Check date YYYY-MM-DD pattern
+    // e.g. "Agnieszka Czerwińska 2026-06-16 18:21:10 01:37:44 Zgodny ✔️ 5589"
+    const dateMatch = line.match(/(\d{4}-\d{2}-\d{2})\s+(\d{1,2}:\d{2}(?::\d{2})?)/);
+
+    if (dateMatch) {
+      const dateIndex = dateMatch.index;
+      if (dateIndex > 0) {
+        rawName = line.slice(0, dateIndex).trim();
+      }
+
+      joinTime = dateMatch[2] || '18:00';
+
+      // Look for duration format after joinTime: e.g. "01:37:44" or "45 min"
+      const afterJoin = line.slice(dateIndex + dateMatch[0].length).trim();
+      const durMatch = afterJoin.match(/(\d{1,2}:\d{2}:\d{2}|\d{1,2}:\d{2}|\d+\s*(?:m|min|h|godz))/i);
+      if (durMatch) {
+        durationStr = durMatch[1];
+        durationMinutes = parseDurationToMinutes(durationStr);
+      }
+    } else if (line.includes('\t') || line.includes(';')) {
+      // Tab or semicolon separated
+      const sep = line.includes('\t') ? '\t' : ';';
+      const parts = line.split(sep).map(p => p.trim()).filter(Boolean);
+      if (parts.length >= 3) {
+        rawName = parts[0];
+        joinTime = parts[1];
+        durationStr = parts[2];
+        durationMinutes = parseDurationToMinutes(durationStr);
+      } else if (parts.length === 2) {
+        rawName = parts[0];
+        const dur = parseDurationToMinutes(parts[1]);
+        if (dur > 0) {
+          durationStr = parts[1];
+          durationMinutes = dur;
+        } else {
+          joinTime = parts[1];
+        }
+      }
+    } else {
+      // Single line: check if duration at end, e.g. "Jan Kowalski 45 min" or "Jan Kowalski 01:15:00"
+      const durationEndMatch = line.match(/\s+(\d{1,2}:\d{2}(?::\d{2})?|\d+\s*(?:m|min|minut|h|godz))\s*$/i);
+      if (durationEndMatch) {
+        durationStr = durationEndMatch[1];
+        rawName = line.slice(0, durationEndMatch.index).trim();
+        durationMinutes = parseDurationToMinutes(durationStr);
+      }
+    }
+
+    // Clean up rawName (strip leftover status suffixes or timestamps)
+    rawName = rawName
+      .replace(/\d{4}-\d{2}-\d{2}.*$/, '')
+      .replace(/\d{1,2}:\d{2}.*$/, '')
+      .replace(/Zgodny.*$/, '')
+      .replace(/Sprawdź opis.*$/, '')
+      .trim();
+
+    if (!rawName) {
+      rawName = line.trim();
+    }
+
+    if (durationMinutes <= 0) {
+      durationMinutes = 60;
+    }
+
+    return {
+      rawName,
+      joinTime: joinTime || '18:00',
+      durationStr: durationStr || `${durationMinutes} min`,
+      durationMinutes,
+      extractedIndex,
+      isExplicitGuest,
+      isMultiColumn: false,
+    };
+  } catch (err) {
+    console.warn('Błąd parsowania linii w parseAttendanceLine:', line, err);
+    // Fallback object so nothing crashes
+    const clean = line.replace(/\d{4}-\d{2}-\d{2}.*$/, '').replace(/\d{1,2}:\d{2}.*$/, '').trim() || line;
+    return {
+      rawName: clean,
+      joinTime: '18:00',
+      durationStr: '60 min',
+      durationMinutes: 60,
+      extractedIndex: '',
+      isExplicitGuest: true,
+      isMultiColumn: false,
+    };
+  }
+}
+
+export function parseAttendanceText(text) {
+  if (!text || typeof text !== 'string') return [];
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  const results = [];
+  lines.forEach(line => {
+    try {
+      const parsed = parseAttendanceLine(line);
+      if (parsed && parsed.rawName) results.push(parsed);
+    } catch (e) {
+      console.warn('Wiersz pominięty z powodu błędu:', line, e);
+    }
+  });
+  return results;
 }
 
 export async function fetchMeetingSheetAttendance(meetingCode, sheetId = SHEET_ID, members = []) {
@@ -897,13 +994,12 @@ export async function fetchMeetingSheetAttendance(meetingCode, sheetId = SHEET_I
     members = sheetId;
     sheetId = SHEET_ID;
   }
-  const cleanId = extractSheetId(sheetId) || SHEET_ID;
   if (!meetingCode) return { ok: false, error: 'Brak kodu spotkania' };
 
   const rawCodeUpper = String(meetingCode).trim().toUpperCase();
   const cleanCodeUpper = rawCodeUpper.replace(/^\[.*?\]\s*/, '');
 
-  // 1. Sprawdź najpierw w centralnym backendzie GAS (action=pobierz_dane)
+  // Czytaj WYŁĄCZNIE z pobranej ewidencji obecności (zakładka Ewidencja_Obecnosci przez action=pobierz_dane)
   try {
     const gasData = await fetchGasData();
     if (gasData && gasData.ewidencja && Array.isArray(gasData.ewidencja)) {
@@ -961,116 +1057,10 @@ export async function fetchMeetingSheetAttendance(meetingCode, sheetId = SHEET_I
     console.warn('Błąd odczytu z GAS pobierz_dane:', gasErr);
   }
 
-  const candidates = [
-    meetingCode,
-    meetingCode.toUpperCase(),
-    meetingCode.replace(/^M0?/, 'M'),
-    `Spotkanie ${meetingCode.replace(/^M0?/, '')}`,
-    `Spotkanie ${meetingCode}`,
-  ];
-
-  for (const tabName of candidates) {
-    try {
-      const table = await fetchSheet(tabName, cleanId);
-      if (table && table.rows && table.rows.length > 0) {
-        const participants = table.rows.map((r, idx) => {
-          const c = r.c || [];
-          const colA = cellStr(c[0]);
-          const colB = cellStr(c[1]);
-          const colC = cellStr(c[2]);
-          const colD = cellStr(c[3]);
-          const colE = cellStr(c[4]);
-
-          // Jeśli układ z Kolumną B (Join Time) i Kolumną C (Duration)
-          const durC = parseDurationToMinutes(colC);
-          if (durC > 0 || /^\d{1,2}:\d{2}/.test(colB)) {
-            return {
-              id: `p_${idx}`,
-              rawName: colA,
-              joinTime: colB || '—',
-              durationStr: colC || '—',
-              durationMinutes: durC,
-            };
-          }
-
-          // Jeśli standardowy formularz Google (A: Date, B: Email, C: Imię, D: Nazwisko, E: Index)
-          const fullName = `${colC} ${colD}`.trim() || colC || colB;
-          const index = colE;
-          const dateStr = formatDate(parseGvizDate(c[0])) || colA;
-
-          return {
-            id: `p_${idx}`,
-            rawName: fullName,
-            index,
-            email: colB,
-            joinTime: dateStr || '—',
-            durationStr: '60 min',
-            durationMinutes: 60,
-          };
-        });
-
-        return { ok: true, tabName, participants };
-      }
-    } catch (e) {
-      // Ignoruj i spróbuj kolejnego kandydata
-    }
-  }
-
-  // Sprawdź w głównej ewidencji obecności (Ewidencja_Obecnosci lub Zarządzanie)
-  try {
-    const tabsToTry = ['Ewidencja_Obecnosci', 'Zarządzanie', 'Zarz%C4%85dzanie'];
-    const cleanMeetingCode = meetingCode.toUpperCase().trim().replace(/^\[.*?\]\s*/, '');
-    for (const mainTab of tabsToTry) {
-      try {
-        const table = await fetchSheet(mainTab, cleanId);
-        if (table && table.rows && table.rows.length > 1) {
-          const rows = table.rows;
-          const headerRow = rows[1]?.c || [];
-          let targetCol = -1;
-
-          for (let col = 20; col < headerRow.length; col++) {
-            const hVal = cellStr(headerRow[col]);
-            if (!hVal) continue;
-            const firstLine = hVal.split(/[\n\r]+/)[0].trim().toUpperCase();
-            if (firstLine === cleanMeetingCode || firstLine.startsWith(cleanMeetingCode) || cleanMeetingCode.startsWith(firstLine)) {
-              targetCol = col;
-              break;
-            }
-          }
-
-          if (targetCol !== -1) {
-            const participants = [];
-            for (let r = 2; r < rows.length; r++) {
-              const rowCells = rows[r]?.c;
-              if (!rowCells) continue;
-              const val = cellVal(rowCells[targetCol]);
-              const isAttended = val === 1 || val === '1' || String(val).trim().toLowerCase() === 'tak' || String(val).trim().toLowerCase() === 'true';
-              if (isAttended) {
-                const email = cellStr(rowCells[0]);
-                const fullName = cellStr(rowCells[1]);
-                const rawIndex = String(cellNum(rowCells[3]) ?? cellStr(rowCells[3]) ?? '');
-                const cleanIndex = normalizeIndex(rawIndex);
-                participants.push({
-                  id: `p_sheet_${r}`,
-                  rawName: cleanIndex ? `${fullName} (${cleanIndex})` : fullName,
-                  fullName: fullName || email,
-                  index: cleanIndex || rawIndex,
-                  email: email,
-                  joinTime: '18:00',
-                  durationStr: '60 min',
-                  durationMinutes: 60,
-                });
-              }
-            }
-
-            return { ok: true, tabName: mainTab, participants };
-          }
-        }
-      } catch (tabErr) {}
-    }
-  } catch (err) {}
-
-  return { ok: false, error: `Nie znaleziono obecności dla spotkania "${meetingCode}" w arkuszu Google` };
+  return {
+    ok: false,
+    error: 'Brak zapisanych obecności w arkuszu dla tego spotkania. Wklej listę z Google Meet i kliknij Przetwórz.',
+  };
 }
 
 // ─── 4. EWIDENCJA POCZTY (Google Sheets Sync: Ewidencja_Poczty) ───────────────

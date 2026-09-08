@@ -531,7 +531,7 @@ export default function MeetingsTab({
   }
 
   async function processAttendanceFromLines(lines, threshold = minDurationThreshold) {
-    if (!selectedMeeting) return;
+    if (!selectedMeeting) return [];
 
     // Save raw list text in org-scoped storage
     const mId = selectedMeeting.id || selectedMeeting.code || selectedMeeting.date;
@@ -547,20 +547,28 @@ export default function MeetingsTab({
     const unmatched = [];
 
     lines.forEach((rawLine, idx) => {
-      const parsed = parseAttendanceLine(rawLine);
-      if (!parsed) return;
+      let parsed = null;
+      try {
+        parsed = parseAttendanceLine(rawLine);
+      } catch (e) {
+        console.warn("Błąd parsowania pojedynczej linii:", rawLine, e);
+      }
+      if (!parsed || !parsed.rawName) return;
 
       const durMinutes = (parsed.durationMinutes !== undefined && parsed.durationMinutes > 0)
         ? parsed.durationMinutes
         : parseDurationToMinutes(parsed.durationStr || parsed.duration || '60 min');
       const isEligible = durMinutes >= threshold;
+      const extractedIdx = parsed.extractedIndex || '';
+
       const member = members.find(m => {
         if (!m) return false;
-        const normRaw = normalizeDiacritics(parsed.rawName);
-        const normFull = normalizeDiacritics(m.fullName || `${m.firstName} ${m.lastName}`);
+        const normRaw = normalizeDiacritics(parsed.rawName).toLowerCase();
+        const normFull = normalizeDiacritics(m.fullName || `${m.firstName} ${m.lastName}`).toLowerCase();
         const normIdx = String(m.index || '').trim();
-        const normEmail = normalizeDiacritics(m.email);
+        const normEmail = normalizeDiacritics(m.email || '').toLowerCase();
 
+        if (extractedIdx && normIdx && extractedIdx === normIdx) return true;
         if (normIdx && normRaw.includes(normIdx)) return true;
         if (normEmail && normRaw.includes(normEmail)) return true;
         if (normFull && (normRaw.includes(normFull) || normFull.includes(normRaw))) return true;
@@ -569,9 +577,9 @@ export default function MeetingsTab({
 
       const role = detectParticipantRole(parsed.rawName, member);
       const isSup = isFacultySupervisor(parsed.rawName);
-      const isMonika = isMonikaLyniewska(parsed.rawName);
+      const isMonika = isMonikaLyniewska(parsed.rawName) || (extractedIdx === '34327');
       const isMemberInDB = Boolean(member || isMonika);
-      const isGuest = !isSup && (role === 'guest' || !isMemberInDB || parsed.rawName.includes('[GOŚĆ]') || parsed.rawName.includes('GOSC') || parsed.rawName.toLowerCase().startsWith('gość'));
+      const isGuest = !isSup && (parsed.isExplicitGuest || role === 'guest' || !isMemberInDB || parsed.rawName.includes('[GOŚĆ]') || parsed.rawName.includes('GOSC') || parsed.rawName.toLowerCase().startsWith('gość'));
       const status = isSup ? 'supervisor' : (isGuest ? 'guest' : (isEligible ? 'approved' : 'short_time'));
 
       const pObj = {
@@ -675,10 +683,15 @@ export default function MeetingsTab({
   }
 
   async function handleProcessAttendance() {
-    if (!rawList.trim()) return;
-    const lines = rawList.split('\n').map(l => l.trim()).filter(Boolean);
-    await processAttendanceFromLines(lines);
-    setIsModalOpen(true);
+    if (!rawList || !rawList.trim()) return;
+    try {
+      const lines = rawList.split('\n').map(l => l.trim()).filter(Boolean);
+      await processAttendanceFromLines(lines);
+    } catch (e) {
+      console.error("Błąd podczas przetwarzania listy:", e);
+    } finally {
+      setIsModalOpen(true);
+    }
   }
 
   async function handleFetchFromSheet() {
