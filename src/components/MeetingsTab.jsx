@@ -685,8 +685,9 @@ export default function MeetingsTab({
   async function handleProcessAttendance() {
     if (!rawList || !rawList.trim()) return;
     try {
-      const lines = rawList.split('\n').map(l => l.trim()).filter(Boolean);
-      await processAttendanceFromLines(lines);
+      const lines = rawList.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      const parsedList = await processAttendanceFromLines(lines);
+      console.log("Sparsowano wierszy:", parsedList?.length || 0, parsedList);
     } catch (e) {
       console.error("Błąd podczas przetwarzania listy:", e);
     } finally {
@@ -1580,9 +1581,10 @@ export default function MeetingsTab({
                       <button
                         type="button"
                         onClick={async () => {
-                          if (rawList.trim()) {
-                            const lines = rawList.split('\n').map(l => l.trim()).filter(Boolean);
-                            await processAttendanceFromLines(lines);
+                          if (rawList && rawList.trim()) {
+                            const lines = rawList.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+                            const parsedList = await processAttendanceFromLines(lines);
+                            console.log("Sparsowano wierszy:", parsedList?.length || 0, parsedList);
                           }
                           setIsModalOpen(true);
                         }}

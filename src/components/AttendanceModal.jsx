@@ -466,6 +466,8 @@ export default function AttendanceModal({
   // Sync state if modal is opened or props change
   React.useEffect(() => {
     if (isOpen && meeting) {
+      setActiveFilter('all');
+      setSearchQuery('');
       setLocalParticipants(resolveInitialParticipants(meeting, members, participants, localThreshold, supervisors, getStorageKey));
     }
   }, [isOpen, meeting, participants, members, supervisors, getStorageKey]);

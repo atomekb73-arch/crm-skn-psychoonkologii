@@ -874,13 +874,14 @@ export function parseAttendanceLine(rawLine) {
     let extractedIndex = '';
     let isExplicitGuest = false;
 
-    // Check if line contains "Sprawdź opis"
-    if (line.includes('Sprawdź opis')) {
+    // Check if line contains explicit guest markers
+    if (line.includes('Sprawdź opis') || lower.includes('[gość]') || lower.includes('gosc') || lower.startsWith('gość')) {
       isExplicitGuest = true;
     }
 
-    // Extract index if present (e.g., "Zgodny ✔️ 5589", "indeks 12345", or 4-6 digits at end)
-    const indexMatch = line.match(/(?:Zgodny\s*✔️?\s*|indeks[:\s]*|nr[:\s]*)(\d{3,6})/i) || line.match(/\b(\d{4,6})\b$/);
+    // Extract index if present (preferably after date to avoid matching year)
+    const lineAfterDate = line.split(/\d{4}-\d{2}-\d{2}/)[1] || line;
+    const indexMatch = lineAfterDate.match(/(?:Zgodny\s*✔️?\s*|indeks[:\s]*|nr[:\s]*)(\d{3,6})/i) || lineAfterDate.match(/\b(\d{4,6})\b/);
     if (indexMatch) {
       extractedIndex = indexMatch[1];
     }
@@ -939,6 +940,7 @@ export function parseAttendanceLine(rawLine) {
       .replace(/\d{1,2}:\d{2}.*$/, '')
       .replace(/Zgodny.*$/, '')
       .replace(/Sprawdź opis.*$/, '')
+      .replace(/\[GOŚĆ\].*$/i, '')
       .trim();
 
     if (!rawName) {
@@ -959,9 +961,9 @@ export function parseAttendanceLine(rawLine) {
       isMultiColumn: false,
     };
   } catch (err) {
-    console.warn('Błąd parsowania linii w parseAttendanceLine:', line, err);
+    console.warn('Błąd parsowania linii w parseAttendanceLine:', rawLine, err);
     // Fallback object so nothing crashes
-    const clean = line.replace(/\d{4}-\d{2}-\d{2}.*$/, '').replace(/\d{1,2}:\d{2}.*$/, '').trim() || line;
+    const clean = rawLine.replace(/\d{4}-\d{2}-\d{2}.*$/, '').replace(/\d{1,2}:\d{2}.*$/, '').trim() || rawLine;
     return {
       rawName: clean,
       joinTime: '18:00',
@@ -976,7 +978,7 @@ export function parseAttendanceLine(rawLine) {
 
 export function parseAttendanceText(text) {
   if (!text || typeof text !== 'string') return [];
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
   const results = [];
   lines.forEach(line => {
     try {
