@@ -853,9 +853,12 @@ export function parseAttendanceLine(rawLine) {
   const line = rawLine.trim();
   if (!line) return null;
 
-  // Ignore header lines or empty lines
   const lower = line.toLowerCase();
+  // 1. Ignore metadata lines starting with "*" or header lines
   if (
+    line.startsWith('*') ||
+    lower.startsWith('"full name"') ||
+    lower.startsWith('full name') ||
     lower.startsWith('imię i nazwisko') ||
     lower.startsWith('uczestnik') ||
     lower.startsWith('lp.') ||
@@ -874,7 +877,51 @@ export function parseAttendanceLine(rawLine) {
     let extractedIndex = '';
     let isExplicitGuest = false;
 
-    // Check if line contains explicit guest markers
+    // 2. Check if CSV format (Google Meet CSV Attendance format: "Full Name","First Seen","Time in Call")
+    if (line.includes('"') || (line.includes(',') && !line.includes(';'))) {
+      const csvMatches = [...line.matchAll(/"([^"]*)"|([^,]+)/g)]
+        .map(m => (m[1] !== undefined ? m[1] : m[2]).trim())
+        .filter(Boolean);
+
+      if (csvMatches.length >= 1) {
+        const nameCand = csvMatches[0];
+        const lowerName = nameCand.toLowerCase();
+        if (nameCand.startsWith('*') || lowerName === 'full name' || lowerName.startsWith('imię') || lowerName.startsWith('uczestnik')) {
+          return null;
+        }
+        rawName = nameCand;
+
+        if (csvMatches.length >= 2) {
+          const timeMatch = csvMatches[1].match(/(\d{1,2}:\d{2}(?::\d{2})?)/);
+          if (timeMatch) joinTime = timeMatch[1];
+        }
+
+        if (csvMatches.length >= 3) {
+          durationStr = csvMatches[2];
+          durationMinutes = parseDurationToMinutes(durationStr);
+        } else if (csvMatches.length === 2) {
+          const dur = parseDurationToMinutes(csvMatches[1]);
+          if (dur > 0) {
+            durationStr = csvMatches[1];
+            durationMinutes = dur;
+          }
+        }
+
+        if (durationMinutes <= 0) durationMinutes = 60;
+
+        return {
+          rawName,
+          joinTime: joinTime || '18:00',
+          durationStr: durationStr || `${durationMinutes} min`,
+          durationMinutes,
+          extractedIndex: '',
+          isExplicitGuest: false,
+          isMultiColumn: true,
+        };
+      }
+    }
+
+    // 3. Text format with status & index: check if line contains explicit guest markers
     if (line.includes('Sprawdź opis') || lower.includes('[gość]') || lower.includes('gosc') || lower.startsWith('gość')) {
       isExplicitGuest = true;
     }
@@ -886,7 +933,7 @@ export function parseAttendanceLine(rawLine) {
       extractedIndex = indexMatch[1];
     }
 
-    // 1. Check date YYYY-MM-DD pattern
+    // Check date YYYY-MM-DD pattern
     // e.g. "Agnieszka Czerwińska 2026-06-16 18:21:10 01:37:44 Zgodny ✔️ 5589"
     const dateMatch = line.match(/(\d{4}-\d{2}-\d{2})\s+(\d{1,2}:\d{2}(?::\d{2})?)/);
 
@@ -898,7 +945,6 @@ export function parseAttendanceLine(rawLine) {
 
       joinTime = dateMatch[2] || '18:00';
 
-      // Look for duration format after joinTime: e.g. "01:37:44" or "45 min"
       const afterJoin = line.slice(dateIndex + dateMatch[0].length).trim();
       const durMatch = afterJoin.match(/(\d{1,2}:\d{2}:\d{2}|\d{1,2}:\d{2}|\d+\s*(?:m|min|h|godz))/i);
       if (durMatch) {
@@ -906,7 +952,6 @@ export function parseAttendanceLine(rawLine) {
         durationMinutes = parseDurationToMinutes(durationStr);
       }
     } else if (line.includes('\t') || line.includes(';')) {
-      // Tab or semicolon separated
       const sep = line.includes('\t') ? '\t' : ';';
       const parts = line.split(sep).map(p => p.trim()).filter(Boolean);
       if (parts.length >= 3) {
@@ -925,7 +970,6 @@ export function parseAttendanceLine(rawLine) {
         }
       }
     } else {
-      // Single line: check if duration at end, e.g. "Jan Kowalski 45 min" or "Jan Kowalski 01:15:00"
       const durationEndMatch = line.match(/\s+(\d{1,2}:\d{2}(?::\d{2})?|\d+\s*(?:m|min|minut|h|godz))\s*$/i);
       if (durationEndMatch) {
         durationStr = durationEndMatch[1];
@@ -962,7 +1006,6 @@ export function parseAttendanceLine(rawLine) {
     };
   } catch (err) {
     console.warn('Błąd parsowania linii w parseAttendanceLine:', rawLine, err);
-    // Fallback object so nothing crashes
     const clean = rawLine.replace(/\d{4}-\d{2}-\d{2}.*$/, '').replace(/\d{1,2}:\d{2}.*$/, '').trim() || rawLine;
     return {
       rawName: clean,
@@ -990,6 +1033,8 @@ export function parseAttendanceText(text) {
   });
   return results;
 }
+
+export const parseAttendanceInput = parseAttendanceText;
 
 export async function fetchMeetingSheetAttendance(meetingCode, sheetId = SHEET_ID, members = []) {
   if (Array.isArray(sheetId)) {

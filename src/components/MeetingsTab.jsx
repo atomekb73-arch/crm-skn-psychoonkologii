@@ -563,15 +563,16 @@ export default function MeetingsTab({
 
       const member = members.find(m => {
         if (!m) return false;
-        const normRaw = normalizeDiacritics(parsed.rawName).toLowerCase();
-        const normFull = normalizeDiacritics(m.fullName || `${m.firstName} ${m.lastName}`).toLowerCase();
+        const normRaw = normalizeDiacritics(parsed.rawName).toLowerCase().trim();
+        const normFull = normalizeDiacritics(m.fullName || `${m.firstName} ${m.lastName}`).toLowerCase().trim();
+        const normReverseFull = normFull.split(' ').reverse().join(' ');
         const normIdx = String(m.index || '').trim();
-        const normEmail = normalizeDiacritics(m.email || '').toLowerCase();
+        const normEmail = normalizeDiacritics(m.email || '').toLowerCase().trim();
 
         if (extractedIdx && normIdx && extractedIdx === normIdx) return true;
         if (normIdx && normRaw.includes(normIdx)) return true;
         if (normEmail && normRaw.includes(normEmail)) return true;
-        if (normFull && (normRaw.includes(normFull) || normFull.includes(normRaw))) return true;
+        if (normFull && (normRaw === normFull || normRaw === normReverseFull || normRaw.includes(normFull) || normFull.includes(normRaw))) return true;
         return false;
       });
 
