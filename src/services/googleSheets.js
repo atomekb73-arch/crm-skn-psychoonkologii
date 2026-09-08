@@ -142,7 +142,13 @@ export async function initializeSubmissionsRegistryInGAS(members = []) {
     members: members.map(m => {
       const rawIdx = String(m.index || m.cleanIndex || m.nrIndeksu || '').trim();
       const cleanIdx = rawIdx.replace(/\D/g, '').replace(/^0+/, '') || rawIdx;
-      const fullName = String(m.fullName || `${m.firstName || ''} ${m.lastName || ''}`).trim();
+      const imieNazwisko = (
+        m.imieNazwisko ||
+        m.fullName ||
+        `${m.imie || m.firstName || ''} ${m.nazwisko || m.lastName || ''}`.trim() ||
+        m.name ||
+        ''
+      ).trim();
       const email = String(m.email || '').trim();
       const phone = String(m.phone || '').trim();
       const fieldAndYear = String(m.fieldAndYear || `${m.field || ''} ${m.year ? '(' + m.year + ')' : ''}`).trim();
@@ -153,7 +159,8 @@ export async function initializeSubmissionsRegistryInGAS(members = []) {
 
       return {
         index: cleanIdx,
-        fullName,
+        imieNazwisko,
+        fullName: imieNazwisko,
         email,
         phone,
         fieldAndYear,
@@ -174,7 +181,13 @@ export async function initializeSubmissionsRegistryInGAS(members = []) {
 export async function addMemberManuallyToGAS(member) {
   const rawIdx = String(member.index || member.cleanIndex || member.nrIndeksu || '').trim();
   const cleanIdx = rawIdx.replace(/\D/g, '').replace(/^0+/, '') || rawIdx;
-  const fullName = String(member.fullName || `${member.firstName || ''} ${member.lastName || ''}`).trim();
+  const imieNazwisko = (
+    member.imieNazwisko ||
+    member.fullName ||
+    `${member.imie || member.firstName || ''} ${member.nazwisko || member.lastName || ''}`.trim() ||
+    member.name ||
+    ''
+  ).trim();
   const email = String(member.email || '').trim();
   const phone = String(member.phone || '').trim();
   const fieldAndYear = String(member.fieldAndYear || `${member.field || ''} ${member.year ? '(' + member.year + ')' : ''}`).trim();
@@ -186,7 +199,8 @@ export async function addMemberManuallyToGAS(member) {
     action: "dodaj_czlonka_recznie",
     member: {
       index: cleanIdx,
-      fullName,
+      imieNazwisko,
+      fullName: imieNazwisko,
       email,
       phone,
       fieldAndYear,
@@ -198,6 +212,7 @@ export async function addMemberManuallyToGAS(member) {
 
   return await sendToGAS(payload);
 }
+
 
 
 // ─── Data graniczna (Cut-off Watermark) dla nowych zgłoszeń w kwarantannie ──

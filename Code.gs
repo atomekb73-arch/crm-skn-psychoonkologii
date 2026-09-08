@@ -105,7 +105,13 @@ function doPost(e) {
         const rows = members.map(m => {
           const rawIdx = String(m.index || m.cleanIndex || m.nrIndeksu || '').trim();
           const cleanIdx = rawIdx.replace(/\D/g, '').replace(/^0+/, '') || rawIdx;
-          const fullName = String(m.fullName || `${m.firstName || ''} ${m.lastName || ''}`).trim();
+          const fullName = String(
+            m.imieNazwisko ||
+            m.fullName ||
+            `${m.imie || m.firstName || ''} ${m.nazwisko || m.lastName || ''}`.trim() ||
+            m.name ||
+            ''
+          ).trim();
           const email = String(m.email || '').trim();
           const phone = String(m.phone || '').trim();
           const fieldAndYear = String(m.fieldAndYear || `${m.field || ''} ${m.year ? '(' + m.year + ')' : ''}`).trim();
@@ -158,10 +164,17 @@ function doPost(e) {
       const m = payload.member || payload;
       const rawIdx = String(m.index || m.cleanIndex || m.nrIndeksu || '').trim();
       const cleanIdx = rawIdx.replace(/\D/g, '').replace(/^0+/, '') || rawIdx;
-      const fullName = String(m.fullName || `${m.firstName || ''} ${m.lastName || ''}`).trim();
+      const fullName = String(
+        m.imieNazwisko ||
+        m.fullName ||
+        `${m.imie || m.firstName || ''} ${m.nazwisko || m.lastName || ''}`.trim() ||
+        m.name ||
+        ''
+      ).trim();
       const email = String(m.email || '').trim();
       const phone = String(m.phone || '').trim();
       const fieldAndYear = String(m.fieldAndYear || `${m.field || ''} ${m.year ? '(' + m.year + ')' : ''}`).trim();
+
       
       let mailingConsent = "Brak zgody";
       if (m.mailingConsent === true || m.mailingConsent === "true" || m.zgodaNaMailing === "Zgoda na mailing" || m.consentStatus === "Zgody OK") {
