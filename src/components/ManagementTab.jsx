@@ -842,7 +842,15 @@ export default function ManagementTab({
                   {/* 2. Name + Email */}
                   <td className="min-w-[280px] px-3 py-2.5 align-middle text-left whitespace-nowrap print:px-1.5 print:py-0.5">
                     <div className="flex items-center gap-1.5 font-semibold text-slate-900 text-xs truncate print:text-slate-900 print:text-[10px] print:leading-tight" title={name}>
-                      <span className={isResigned ? 'line-through text-slate-400 print:no-underline print:text-slate-900' : isGuestMember ? 'text-indigo-900 font-bold' : 'text-slate-900 group-hover/row:text-indigo-950 print:text-slate-900 font-bold transition-colors'}>{name}</span>
+                      <span
+                        onClick={() => setDecisionModalMember(m)}
+                        className={`cursor-pointer transition-colors hover:text-indigo-600 ${
+                          isResigned ? 'line-through text-slate-400 print:no-underline print:text-slate-900' : isGuestMember ? 'text-indigo-900 font-bold' : 'text-slate-900 group-hover/row:text-indigo-600 print:text-slate-900 font-bold'
+                        }`}
+                        title="Kliknij, aby otworzyć zarządzanie wpisem studenta"
+                      >
+                        {name}
+                      </span>
                       {isGuestMember && (
                         <span className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 px-1.5 py-0.5 rounded font-semibold shrink-0 print:border print:border-indigo-300 print:bg-transparent print:text-indigo-700 print:text-[8px]">Gość</span>
                       )}
