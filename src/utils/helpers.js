@@ -25,8 +25,8 @@ export function getFrequencyBadge(freq) {
   if (f >= 90) return { label: 'Lider',               dotColor: 'bg-emerald-500', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
   if (f >= 75) return { label: 'Bardzo aktywny',      dotColor: 'bg-teal-500',    color: 'bg-teal-50 text-teal-700 border-teal-200' };
   if (f >= 50) return { label: 'Bezpieczny brzeg',    dotColor: 'bg-amber-500',   color: 'bg-amber-50 text-amber-700 border-amber-200' };
-  if (f >= 25) return { label: 'Niższa aktywność',    dotColor: 'bg-stone-400',   color: 'bg-stone-100 text-stone-700 border-stone-200' };
-  return            { label: 'Wymaga uzupełnienia', dotColor: 'bg-slate-400',   color: 'bg-slate-100 text-slate-600 border-slate-200' };
+  if (f >= 25) return { label: 'Niższa aktywność',    dotColor: 'bg-stone-500',   color: 'bg-stone-100 text-stone-700 border-stone-300' };
+  return            { label: 'Wymaga uzupełnienia', dotColor: 'bg-slate-500',   color: 'bg-slate-100 text-slate-700 border-slate-300' };
 }
 
 export function getCertificateStatus(freq, absences = 0) {
@@ -38,7 +38,7 @@ export function getCertificateStatus(freq, absences = 0) {
 
   return canIssue
     ? { canIssue: true,  label: 'Można wydać', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' }
-    : { canIssue: false, label: 'W toku',      color: 'bg-slate-100 text-slate-600 border-slate-200' };
+    : { canIssue: false, label: 'W toku',      color: 'bg-slate-100 text-slate-700 border-slate-300' };
 }
 
 /**

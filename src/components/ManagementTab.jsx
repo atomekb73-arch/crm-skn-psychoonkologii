@@ -39,18 +39,18 @@ import CertificateModal from './CertificateModal';
 
 function KpiCard({ icon: Icon, label, value, sub, color, isLoading }) {
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 flex items-center gap-4">
-      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${color}`}>
-        <Icon size={22} className="text-white" />
+    <div className="bg-white rounded-xl shadow-xs border border-slate-100 py-3.5 px-4 flex items-center gap-3.5">
+      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${color}`}>
+        <Icon size={18} className="text-white" />
       </div>
-      <div>
+      <div className="min-w-0">
         {isLoading && (value === 0 || value === '0%') ? (
-          <div className="h-7 w-20 bg-slate-100 animate-pulse rounded-lg my-0.5" />
+          <div className="h-6 w-16 bg-slate-100 animate-pulse rounded-md my-0.5" />
         ) : (
-          <p className="text-2xl font-bold text-slate-800">{value}</p>
+          <p className="text-xl font-bold text-slate-800 tracking-tight leading-none">{value}</p>
         )}
-        <p className="text-sm text-slate-500 leading-tight">{label}</p>
-        {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
+        <p className="text-[11px] font-medium text-slate-600 leading-tight mt-1 truncate">{label}</p>
+        {sub && <p className="text-[10px] text-slate-400 mt-0.5 truncate">{sub}</p>}
       </div>
     </div>
   );
@@ -413,13 +413,13 @@ export default function ManagementTab({
   const renderSortIcon = (colKey) => {
     if (sortConfig.key !== colKey) {
       return (
-        <span className="inline-flex items-center justify-center ml-1 p-0.5 rounded text-purple-400/60 hover:text-purple-600 hover:bg-purple-100/60 transition-colors group-hover:text-purple-500 print:hidden">
+        <span className="inline-flex items-center justify-center ml-1 p-0.5 rounded text-indigo-400/60 hover:text-indigo-600 hover:bg-indigo-50/60 transition-colors group-hover:text-indigo-500 print:hidden">
           <ArrowUpDown size={12} />
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center justify-center ml-1 p-0.5 rounded bg-purple-100 text-purple-700 font-bold border border-purple-200 shadow-2xs print:hidden">
+      <span className="inline-flex items-center justify-center ml-1 p-0.5 rounded bg-indigo-100 text-indigo-700 font-bold border border-indigo-200 shadow-2xs print:hidden">
         {sortConfig.direction === 'asc' ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
       </span>
     );
@@ -557,14 +557,14 @@ export default function ManagementTab({
       />
 
       {/* ── KPI & Controls Sticky Top Bar (Hidden during Print) ───────────── */}
-      <div className="w-full bg-white/95 backdrop-blur-md p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4 sticky top-16 z-20 print:hidden">
+      <div className="w-full bg-white/95 backdrop-blur-md p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-3 sticky top-16 z-20 print:hidden">
         {/* KPI Row (ONLY Active Members) */}
-        <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-3.5">
           <KpiCard
             icon={Users}
             label="Aktywnych członków"
             value={activeCount}
-            color="bg-indigo-500"
+            color="bg-indigo-600"
             sub={`z ${totalCount} w całej bazie`}
             isLoading={isLoading}
           />
@@ -572,7 +572,7 @@ export default function ManagementTab({
             icon={BarChart2}
             label="Średnia frekwencja"
             value={`${isNaN(avgFreq) ? 0 : avgFreq}%`}
-            color="bg-violet-500"
+            color="bg-blue-600"
             sub="dla aktywnych członków"
             isLoading={isLoading}
           />
@@ -580,7 +580,7 @@ export default function ManagementTab({
             icon={FileCheck2}
             label="Gotowe zaświadczenia"
             value={certReady}
-            color="bg-emerald-500"
+            color="bg-emerald-600"
             sub={`z ${activeCount} aktywnych`}
             isLoading={isLoading}
           />
@@ -588,14 +588,14 @@ export default function ManagementTab({
             icon={Mail}
             label="Zgody na mailing"
             value={mailingConsentsCount}
-            color="bg-sky-500"
+            color="bg-sky-600"
             sub={`z ${activeCount} aktywnych`}
             isLoading={isLoading}
           />
         </div>
 
         {/* Search, Segmented Filter & Print Button Bar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-3 border-t border-slate-100">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2.5 border-t border-slate-100">
           {/* Search Input */}
           <div className="relative flex-1 max-w-sm">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -604,7 +604,7 @@ export default function ManagementTab({
               placeholder="Szukaj po nazwisku, nr indeksu lub emailu…"
               value={query}
               onChange={e => setQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 bg-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-300 transition"
+              className="w-full pl-9 pr-4 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-300 transition"
             />
             {query && (
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
@@ -633,11 +633,11 @@ export default function ManagementTab({
                 onClick={() => setStatusFilter('guest')}
                 className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
                   statusFilter === 'guest'
-                    ? 'bg-white text-purple-700 shadow-xs font-bold'
+                    ? 'bg-white text-indigo-700 shadow-xs font-bold'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <span className="w-2 h-2 rounded-full bg-purple-500" />
+                <span className="w-2 h-2 rounded-full bg-indigo-500" />
                 <span>Goście & Wolni słuchacze ({guestCount})</span>
               </button>
 
@@ -658,11 +658,11 @@ export default function ManagementTab({
                   onClick={() => setStatusFilter('graduates')}
                   className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
                     statusFilter === 'graduates'
-                      ? 'bg-white text-purple-700 shadow-xs font-bold'
+                      ? 'bg-white text-indigo-700 shadow-xs font-bold'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  <GraduationCap size={13} className="text-purple-600" />
+                  <GraduationCap size={13} className="text-indigo-600" />
                   <span>Absolwenci ({graduatesCount})</span>
                 </button>
               )}
@@ -682,7 +682,7 @@ export default function ManagementTab({
             {/* Print List Button */}
             <button
               onClick={() => window.print()}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-sm transition-all shrink-0 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-sm transition-all shrink-0 cursor-pointer"
               title="Wydrukuj wykaz członków na potrzeby Dziekanatu"
             >
               <Printer size={14} />
@@ -693,16 +693,16 @@ export default function ManagementTab({
 
         {/* Graduates Bulk Action Notification Banner */}
         {statusFilter === 'graduates' && graduatesCount > 0 && (
-          <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in duration-200">
+          <div className="bg-indigo-50/70 border border-indigo-200 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in duration-200">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
                 <GraduationCap size={18} />
               </div>
               <div>
-                <p className="text-xs font-bold text-purple-950">
+                <p className="text-xs font-bold text-indigo-950">
                   Wykryto {graduatesCount} potencjalnych absolwentów koła
                 </p>
-                <p className="text-[11px] text-purple-700">
+                <p className="text-[11px] text-indigo-700">
                   Osoby te przekroczyły programowy czas trwania studiów na podstawie roku zgłoszenia.
                 </p>
               </div>
@@ -711,7 +711,7 @@ export default function ManagementTab({
               {onBulkMarkGraduates && (
                 <button
                   onClick={() => onBulkMarkGraduates(graduatesList.map(g => g.id))}
-                  className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
                   <GraduationCap size={13} />
                   <span>Przenieś do Byłych ({graduatesCount})</span>
@@ -720,7 +720,7 @@ export default function ManagementTab({
               {onBulkArchiveGraduates && (
                 <button
                   onClick={() => onBulkArchiveGraduates(graduatesList.map(g => g.id))}
-                  className="px-3 py-1.5 rounded-lg bg-white border border-purple-200 hover:bg-purple-100 text-purple-800 text-xs font-semibold shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg bg-white border border-indigo-200 hover:bg-indigo-100 text-indigo-800 text-xs font-semibold shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
                   <Archive size={13} />
                   <span>Archiwizuj ({graduatesCount})</span>
@@ -732,7 +732,7 @@ export default function ManagementTab({
       </div>
 
       {/* ── Table Container with Independent Scrolling & Sticky Thead ── */}
-      <div className="w-full bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden max-h-[calc(100vh-380px)] overflow-y-auto scrollbar-thin scrollbar-thumb-purple-200 print:max-h-none print:overflow-visible print:shadow-none print:border-none print:rounded-none">
+      <div className="w-full bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden max-h-[calc(100vh-380px)] overflow-y-auto scrollbar-thin scrollbar-thumb-indigo-200 print:max-h-none print:overflow-visible print:shadow-none print:border-none print:rounded-none">
         <table className="w-full text-xs table-fixed border-collapse print:table-auto print:text-[9.5px] print:leading-tight">
           <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-xs border-b border-slate-200 shadow-2xs">
             <tr className="text-left select-none print:bg-slate-100 print:border-slate-900">
@@ -872,7 +872,7 @@ export default function ManagementTab({
                     label: freq >= 50 ? 'Można wydać' : 'W toku',
                     color: freq >= 50
                       ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      : 'bg-slate-100 text-slate-600 border-slate-200'
+                      : 'bg-slate-100 text-slate-700 border-slate-300'
                   }
                 : getCertificateStatus(freq, absences);
               const badge = getFrequencyBadge(freq);
@@ -884,10 +884,10 @@ export default function ManagementTab({
               return (
                 <tr
                   key={m.id}
-                  className={`group/row transition-all duration-150 ease-in-out print:break-inside-avoid print:page-break-inside-avoid ${
+                  className={`group/row transition-all duration-150 ease-in-out cursor-pointer print:break-inside-avoid print:page-break-inside-avoid ${
                     isNonActive
                       ? 'opacity-65 bg-slate-50/60 hover:opacity-90 hover:bg-slate-100/80 text-slate-500'
-                      : 'hover:bg-purple-50/70 hover:shadow-2xs text-slate-800'
+                      : 'hover:bg-indigo-50/60 hover:border-indigo-300 text-slate-800'
                   }`}
                 >
                   {/* 1. # (Lp.) */}
@@ -895,10 +895,10 @@ export default function ManagementTab({
                   
                   {/* 2. Name + Email */}
                   <td className="min-w-[280px] px-3 py-2.5 align-middle text-left whitespace-nowrap print:px-1.5 print:py-0.5">
-                    <div className="flex items-center gap-1.5 font-semibold text-slate-800 text-xs truncate print:text-slate-900 print:text-[10px] print:leading-tight" title={name}>
-                      <span className={isResigned ? 'line-through text-slate-400 print:no-underline print:text-slate-900' : isGuestMember ? 'text-purple-900 font-bold' : 'text-slate-800 group-hover/row:text-purple-950 print:text-slate-900 font-bold transition-colors'}>{name}</span>
+                    <div className="flex items-center gap-1.5 font-semibold text-slate-900 text-xs truncate print:text-slate-900 print:text-[10px] print:leading-tight" title={name}>
+                      <span className={isResigned ? 'line-through text-slate-400 print:no-underline print:text-slate-900' : isGuestMember ? 'text-indigo-900 font-bold' : 'text-slate-900 group-hover/row:text-indigo-950 print:text-slate-900 font-bold transition-colors'}>{name}</span>
                       {isGuestMember && (
-                        <span className="text-[10px] bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded font-semibold shrink-0 print:border print:border-purple-300 print:bg-transparent print:text-purple-700 print:text-[8px]">Gość</span>
+                        <span className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 px-1.5 py-0.5 rounded font-semibold shrink-0 print:border print:border-indigo-300 print:bg-transparent print:text-indigo-700 print:text-[8px]">Gość</span>
                       )}
                       {isResigned && (
                         <span className="text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-semibold shrink-0 print:border print:border-slate-400 print:bg-transparent print:text-slate-700 print:text-[8px]">Nieaktywny</span>
@@ -919,7 +919,7 @@ export default function ManagementTab({
                   </td>
 
                   {/* 3. Nr Indeksu */}
-                  <td className="w-28 px-2 py-2.5 text-slate-600 font-mono text-xs text-center align-middle whitespace-nowrap print:text-slate-900 print:px-1 print:py-0.5 print:text-[10px] print:font-mono print:font-bold print:text-center">
+                  <td className="w-28 px-2 py-2.5 text-slate-700 font-mono text-xs text-center align-middle whitespace-nowrap print:text-slate-900 print:px-1 print:py-0.5 print:text-[10px] print:font-mono print:font-bold print:text-center">
                     {m.index ? (
                       <span className="font-semibold text-center inline-block">{m.index}</span>
                     ) : (
@@ -937,27 +937,27 @@ export default function ManagementTab({
                   </td>
 
                   {/* 4. Kierunek / Rok z dynamiczną auto-progresją i statusem absolwenta */}
-                  <td className="min-w-[240px] px-3 py-2.5 text-xs text-slate-600 whitespace-nowrap align-middle print:text-slate-900 print:px-1.5 print:py-0.5 print:text-[9.5px]">
-                    <div className="truncate font-medium">{m.field || '—'}</div>
+                  <td className="min-w-[240px] px-3 py-2.5 text-xs text-slate-900 whitespace-nowrap align-middle print:text-slate-900 print:px-1.5 print:py-0.5 print:text-[9.5px]">
+                    <div className="truncate font-semibold text-slate-900 text-xs">{m.field || '—'}</div>
                     <div className="flex items-center gap-1 mt-0.5 whitespace-nowrap">
                       {studyInfo.isGraduate ? (
                         <span
-                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200 print:border-none print:p-0 print:text-slate-900"
+                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200 print:border-none print:p-0 print:text-slate-900"
                           title={`Przekroczono nominalny czas studiów (${studyInfo.maxYears} lat). Rejestracja: Rok ${studyInfo.originalYear || '?'}`}
                         >
-                          <GraduationCap size={11} className="shrink-0 text-purple-700 print:hidden" />
+                          <GraduationCap size={11} className="shrink-0 text-indigo-700 print:hidden" />
                           <span>🎓 Absolwent (Koniec studiów)</span>
                         </span>
                       ) : studyInfo.isProgressed ? (
                         <span
-                          className="inline-flex items-center gap-1 text-[11px] text-slate-700 font-semibold print:text-slate-900"
+                          className="inline-flex items-center gap-1 text-[11px] text-slate-600 font-medium print:text-slate-900"
                           title={`Auto-progresja roku akad.: +${studyInfo.diff} rok (rejestracja: Rok ${studyInfo.originalYear || '?'})`}
                         >
                           <span>{studyInfo.currentYearLabel}</span>
                           <span className="text-[10px] text-indigo-600 font-bold print:hidden" title="Automatycznie wyliczony rok na podstawie daty zgłoszenia">↗️</span>
                         </span>
                       ) : (
-                        <span className="text-slate-400 text-[11px] print:text-slate-600 print:text-[8.5px]">
+                        <span className="text-slate-600 font-medium text-[11px] print:text-slate-600 print:text-[8.5px]">
                           {m.year || '—'}
                         </span>
                       )}
@@ -971,7 +971,7 @@ export default function ManagementTab({
                         onClick={() => setDecisionModalMember(m)}
                         className={`h-6 px-2.5 inline-flex items-center justify-center gap-1.5 rounded-full text-[11px] font-medium tracking-tight border shadow-2xs transition-colors cursor-pointer whitespace-nowrap ${
                           isGuestMember
-                            ? 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
+                            ? 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'
                             : isResigned
                             ? 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
                             : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
@@ -979,7 +979,7 @@ export default function ManagementTab({
                         title="Kliknij, aby zmienić status lub opcje wpisu"
                       >
                         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                          isGuestMember ? 'bg-purple-500' : isResigned ? 'bg-slate-400' : 'bg-emerald-500'
+                          isGuestMember ? 'bg-indigo-500' : isResigned ? 'bg-slate-400' : 'bg-emerald-500'
                         }`} />
                         <span>{isGuestMember ? 'Gość' : isResigned ? 'Nieaktywny' : 'Aktywny'}</span>
                       </button>
@@ -990,7 +990,7 @@ export default function ManagementTab({
                   </td>
 
                   {/* Hidden on Print: Frekwencja (with Gentle 5-Level Scale Badge & Non-Red Progress Bar) */}
-                  <td className="w-40 px-2 py-2 align-middle text-center whitespace-nowrap print:hidden">
+                  <td className="w-40 px-2 py-2.5 align-middle text-center whitespace-nowrap print:hidden">
                     <div className="flex flex-col items-center justify-center gap-1 whitespace-nowrap">
                       <div className="flex items-center justify-center gap-1.5">
                         <div className="w-14 bg-slate-100 rounded-full h-1.5 hidden xl:block print:hidden">
@@ -1007,7 +1007,7 @@ export default function ManagementTab({
                             style={{ width: `${Math.min(100, freq)}%` }}
                           />
                         </div>
-                        <span className="text-slate-800 font-bold text-xs font-mono">{isNaN(freq) ? 0 : freq}%</span>
+                        <span className="text-slate-900 font-bold text-xs font-mono">{isNaN(freq) ? 0 : freq}%</span>
                       </div>
                       <span className={`h-6 px-2.5 inline-flex items-center justify-center gap-1.5 rounded-full text-[11px] font-medium tracking-tight border whitespace-nowrap ${badge.color}`} title={`5-stopniowa skala zaangażowania: ${badge.label} (${freq}%)`}>
                         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${badge.dotColor || 'bg-slate-400'}`} />
@@ -1017,16 +1017,14 @@ export default function ManagementTab({
                   </td>
 
                   {/* Hidden on Print: Combined Present / Absent ({present} / {absent}) */}
-                  <td className="w-28 px-2 py-2 text-center align-middle whitespace-nowrap font-mono text-[11px] font-medium text-slate-700 print:hidden">
+                  <td className="w-28 px-2 py-2.5 text-center align-middle whitespace-nowrap font-mono text-xs font-bold text-slate-900 print:hidden">
                     <span className="inline-flex items-center justify-center whitespace-nowrap" title={`Obecności: ${freqData.present ?? 0} / Nieobecności: ${freqData.absent ?? 0}`}>
-                      <span className="text-emerald-600 font-bold">{freqData.present ?? 0}</span>
-                      <span className="text-slate-300 mx-1.5 font-normal">/</span>
-                      <span className="text-slate-500 font-medium">{freqData.absent ?? 0}</span>
+                      {freqData.present ?? 0} / {freqData.absent ?? 0}
                     </span>
                   </td>
 
                   {/* Hidden on Print: Zaświadczenie Status (Uniform Single-Line Badges) */}
-                  <td className="w-36 px-2 py-2 text-center align-middle whitespace-nowrap print:hidden">
+                  <td className="w-36 px-2 py-2.5 text-center align-middle whitespace-nowrap print:hidden">
                     <button
                       onClick={() => {
                         if (onNavigateToReports) {
@@ -1038,7 +1036,7 @@ export default function ManagementTab({
                       className={`h-6 px-3 w-[100px] inline-flex items-center justify-center text-[11px] font-medium tracking-tight rounded-full whitespace-nowrap border transition-all cursor-pointer ${
                         cert.canIssue
                           ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 hover:shadow-xs'
-                          : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                          : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
                       }`}
                       title={
                         cert.canIssue
@@ -1052,18 +1050,18 @@ export default function ManagementTab({
                   </td>
 
                   {/* Hidden on Print: Punkty Aktywności */}
-                  <td className="w-28 px-2 py-2 text-center align-middle whitespace-nowrap print:hidden">
+                  <td className="w-28 px-2 py-2.5 text-center align-middle whitespace-nowrap print:hidden">
                     <span
-                      className="h-6 px-2.5 min-w-[70px] inline-flex items-center justify-center gap-1 text-[11px] font-semibold tracking-tight rounded-full whitespace-nowrap bg-purple-50 text-purple-700 border border-purple-200 shadow-2xs"
+                      className="h-6 px-2.5 min-w-[70px] inline-flex items-center justify-center gap-1 text-[11px] font-semibold tracking-tight rounded-full whitespace-nowrap bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-2xs"
                       title={`Łączna suma punktów za aktywności w Kole: ${memberPoints} pkt`}
                     >
-                      <Sparkles size={11} className="text-purple-500 shrink-0" />
+                      <Sparkles size={11} className="text-indigo-500 shrink-0" />
                       <span>{memberPoints} pkt</span>
                     </span>
                   </td>
 
                   {/* Hidden on Print: Mailing Consent */}
-                  <td className="w-16 px-2 py-2 text-center align-middle whitespace-nowrap print:hidden">
+                  <td className="w-16 px-2 py-2.5 text-center align-middle whitespace-nowrap print:hidden">
                     {(m.zgodaNaMailing === 'Zgoda na mailing' || (m.mailingConsent === true && m.zgodaNaMailing !== 'Brak zgody' && m.consentStatus !== 'Brak zgody')) ? (
                       <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 text-xs font-bold" title="Zgoda na mailing udzielona (Zgoda na mailing)">
                         ✓
@@ -1076,7 +1074,7 @@ export default function ManagementTab({
                   </td>
 
                   {/* Hidden on Print: Akcje / Menu Option Button */}
-                  <td className="w-20 px-3 py-2 text-center align-middle whitespace-nowrap print:hidden">
+                  <td className="w-20 px-3 py-2.5 text-center align-middle whitespace-nowrap print:hidden">
                     <div className="inline-flex items-center justify-center gap-1">
                       <button
                         onClick={() => setEditingMember(m)}
@@ -1153,11 +1151,11 @@ export default function ManagementTab({
                     onClick={() => handleSetStatusAction(decisionModalMember, 'guest')}
                     className={`py-2 px-2 rounded-lg text-xs font-semibold flex flex-col items-center justify-center gap-1 border transition-all cursor-pointer ${
                       isGuest(decisionModalMember)
-                        ? 'bg-purple-100 text-purple-900 border-purple-300 font-bold shadow-xs'
-                        : 'bg-white text-slate-700 border-slate-200 hover:bg-purple-50 hover:text-purple-700'
+                        ? 'bg-indigo-100 text-indigo-900 border-indigo-300 font-bold shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-indigo-50 hover:text-indigo-700'
                     }`}
                   >
-                    <span className="w-2.5 h-2.5 rounded-full bg-purple-500" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
                     <span>Gość</span>
                   </button>
 
@@ -1224,12 +1222,12 @@ export default function ManagementTab({
               {calculateCurrentStudyYear(decisionModalMember.rawTimestamp || decisionModalMember.timestamp, decisionModalMember.year, decisionModalMember.field).isGraduate && !isInactive(decisionModalMember) && (
                 <button
                   onClick={() => handleSetStatusAction(decisionModalMember, 'resigned')}
-                  className="w-full py-2.5 px-3 rounded-xl border border-purple-200 bg-purple-50/70 hover:bg-purple-100 text-purple-900 text-xs font-semibold flex items-center gap-2 transition-colors text-left cursor-pointer"
+                  className="w-full py-2.5 px-3 rounded-xl border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100 text-indigo-900 text-xs font-semibold flex items-center gap-2 transition-colors text-left cursor-pointer"
                 >
-                  <GraduationCap size={15} className="shrink-0 text-purple-700" />
+                  <GraduationCap size={15} className="shrink-0 text-indigo-700" />
                   <div>
                     <div>🎓 Oznacz jako Absolwenta (Przenieś do Byłych)</div>
-                    <div className="text-[10px] font-normal text-purple-700/80">Koniec toku studiów – przenosi studenta do grupy byłych członków</div>
+                    <div className="text-[10px] font-normal text-indigo-700/80">Koniec toku studiów – przenosi studenta do grupy byłych członków</div>
                   </div>
                 </button>
               )}
