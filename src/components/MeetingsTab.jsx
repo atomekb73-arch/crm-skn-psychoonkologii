@@ -1377,9 +1377,9 @@ export default function MeetingsTab({
                     {/* Prawa strona (Status & Type Badges) */}
                     <div className="flex-shrink-0 flex flex-col items-end gap-1">
                       {/* Meeting Type Badge */}
-                      <span className={`w-32 justify-center text-center inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${typeConfig.badgeClass}`}>
+                      <span className={`w-32 inline-flex items-center text-[10px] font-bold px-2.5 py-0.5 rounded-full border shrink-0 ${typeConfig.badgeClass}`}>
                         <span className="shrink-0">{typeConfig.icon}</span>
-                        <span className="truncate">{typeConfig.label}</span>
+                        <span className="flex-1 text-center truncate pl-1">{typeConfig.label}</span>
                       </span>
 
                       {isUpcoming ? (
@@ -1531,9 +1531,9 @@ export default function MeetingsTab({
                       Obowiązkowe dla frekwencji: <strong className="text-emerald-700 font-bold">{countMandatory}</strong> | Pozostałe: <strong className="text-slate-700 font-bold">{countNonMandatory}</strong>
                     </p>
                   </div>
-                  <span className={`self-start sm:self-auto text-xs font-bold w-40 justify-center text-center inline-flex items-center gap-1 px-3 py-1 rounded-full border shrink-0 ${selectedTypeConfig.badgeClass}`}>
+                  <span className={`self-start sm:self-auto text-xs font-bold w-40 inline-flex items-center px-3 py-1 rounded-full border shrink-0 ${selectedTypeConfig.badgeClass}`}>
                     <span className="shrink-0">{selectedTypeConfig.icon}</span>
-                    <span className="truncate">{selectedTypeConfig.label}</span>
+                    <span className="flex-1 text-center truncate pl-1">{selectedTypeConfig.label}</span>
                   </span>
                 </div>
 
