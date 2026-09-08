@@ -33,7 +33,7 @@ import {
 } from 'lucide-react';
 import { MEETING_TYPES, getMeetingType } from '../utils/meetingTypes';
 import { parseAttendanceLine, parseDurationToMinutes, fetchMeetingSheetAttendance, saveMeetingAttendanceToGAS, deleteMeetingAttendanceFromGAS, sendToGAS } from '../services/googleSheets';
-import { isFacultySupervisor, isMonikaLyniewska, FACULTY_SUPERVISORS, PARTICIPANT_ROLES } from '../utils/specialRoles';
+import { isFacultySupervisor, isMonikaLyniewska, FACULTY_SUPERVISORS, PARTICIPANT_ROLES, detectParticipantRole } from '../utils/specialRoles';
 import { useOrg } from '../context/OrgContext';
 import AttendanceModal from './AttendanceModal';
 import CalendarSelector, { PSYCHOONKOLOGIA_SUBCALENDAR_ID } from './CalendarSelector';
@@ -52,6 +52,17 @@ import {
   getMeetingOverrides,
   saveMeetingOverride,
 } from '../utils/storage';
+
+const normalizeDiacritics = (str) => {
+  if (!str) return "";
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ł/g, "l")
+    .replace(/Ł/g, "L")
+    .toLowerCase()
+    .trim();
+};
 
 export default function MeetingsTab({
   meetings = [],
