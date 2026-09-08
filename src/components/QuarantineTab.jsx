@@ -27,6 +27,7 @@ import EditMemberModal from './EditMemberModal';
 import WelcomeMailModal from './WelcomeMailModal';
 import { initializeSubmissionsRegistryInGAS, addMemberManuallyToGAS } from '../services/googleSheets';
 import { getAliasesFromStorage, saveAliasesToStorage } from '../utils/storage';
+import { initialMembers as seedMembers } from '../data/seedMembers';
 
 
 function ConsentBadge({ status }) {
@@ -398,22 +399,26 @@ export default function QuarantineTab({
     setIsInitializingRegistry(true);
     setInitErrorMessage(null);
     try {
-      // 1. Zbuduj listę bieżących członków
-      const activeMembersToExport = members && members.length > 0 ? members : [];
-      await initializeSubmissionsRegistryInGAS(activeMembersToExport);
+      // 1. Zbuduj listę bieżących członków (jeśli members jest puste, pobierz ze seedMembers)
+      const listToExport = (members && members.length > 0) ? members : seedMembers;
+      console.log(`[handleInitializeRegistry] Rozpoczynam eksport ${listToExport.length} członków do Rejestru Zgłoszeń...`, listToExport);
 
-      setInitSuccessMessage(`Pomyślnie wyeksportowano ${activeMembersToExport.length} członków do Rejestru Zgłoszeń.`);
+      await initializeSubmissionsRegistryInGAS(listToExport);
+
+      console.log(`[handleInitializeRegistry] Pomyślnie wywołano inicjalizację ${listToExport.length} rekordów w Google Apps Script.`);
+      setInitSuccessMessage(`Baza ${listToExport.length} członków została pomyślnie wysłana do arkusza Google!`);
       setTimeout(() => {
         setInitSuccessMessage(null);
         setShowInitModal(false);
-      }, 2500);
+      }, 3500);
     } catch (err) {
-      console.error("Błąd inicjalizacji arkusza Rejestr_Zgloszen:", err);
-      setInitErrorMessage(`Wystąpił błąd podczas eksportu: ${err.message || err}`);
+      console.error("[handleInitializeRegistry] Błąd podczas inicjalizacji bazy:", err);
+      setInitErrorMessage(`Błąd połączenia z arkuszem Google: ${err.message || err}`);
     } finally {
       setIsInitializingRegistry(false);
     }
   };
+
 
   // ── Handler: Zapis nowego członka dodanego ręcznie ─────────────────────────
   const handleSaveNewMember = async (e) => {

@@ -23,27 +23,26 @@ export const GAS_ENDPOINT = GAS_WEBAPP_URL;
 export async function sendToGAS(payload) {
   const GAS_URL = GAS_WEBAPP_URL;
 
-  // Wymuszenie prostego POST bez preflight OPTIONS:
-  // 1. Brak niestandardowych nagłówków
-  // 2. Content-Type: text/plain (Apps Script bez problemu parsuje to przez e.postData.contents)
-  // 3. mode: "no-cors" gwarantuje, że przeglądarka nie zablokuje transferu
+  console.log(`[sendToGAS] Wysyłam żądanie POST (action: ${payload?.action}) do ${GAS_URL}`, payload);
+
   try {
-    await fetch(GAS_URL, {
+    const response = await fetch(GAS_URL, {
       method: "POST",
       mode: "no-cors",
       headers: {
-        "Content-Type": "text/plain"
+        "Content-Type": "text/plain;charset=utf-8"
       },
       body: JSON.stringify(payload)
     });
 
-    console.log("Dane pomyślnie wysłane do GAS (no-cors):", payload);
-    return { status: "success" };
+    console.log("[sendToGAS] Dane wysłane pomyślnie do GAS (status: success, no-cors).", response);
+    return { status: "success", type: response.type };
   } catch (err) {
-    console.error("Błąd wysyłki do GAS:", err);
+    console.error("[sendToGAS] Błąd wysyłki do GAS:", err);
     throw err;
   }
 }
+
 
 /**
  * Pobiera kompletne dane z backendu Google Apps Script (GET ?action=pobierz_dane).
