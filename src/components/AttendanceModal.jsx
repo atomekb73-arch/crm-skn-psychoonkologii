@@ -517,16 +517,6 @@ export default function AttendanceModal({
       status: 'approved',
     };
 
-    // Anti-duplicate check
-    const isDuplicate = localParticipants.some(a =>
-      (a.member?.index && targetMember.index && a.member.index === targetMember.index) ||
-      (a.rawName && normalizeDiacritics(a.rawName).toLowerCase().trim() === normalizeDiacritics(name).toLowerCase().trim())
-    );
-    if (isDuplicate) {
-      alert(`Osoba "${name}" (${targetMember.index || 'brak indeksu'}) już znajduje się na liście tego spotkania.`);
-      return;
-    }
-
     setLocalParticipants(prev => [newParticipant, ...prev]);
     setIsAddFormOpen(false);
     setAddMemberId('');
@@ -1003,7 +993,7 @@ export default function AttendanceModal({
                     <th className="p-3 w-10 text-center">LP.</th>
                     <th className="p-3 min-w-[170px]">Wpis z Meet / Uczestnik</th>
                     <th className="p-3 w-32">Rola na Spotkaniu</th>
-                    <th className="p-3 min-w-[190px]">Powiązany Profil z bazy SKN</th>
+                    <th className="p-3 min-w-[190px]">Powiązany Profil (Baza 141)</th>
                     <th className="p-3 text-center w-20">Wejście</th>
                     <th className="p-3 text-center w-24">Czas</th>
                     <th className="p-3 text-center w-24">Status</th>
