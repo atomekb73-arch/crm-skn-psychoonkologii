@@ -1131,7 +1131,7 @@ export default function ManagementTab({
               >
                 <Pencil size={15} className="shrink-0 text-slate-600" />
                 <div>
-                  <div>✏️ Edytuj pełne dane studenta</div>
+                  <div>Edytuj pełne dane studenta</div>
                   <div className="text-[10px] font-normal text-slate-500">Pozwala zmienić numer indeksu, email, imię, nazwisko i kierunek</div>
                 </div>
               </button>
@@ -1147,7 +1147,7 @@ export default function ManagementTab({
               >
                 <Award size={15} className="shrink-0 text-indigo-700" />
                 <div>
-                  <div>📜 Wygeneruj Zaświadczenie / Dyplom</div>
+                  <div>Wygeneruj Zaświadczenie / Dyplom</div>
                   <div className="text-[10px] font-normal text-indigo-700">Otwiera generator oficjalnego zaświadczenia lub dyplomu prelegenta</div>
                 </div>
               </button>
@@ -1159,7 +1159,7 @@ export default function ManagementTab({
               >
                 <RotateCcw size={15} className="shrink-0 text-indigo-600" />
                 <div>
-                  <div>↩️ Cofnij do Kwarantanny (Pomyłka)</div>
+                  <div>Cofnij do Kwarantanny (Pomyłka)</div>
                   <div className="text-[10px] font-normal text-indigo-600/80">Usuwa z Zarządzania i przywraca jako zgłoszenie oczekujące</div>
                 </div>
               </button>
@@ -1172,7 +1172,7 @@ export default function ManagementTab({
                 >
                   <GraduationCap size={15} className="shrink-0 text-indigo-700" />
                   <div>
-                    <div>🎓 Oznacz jako Absolwenta (Przenieś do Byłych)</div>
+                    <div>Oznacz jako Absolwenta (Przenieś do Byłych)</div>
                     <div className="text-[10px] font-normal text-indigo-700/80">Koniec toku studiów – przenosi studenta do grupy byłych członków</div>
                   </div>
                 </button>
@@ -1185,7 +1185,7 @@ export default function ManagementTab({
               >
                 <Archive size={15} className="shrink-0 text-rose-600" />
                 <div>
-                  <div>📦 Przenieś do Archiwum & Czarna lista</div>
+                  <div>Przenieś do Archiwum & Czarna lista</div>
                   <div className="text-[10px] font-normal text-rose-600/80">
                     Trwale usuwa z listy aktywnych i dodaje na czarną listę (np. Artur Gołaś) – rekord nie powróci po odświeżeniu
                   </div>
