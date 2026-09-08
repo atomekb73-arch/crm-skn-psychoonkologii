@@ -33,6 +33,7 @@ export default function Navbar({
   setDocumentationSubTab = () => {},
   settingsToolsSubTab = 'settings',
   setSettingsToolsSubTab = () => {},
+  membersMetrics = null,
 }) {
   // Check if main tab is active, considering legacy tab ID aliases
   const isMainTabActive = (tab) => {
@@ -90,43 +91,75 @@ export default function Navbar({
 
       {/* ── Sub-Navigation Bars per Main Tab ──────────────────────────────── */}
 
-      {/* Sub-bar for Członkowie */}
+      {/* Sub-bar for Członkowie with inline compact metrics */}
       {currentTab === 'members' && (
-        <div className="flex items-center gap-1 bg-slate-200/60 p-1 rounded-xl w-fit border border-slate-200/80 animate-in fade-in duration-150">
-          <button
-            onClick={() => {
-              setActiveTab('members');
-              setMembersSubTab('management');
-            }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
-              membersSubTab === 'management' || activeTab === 'management'
-                ? 'bg-white text-indigo-950 shadow-xs font-bold'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/40'
-            }`}
-          >
-            <Users size={13} className={membersSubTab === 'management' || activeTab === 'management' ? 'text-indigo-600' : 'text-slate-400'} />
-            <span>Główna lista członków</span>
-          </button>
+        <div className="flex items-center justify-between gap-3 w-full flex-wrap xl:flex-nowrap animate-in fade-in duration-150">
+          <div className="flex items-center gap-1 bg-slate-200/60 p-1 rounded-xl w-fit border border-slate-200/80 shrink-0">
+            <button
+              onClick={() => {
+                setActiveTab('members');
+                setMembersSubTab('management');
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                membersSubTab === 'management' || activeTab === 'management'
+                  ? 'bg-white text-indigo-950 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/40'
+              }`}
+            >
+              <Users size={13} className={membersSubTab === 'management' || activeTab === 'management' ? 'text-indigo-600' : 'text-slate-400'} />
+              <span>Główna lista członków</span>
+            </button>
 
-          <button
-            onClick={() => {
-              setActiveTab('members');
-              setMembersSubTab('quarantine');
-            }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
-              membersSubTab === 'quarantine' || activeTab === 'quarantine'
-                ? 'bg-white text-amber-950 shadow-xs font-bold'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/40'
-            }`}
-          >
-            <ShieldAlert size={13} className={membersSubTab === 'quarantine' || activeTab === 'quarantine' ? 'text-amber-600' : 'text-slate-400'} />
-            <span>Kwarantanna & Zgłoszenia</span>
-            {pendingCount > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-amber-500 text-white">
-                {pendingCount}
-              </span>
-            )}
-          </button>
+            <button
+              onClick={() => {
+                setActiveTab('members');
+                setMembersSubTab('quarantine');
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                membersSubTab === 'quarantine' || activeTab === 'quarantine'
+                  ? 'bg-white text-amber-950 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/40'
+              }`}
+            >
+              <ShieldAlert size={13} className={membersSubTab === 'quarantine' || activeTab === 'quarantine' ? 'text-amber-600' : 'text-slate-400'} />
+              <span>Kwarantanna & Zgłoszenia</span>
+              {pendingCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-amber-500 text-white">
+                  {pendingCount}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Compact 4 Metric Badges in single row */}
+          {membersMetrics && (
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0 ml-auto">
+              {/* 1) Aktywni */}
+              <div className="bg-slate-100/90 border border-slate-200/80 rounded-xl px-2.5 py-1 flex items-center gap-1.5 h-9 shadow-2xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                <span className="font-bold text-xs text-slate-900 font-mono">{membersMetrics.activeCount}</span>
+                <span className="text-slate-800 font-semibold text-[11px] whitespace-nowrap">Aktywni członkowie</span>
+              </div>
+
+              {/* 2) Frekwencja */}
+              <div className="bg-slate-100/90 border border-slate-200/80 rounded-xl px-2.5 py-1 flex items-center gap-1.5 h-9 shadow-2xs">
+                <span className="font-bold text-xs text-slate-900 font-mono">{isNaN(membersMetrics.avgFreq) ? 0 : membersMetrics.avgFreq}%</span>
+                <span className="text-slate-800 font-semibold text-[11px] whitespace-nowrap">Średnia frekwencja</span>
+              </div>
+
+              {/* 3) Zaświadczenia */}
+              <div className="bg-slate-100/90 border border-slate-200/80 rounded-xl px-2.5 py-1 flex items-center gap-1.5 h-9 shadow-2xs">
+                <span className="font-bold text-xs text-slate-900 font-mono">{membersMetrics.certReady}</span>
+                <span className="text-slate-800 font-semibold text-[11px] whitespace-nowrap">Gotowe zaświadczenia</span>
+              </div>
+
+              {/* 4) Mailing */}
+              <div className="bg-slate-100/90 border border-slate-200/80 rounded-xl px-2.5 py-1 flex items-center gap-1.5 h-9 shadow-2xs">
+                <span className="font-bold text-xs text-slate-900 font-mono">{membersMetrics.mailingConsentsCount}</span>
+                <span className="text-slate-800 font-semibold text-[11px] whitespace-nowrap">Zgody na mailing</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

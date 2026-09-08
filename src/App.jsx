@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   LayoutDashboard,
   ShieldAlert,
@@ -38,6 +38,7 @@ import { materials, initialMembers, initialMeetings } from './data/mockData';
 import { getRecordKey } from './utils/helpers';
 import { getAcademicYearKey } from './utils/academicYear';
 import { getCanonicalMeetingsForOrg, filterLegitimateMeetings } from './utils/canonicalMeetings';
+import { getMeetingType, calculateCategorizedFrequency } from './utils/meetingTypes';
 import {
   createOrgSnapshot,
   getBlacklistedMembers,
@@ -924,6 +925,99 @@ export default function App() {
     m => (m.status === 'active' || !m.status) && !m.isArchived && m.status !== 'resigned' && m.status !== 'archived'
   ).length;
 
+  const customMeetingTypes = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem(getStorageKey ? getStorageKey('crm_meeting_types') : 'crm_meeting_types') || '{}');
+    } catch {
+      return {};
+    }
+  }, [getStorageKey]);
+
+  const blacklist = useMemo(() => {
+    return getBlacklistedMembers(currentOrg?.id || 'default');
+  }, [currentOrg?.id]);
+
+  const membersMetrics = useMemo(() => {
+    const isGuest = (m) => {
+      const s = String(m?.status || '').toLowerCase().trim();
+      return s === 'guest' || s === 'gość' || s === 'gosc' || s === 'wolny słuchacz';
+    };
+    const isInactive = (m) => {
+      const s = String(m?.status || '').toLowerCase().trim();
+      return s === 'resigned' || s === 'inactive' || s === 'nieaktywny' || s === 'rezygnacja' || s === 'były' || s === 'byly';
+    };
+    const isActive = (m) => {
+      if (!m) return false;
+      if (isMemberBlacklisted(m, blacklist)) return false;
+      return !isGuest(m) && !isInactive(m) && !m?.isArchived && m?.status !== 'archived';
+    };
+
+    const activeMembersList = members.filter(m => isActive(m));
+    const activeCount = activeMembersList.length;
+    const safeMeetings = Array.isArray(meetings) ? meetings : [];
+    const isSknSeks = currentOrg?.id === 'skn_seksuologii';
+
+    const conductedMandatory = safeMeetings.filter(
+      meet => meet && !meet.isUpcoming && getMeetingType(meet, customMeetingTypes) === 'mandatory'
+    );
+    const plannedMandatory = safeMeetings.filter(
+      meet => meet && getMeetingType(meet, customMeetingTypes) === 'mandatory'
+    );
+    const dynamicMandatoryTotal = conductedMandatory.length > 0
+      ? conductedMandatory.length
+      : (plannedMandatory.length > 0 ? plannedMandatory.length : 1);
+
+    const getMemberFreqData = (m) => {
+      if (!m) return { freq: 0, absent: dynamicMandatoryTotal };
+      const calc = calculateCategorizedFrequency(
+        m,
+        safeMeetings,
+        customMeetingTypes || {},
+        m?.present || 0,
+        m?.absent || 0
+      );
+      return {
+        freq: calc?.freq ?? 0,
+        absent: calc?.absent ?? 0,
+        presentMandatory: calc?.presentMandatory ?? 0,
+        mandatoryTotal: calc?.mandatoryTotal || dynamicMandatoryTotal,
+      };
+    };
+
+    let sum = 0;
+    let certReadyCount = 0;
+    const seenEmails = new Set();
+    let consentsCount = 0;
+
+    activeMembersList.forEach(m => {
+      const fData = getMemberFreqData(m);
+      const f = fData?.freq ?? 0;
+      sum += isNaN(f) ? 0 : f;
+
+      if (!isSknSeks) {
+        if (f >= 50) certReadyCount++;
+      } else {
+        const absences = typeof fData.absent === 'number' ? fData.absent : (m?.absent || 0);
+        if (f >= 50 && absences <= 5) certReadyCount++;
+      }
+
+      const email = (m?.email || '').trim().toLowerCase();
+      if (email && email.includes('@') && m?.zgodaNaMailing === 'Zgoda na mailing' && !seenEmails.has(email)) {
+        seenEmails.add(email);
+        consentsCount++;
+      }
+    });
+
+    const avgFreq = activeCount > 0 ? Math.round(sum / activeCount) : 0;
+
+    return {
+      activeCount,
+      avgFreq: isNaN(avgFreq) ? 0 : avgFreq,
+      certReady: certReadyCount,
+      mailingConsentsCount: consentsCount,
+    };
+  }, [members, meetings, customMeetingTypes, blacklist, currentOrg?.id]);
+
   const syncLabel = lastSync
     ? lastSync.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
     : null;
@@ -1101,6 +1195,7 @@ export default function App() {
           setDocumentationSubTab={setDocumentationSubTab}
           settingsToolsSubTab={settingsToolsSubTab}
           setSettingsToolsSubTab={setSettingsToolsSubTab}
+          membersMetrics={membersMetrics}
         />
 
         {/* Skeleton loading state on first load */}

@@ -37,24 +37,7 @@ import { getBlacklistedMembers, addMemberToBlacklist, isMemberBlacklisted } from
 import EditMemberModal from './EditMemberModal';
 import CertificateModal from './CertificateModal';
 
-function KpiCard({ icon: Icon, label, value, sub, color, isLoading }) {
-  return (
-    <div className="bg-white rounded-xl shadow-xs border border-slate-100 py-3.5 px-4 flex items-center gap-3.5">
-      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${color}`}>
-        <Icon size={18} className="text-white" />
-      </div>
-      <div className="min-w-0">
-        {isLoading && (value === 0 || value === '0%') ? (
-          <div className="h-6 w-16 bg-slate-100 animate-pulse rounded-md my-0.5" />
-        ) : (
-          <p className="text-xl font-bold text-slate-800 tracking-tight leading-none">{value}</p>
-        )}
-        <p className="text-[11px] font-medium text-slate-600 leading-tight mt-1 truncate">{label}</p>
-        {sub && <p className="text-[10px] text-slate-400 mt-0.5 truncate">{sub}</p>}
-      </div>
-    </div>
-  );
-}
+
 
 export default function ManagementTab({
   members = [],
@@ -556,183 +539,146 @@ export default function ManagementTab({
         }}
       />
 
-      {/* ── KPI & Controls Sticky Top Bar (Hidden during Print) ───────────── */}
-      <div className="w-full bg-white/95 backdrop-blur-md p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-3 sticky top-16 z-20 print:hidden">
-        {/* KPI Row (ONLY Active Members) */}
-        <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-3.5">
-          <KpiCard
-            icon={Users}
-            label="Aktywnych członków"
-            value={activeCount}
-            color="bg-indigo-600"
-            sub={`z ${totalCount} w całej bazie`}
-            isLoading={isLoading}
-          />
-          <KpiCard
-            icon={BarChart2}
-            label="Średnia frekwencja"
-            value={`${isNaN(avgFreq) ? 0 : avgFreq}%`}
-            color="bg-blue-600"
-            sub="dla aktywnych członków"
-            isLoading={isLoading}
-          />
-          <KpiCard
-            icon={FileCheck2}
-            label="Gotowe zaświadczenia"
-            value={certReady}
-            color="bg-emerald-600"
-            sub={`z ${activeCount} aktywnych`}
-            isLoading={isLoading}
-          />
-          <KpiCard
-            icon={Mail}
-            label="Zgody na mailing"
-            value={mailingConsentsCount}
-            color="bg-sky-600"
-            sub={`z ${activeCount} aktywnych`}
-            isLoading={isLoading}
-          />
-        </div>
-
-        {/* Search, Segmented Filter & Print Button Bar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2.5 border-t border-slate-100">
-          {/* Search Input */}
-          <div className="relative flex-1 max-w-sm">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+      {/* ── Search & Filter Controls Toolbar (Hidden during Print) ───────────── */}
+      <div className="w-full flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 print:hidden">
+        {/* Search Input inside distinct gray base container with inner shadow */}
+        <div className="bg-slate-100 border border-slate-300/80 rounded-xl p-1 shadow-inner relative flex-1 max-w-md">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
             <input
               type="text"
               placeholder="Szukaj po nazwisku, nr indeksu lub emailu…"
               value={query}
               onChange={e => setQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-300 transition"
+              className="w-full pl-9 pr-4 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-500 font-medium text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 shadow-2xs transition"
             />
             {query && (
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-slate-500">
                 {sortedMembers.length} wyników
               </span>
             )}
           </div>
-
-          {/* Action Controls: Filters + Print Button */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Segmented Filter Pills */}
-            <div className="inline-flex items-center bg-slate-100/90 p-1 rounded-xl border border-slate-200 text-xs font-semibold shrink-0 gap-1">
-              <button
-                onClick={() => setStatusFilter('active')}
-                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                  statusFilter === 'active'
-                    ? 'bg-white text-emerald-700 shadow-xs font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                <span>Tylko aktywni ({activeCount})</span>
-              </button>
-
-              <button
-                onClick={() => setStatusFilter('guest')}
-                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                  statusFilter === 'guest'
-                    ? 'bg-white text-indigo-700 shadow-xs font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <span className="w-2 h-2 rounded-full bg-indigo-500" />
-                <span>Goście & Wolni słuchacze ({guestCount})</span>
-              </button>
-
-              <button
-                onClick={() => setStatusFilter('resigned')}
-                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                  statusFilter === 'resigned'
-                    ? 'bg-white text-slate-800 shadow-xs font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <span className="w-2 h-2 rounded-full bg-slate-400" />
-                <span>Byli / Nieaktywni ({resignedCount})</span>
-              </button>
-
-              {graduatesCount > 0 && (
-                <button
-                  onClick={() => setStatusFilter('graduates')}
-                  className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                    statusFilter === 'graduates'
-                      ? 'bg-white text-indigo-700 shadow-xs font-bold'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <GraduationCap size={13} className="text-indigo-600" />
-                  <span>Absolwenci ({graduatesCount})</span>
-                </button>
-              )}
-
-              <button
-                onClick={() => setStatusFilter('all')}
-                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                  statusFilter === 'all'
-                    ? 'bg-white text-indigo-700 shadow-xs font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Wszyscy ({totalCount})
-              </button>
-            </div>
-
-            {/* Print List Button */}
-            <button
-              onClick={() => window.print()}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-sm transition-all shrink-0 cursor-pointer"
-              title="Wydrukuj wykaz członków na potrzeby Dziekanatu"
-            >
-              <Printer size={14} />
-              <span>Drukuj listę</span>
-            </button>
-          </div>
         </div>
 
-        {/* Graduates Bulk Action Notification Banner */}
-        {statusFilter === 'graduates' && graduatesCount > 0 && (
-          <div className="bg-indigo-50/70 border border-indigo-200 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in duration-200">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
-                <GraduationCap size={18} />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-indigo-950">
-                  Wykryto {graduatesCount} potencjalnych absolwentów koła
-                </p>
-                <p className="text-[11px] text-indigo-700">
-                  Osoby te przekroczyły programowy czas trwania studiów na podstawie roku zgłoszenia.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              {onBulkMarkGraduates && (
-                <button
-                  onClick={() => onBulkMarkGraduates(graduatesList.map(g => g.id))}
-                  className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer"
-                >
-                  <GraduationCap size={13} />
-                  <span>Przenieś do Byłych ({graduatesCount})</span>
-                </button>
-              )}
-              {onBulkArchiveGraduates && (
-                <button
-                  onClick={() => onBulkArchiveGraduates(graduatesList.map(g => g.id))}
-                  className="px-3 py-1.5 rounded-lg bg-white border border-indigo-200 hover:bg-indigo-100 text-indigo-800 text-xs font-semibold shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Archive size={13} />
-                  <span>Archiwizuj ({graduatesCount})</span>
-                </button>
-              )}
-            </div>
+        {/* Action Controls: Filters + Print Button */}
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0">
+          {/* Segmented Filter Pills */}
+          <div className="inline-flex items-center bg-slate-100/90 p-1 rounded-xl border border-slate-200 text-xs font-semibold shrink-0 gap-1 shadow-2xs">
+            <button
+              onClick={() => setStatusFilter('active')}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                statusFilter === 'active'
+                  ? 'bg-white text-emerald-700 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span>Tylko aktywni ({activeCount})</span>
+            </button>
+
+            <button
+              onClick={() => setStatusFilter('guest')}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                statusFilter === 'guest'
+                  ? 'bg-white text-indigo-700 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-indigo-500" />
+              <span>Goście & Wolni słuchacze ({guestCount})</span>
+            </button>
+
+            <button
+              onClick={() => setStatusFilter('resigned')}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                statusFilter === 'resigned'
+                  ? 'bg-white text-slate-800 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-slate-400" />
+              <span>Byli / Nieaktywni ({resignedCount})</span>
+            </button>
+
+            {graduatesCount > 0 && (
+              <button
+                onClick={() => setStatusFilter('graduates')}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                  statusFilter === 'graduates'
+                    ? 'bg-white text-indigo-700 shadow-xs font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <GraduationCap size={13} className="text-indigo-600" />
+                <span>Absolwenci ({graduatesCount})</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => setStatusFilter('all')}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                statusFilter === 'all'
+                  ? 'bg-white text-indigo-700 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Wszyscy ({totalCount})
+            </button>
           </div>
-        )}
+
+          {/* Print List Button */}
+          <button
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-sm transition-all shrink-0 cursor-pointer h-9"
+            title="Wydrukuj wykaz członków na potrzeby Dziekanatu"
+          >
+            <Printer size={14} />
+            <span>Drukuj listę</span>
+          </button>
+        </div>
       </div>
 
+      {/* Graduates Bulk Action Notification Banner */}
+      {statusFilter === 'graduates' && graduatesCount > 0 && (
+        <div className="bg-indigo-50/70 border border-indigo-200 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in duration-200 print:hidden">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+              <GraduationCap size={18} />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-indigo-950">
+                Wykryto {graduatesCount} potencjalnych absolwentów koła
+              </p>
+              <p className="text-[11px] text-indigo-700">
+                Osoby te przekroczyły programowy czas trwania studiów na podstawie roku zgłoszenia.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {onBulkMarkGraduates && (
+              <button
+                onClick={() => onBulkMarkGraduates(graduatesList.map(g => g.id))}
+                className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <GraduationCap size={13} />
+                <span>Przenieś do Byłych ({graduatesCount})</span>
+              </button>
+            )}
+            {onBulkArchiveGraduates && (
+              <button
+                onClick={() => onBulkArchiveGraduates(graduatesList.map(g => g.id))}
+                className="px-3 py-1.5 rounded-lg bg-white border border-indigo-200 hover:bg-indigo-100 text-indigo-800 text-xs font-semibold shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <Archive size={13} />
+                <span>Archiwizuj ({graduatesCount})</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── Table Container with Independent Scrolling & Sticky Thead ── */}
-      <div className="w-full bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden max-h-[calc(100vh-380px)] overflow-y-auto scrollbar-thin scrollbar-thumb-indigo-200 print:max-h-none print:overflow-visible print:shadow-none print:border-none print:rounded-none">
+      <div className="w-full bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden max-h-[calc(100vh-230px)] overflow-y-auto scrollbar-thin scrollbar-thumb-indigo-200 print:max-h-none print:overflow-visible print:shadow-none print:border-none print:rounded-none">
         <table className="w-full text-xs table-fixed border-collapse print:table-auto print:text-[9.5px] print:leading-tight">
           <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-xs border-b border-slate-200 shadow-2xs">
             <tr className="text-left select-none print:bg-slate-100 print:border-slate-900">
