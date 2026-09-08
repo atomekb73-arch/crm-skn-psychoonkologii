@@ -1377,9 +1377,9 @@ export default function MeetingsTab({
                     {/* Prawa strona (Status & Type Badges) */}
                     <div className="flex-shrink-0 flex flex-col items-end gap-1">
                       {/* Meeting Type Badge */}
-                      <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${typeConfig.badgeClass}`}>
-                        <span>{typeConfig.icon}</span>
-                        <span>{typeConfig.label}</span>
+                      <span className={`w-32 justify-center text-center inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${typeConfig.badgeClass}`}>
+                        <span className="shrink-0">{typeConfig.icon}</span>
+                        <span className="truncate">{typeConfig.label}</span>
                       </span>
 
                       {isUpcoming ? (
@@ -1531,8 +1531,9 @@ export default function MeetingsTab({
                       Obowiązkowe dla frekwencji: <strong className="text-emerald-700 font-bold">{countMandatory}</strong> | Pozostałe: <strong className="text-slate-700 font-bold">{countNonMandatory}</strong>
                     </p>
                   </div>
-                  <span className={`self-start sm:self-auto text-xs font-bold px-2.5 py-0.5 rounded-full border ${selectedTypeConfig.badgeClass}`}>
-                    {selectedTypeConfig.icon} {selectedTypeConfig.label}
+                  <span className={`self-start sm:self-auto text-xs font-bold w-40 justify-center text-center inline-flex items-center gap-1 px-3 py-1 rounded-full border shrink-0 ${selectedTypeConfig.badgeClass}`}>
+                    <span className="shrink-0">{selectedTypeConfig.icon}</span>
+                    <span className="truncate">{selectedTypeConfig.label}</span>
                   </span>
                 </div>
 
@@ -1540,7 +1541,7 @@ export default function MeetingsTab({
                   {selectedTypeConfig.description}
                 </p>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                <div className="grid grid-cols-4 gap-2 pt-1 w-full">
                   {Object.values(MEETING_TYPES).map(t => {
                     const isCurrent = selectedType === t.id;
                     const count = categoryCounts[t.id] || 0;
@@ -1549,9 +1550,9 @@ export default function MeetingsTab({
                         key={t.id}
                         type="button"
                         onClick={() => handleSetMeetingType(selectedMeeting.id, t.id)}
-                        className={`flex flex-col items-center justify-center p-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                        className={`w-full flex flex-col items-center justify-center p-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                           isCurrent
-                            ? `${t.badgeClass} ring-2 ring-indigo-400 shadow-xs scale-102`
+                            ? `${t.badgeClass} ring-2 ring-indigo-400 shadow-xs`
                             : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100 hover:border-slate-300'
                         }`}
                       >
@@ -1565,7 +1566,7 @@ export default function MeetingsTab({
                             {count}
                           </span>
                         </div>
-                        <span className="text-[11px] text-center leading-tight mt-0.5">{t.label}</span>
+                        <span className="text-[11px] text-center leading-tight mt-0.5 truncate w-full">{t.label}</span>
                       </button>
                     );
                   })}
