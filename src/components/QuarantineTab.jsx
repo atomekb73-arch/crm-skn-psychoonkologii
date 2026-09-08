@@ -19,9 +19,15 @@ import {
   Mail,
   Send,
   Loader2,
+  UserPlus,
+  Database,
+  AlertCircle,
 } from 'lucide-react';
 import EditMemberModal from './EditMemberModal';
 import WelcomeMailModal from './WelcomeMailModal';
+import { initializeSubmissionsRegistryInGAS, addMemberManuallyToGAS } from '../services/googleSheets';
+import { getAliasesFromStorage, saveAliasesToStorage } from '../utils/storage';
+
 
 function ConsentBadge({ status }) {
   const ok = status === 'Zgody OK';
@@ -118,6 +124,7 @@ export default function QuarantineTab({
   onBulkRestoreArchive,
   onPermanentDeleteArchive,
   onSaveMember,
+  onAddMember,
 }) {
   const [viewMode, setViewMode] = useState('pending'); // 'pending' | 'archive'
   const [dupeFilter, setDupeFilter] = useState('all'); // 'all' | 'unique' | 'dupes'
@@ -130,11 +137,33 @@ export default function QuarantineTab({
   const [editingMember, setEditingMember] = useState(null);
   const [welcomeMailMember, setWelcomeMailMember] = useState(null);
 
+  // Modals for Initialization and Manual Member Onboarding
+  const [showInitModal, setShowInitModal] = useState(false);
+  const [isInitializingRegistry, setIsInitializingRegistry] = useState(false);
+  const [initSuccessMessage, setInitSuccessMessage] = useState(null);
+  const [initErrorMessage, setInitErrorMessage] = useState(null);
+
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [isAddingMember, setIsAddingMember] = useState(false);
+  const [addMemberError, setAddMemberError] = useState('');
+  const [newMemberForm, setNewMemberForm] = useState({
+    fullName: '',
+    index: '',
+    email: '',
+    phone: '',
+    field: 'Psychologia',
+    year: '',
+    meetAlias: '',
+    status: 'active',
+    mailingConsent: true,
+  });
+
   // Approval Loading State
   const [approvingIds, setApprovingIds] = useState(new Set());
   const [isBulkApproving, setIsBulkApproving] = useState(false);
 
   const [sortConfig, setSortConfig] = useState({ key: 'timestamp', direction: 'desc' });
+
 
   // 1. Zbuduj zbiór referencyjny z aktywnych członków Zarządzania (Tryb Tylko do Odczytu)
   const managementKeys = useMemo(() => {
@@ -364,6 +393,142 @@ export default function QuarantineTab({
     setDeleteModalEntry(null);
   };
 
+  // ── Handler: Inicjalizacja bazy do Rejestru Zgłoszeń ────────────────────────
+  const handleInitializeRegistry = async () => {
+    setIsInitializingRegistry(true);
+    setInitErrorMessage(null);
+    try {
+      // 1. Zbuduj listę bieżących członków
+      const activeMembersToExport = members && members.length > 0 ? members : [];
+      await initializeSubmissionsRegistryInGAS(activeMembersToExport);
+
+      setInitSuccessMessage(`Pomyślnie wyeksportowano ${activeMembersToExport.length} członków do Rejestru Zgłoszeń.`);
+      setTimeout(() => {
+        setInitSuccessMessage(null);
+        setShowInitModal(false);
+      }, 2500);
+    } catch (err) {
+      console.error("Błąd inicjalizacji arkusza Rejestr_Zgloszen:", err);
+      setInitErrorMessage(`Wystąpił błąd podczas eksportu: ${err.message || err}`);
+    } finally {
+      setIsInitializingRegistry(false);
+    }
+  };
+
+  // ── Handler: Zapis nowego członka dodanego ręcznie ─────────────────────────
+  const handleSaveNewMember = async (e) => {
+    if (e) e.preventDefault();
+    setAddMemberError('');
+
+    const cleanName = (newMemberForm.fullName || '').trim();
+    const rawIdx = (newMemberForm.index || '').trim();
+    const cleanIdx = rawIdx.replace(/\D/g, '').replace(/^0+/, '') || rawIdx;
+
+    if (!cleanName) {
+      setAddMemberError('Pole Imię i Nazwisko jest wymagane.');
+      return;
+    }
+    if (!cleanIdx) {
+      setAddMemberError('Pole Numer Indeksu jest wymagane.');
+      return;
+    }
+
+    // Walidacja unikalności numeru indeksu w aktualnej bazie członków
+    const indexExists = (members || []).some(m => {
+      const mIdx = String(m.index || m.cleanIndex || '').replace(/\D/g, '').replace(/^0+/, '').trim();
+      return mIdx === cleanIdx;
+    });
+
+    if (indexExists) {
+      setAddMemberError(`Student o numerze indeksu ${cleanIdx} już istnieje na liście członków!`);
+      return;
+    }
+
+    setIsAddingMember(true);
+    try {
+      const parts = cleanName.split(/\s+/);
+      const firstName = parts[0] || '';
+      const lastName = parts.slice(1).join(' ') || '';
+      const email = (newMemberForm.email || '').trim();
+      const phone = (newMemberForm.phone || '').trim();
+      const field = (newMemberForm.field || 'Psychologia').trim();
+      const year = (newMemberForm.year || '').trim();
+      const meetAlias = (newMemberForm.meetAlias || '').trim();
+      const status = newMemberForm.status || 'active';
+      const mailingConsent = Boolean(newMemberForm.mailingConsent);
+
+      const newMemberObj = {
+        id: `manual_${cleanIdx}_${Date.now()}`,
+        memberKey: `idx_${cleanIdx}`,
+        fullName: cleanName,
+        firstName,
+        lastName,
+        index: cleanIdx,
+        cleanIndex: cleanIdx,
+        email,
+        phone,
+        field,
+        year,
+        status,
+        mailingConsent,
+        zgodaNaMailing: mailingConsent ? 'Zgoda na mailing' : 'Brak zgody',
+        consentStatus: mailingConsent ? 'Zgody OK' : 'Brak zgody',
+        aliases: meetAlias ? [meetAlias] : [],
+        timestamp: new Date().toISOString().slice(0, 10),
+        fromSheet: 'Rejestr_Zgloszen',
+        points: 0,
+        present: 0,
+        absent: 0,
+        attendancePercent: 0,
+        certStatus: 'W toku'
+      };
+
+      // 1. Zapisz alias Google Meet jeśli podano
+      if (meetAlias) {
+        const currentAliases = getAliasesFromStorage() || {};
+        currentAliases[meetAlias] = cleanIdx;
+        saveAliasesToStorage(currentAliases);
+      }
+
+      // 2. Dodaj do stanu CRM
+      if (onAddMember) {
+        onAddMember(newMemberObj);
+      } else if (onSaveMember) {
+        onSaveMember(newMemberObj);
+      }
+
+      // 3. Wyślij do Google Apps Script w tle
+      try {
+        await addMemberManuallyToGAS({
+          ...newMemberObj,
+          fieldAndYear: field && year ? `${field} (${year})` : (field || year),
+          aliases: meetAlias
+        });
+      } catch (gasErr) {
+        console.warn("Błąd wysyłki do GAS (rejestr zgłoszeń):", gasErr);
+      }
+
+      // Reset formularza i zamknięcie modala
+      setNewMemberForm({
+        fullName: '',
+        index: '',
+        email: '',
+        phone: '',
+        field: 'Psychologia',
+        year: '',
+        meetAlias: '',
+        status: 'active',
+        mailingConsent: true,
+      });
+      setShowAddMemberModal(false);
+    } catch (err) {
+      console.error("Błąd podczas dodawania członka:", err);
+      setAddMemberError(`Wystąpił błąd: ${err.message || err}`);
+    } finally {
+      setIsAddingMember(false);
+    }
+  };
+
   const formatYear = (field, year) => {
     if (field && year) return `${field} (${year})`;
     if (field) return field;
@@ -464,6 +629,261 @@ export default function QuarantineTab({
         </div>
       )}
 
+      {/* ── Modal: Potwierdzenie Inicjalizacji Rejestru Zgłoszeń ──────────── */}
+      {showInitModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl border border-slate-100 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-start gap-3">
+              <div className="w-11 h-11 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+                <Database size={22} />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-bold text-slate-900">Inicjalizacja arkusza Rejestr_Zgloszen</h3>
+                <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
+                  Czy na pewno chcesz wyeksportować bieżące <strong className="font-bold text-indigo-700">{members.length} rekordów</strong> członków do arkusza <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded font-mono text-[11px]">Rejestr_Zgloszen</code> w Google Sheets?
+                </p>
+                <div className="mt-3 p-2.5 rounded-xl bg-amber-50 border border-amber-200/80 text-[11px] text-amber-800 flex items-start gap-2">
+                  <AlertCircle size={15} className="text-amber-600 shrink-0 mt-0.5" />
+                  <span>
+                    Operacja wyczyści wiersze poniżej wiersza 1 (nagłówków) w arkuszu i wklei kompletną listę członków ze statusem "Zatwierdzony".
+                  </span>
+                </div>
+
+                {initSuccessMessage && (
+                  <div className="mt-3 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-700 flex items-center gap-2">
+                    <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                    <span>{initSuccessMessage}</span>
+                  </div>
+                )}
+
+                {initErrorMessage && (
+                  <div className="mt-3 p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700 flex items-center gap-2">
+                    <AlertTriangle size={16} className="text-rose-600 shrink-0" />
+                    <span>{initErrorMessage}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                disabled={isInitializingRegistry}
+                onClick={() => {
+                  setShowInitModal(false);
+                  setInitSuccessMessage(null);
+                  setInitErrorMessage(null);
+                }}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50"
+              >
+                Anuluj
+              </button>
+              <button
+                type="button"
+                disabled={isInitializingRegistry}
+                onClick={handleInitializeRegistry}
+                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition-colors flex items-center gap-1.5 disabled:opacity-60"
+              >
+                {isInitializingRegistry ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>Eksportowanie ({members.length})...</span>
+                  </>
+                ) : (
+                  <>
+                    <Database size={14} />
+                    <span>Tak, zainicjalizuj bazę ({members.length})</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Ręczne dodanie nowego członka koła ──────────────────────── */}
+      {showAddMemberModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl border border-slate-100 space-y-4 animate-in fade-in zoom-in-95 duration-150 my-8">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center">
+                  <UserPlus size={18} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Ręczne dodanie nowego członka koła</h3>
+                  <p className="text-[11px] text-slate-500">Zarejestruj studenta bezpośrednio w bazie CRM i arkuszu Rejestr_Zgloszen</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddMemberModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveNewMember} className="space-y-3.5">
+              {addMemberError && (
+                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700 flex items-center gap-2">
+                  <AlertCircle size={15} className="text-rose-600 shrink-0" />
+                  <span>{addMemberError}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Imię i Nazwisko */}
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                    <span>Imię i Nazwisko <span className="text-rose-600">*</span></span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="np. Jan Kowalski"
+                    value={newMemberForm.fullName}
+                    onChange={(e) => setNewMemberForm({ ...newMemberForm, fullName: e.target.value })}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+
+                {/* Nr Indeksu */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                    <span>Nr Indeksu <span className="text-rose-600">*</span></span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="np. 12345"
+                    value={newMemberForm.index}
+                    onChange={(e) => setNewMemberForm({ ...newMemberForm, index: e.target.value })}
+                    className="w-full px-3 py-2 text-xs font-mono rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+
+                {/* Adres Email */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">Adres Email</label>
+                  <input
+                    type="email"
+                    placeholder="student@example.com"
+                    value={newMemberForm.email}
+                    onChange={(e) => setNewMemberForm({ ...newMemberForm, email: e.target.value })}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+
+                {/* Telefon */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">Numer Telefonu</label>
+                  <input
+                    type="tel"
+                    placeholder="+48 123 456 789"
+                    value={newMemberForm.phone}
+                    onChange={(e) => setNewMemberForm({ ...newMemberForm, phone: e.target.value })}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+
+                {/* Kierunek */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">Kierunek studiów</label>
+                  <input
+                    type="text"
+                    placeholder="Psychologia"
+                    value={newMemberForm.field}
+                    onChange={(e) => setNewMemberForm({ ...newMemberForm, field: e.target.value })}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+
+                {/* Rok / Semestr */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">Rok / Semestr</label>
+                  <input
+                    type="text"
+                    placeholder="np. Rok 2, semestr 4"
+                    value={newMemberForm.year}
+                    onChange={(e) => setNewMemberForm({ ...newMemberForm, year: e.target.value })}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+
+                {/* Alias Google Meet */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">Pseudonim / Alias Google Meet</label>
+                  <input
+                    type="text"
+                    placeholder="np. Janek K."
+                    value={newMemberForm.meetAlias}
+                    onChange={(e) => setNewMemberForm({ ...newMemberForm, meetAlias: e.target.value })}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+
+                {/* Status początkowy */}
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-xs font-bold text-slate-700">Status początkowy</label>
+                  <select
+                    value={newMemberForm.status}
+                    onChange={(e) => setNewMemberForm({ ...newMemberForm, status: e.target.value })}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  >
+                    <option value="active">Aktywny (Zatwierdzony członek koła)</option>
+                    <option value="guest">Gość (Wolny słuchacz)</option>
+                    <option value="resigned">Nieaktywny / Rezygnacja</option>
+                  </select>
+                </div>
+
+                {/* Zgoda na mailing */}
+                <div className="sm:col-span-2 pt-1">
+                  <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newMemberForm.mailingConsent}
+                      onChange={(e) => setNewMemberForm({ ...newMemberForm, mailingConsent: e.target.checked })}
+                      className="rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                    />
+                    <span className="font-medium">Wyrażona zgoda na komunikację mailingową</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  disabled={isAddingMember}
+                  onClick={() => setShowAddMemberModal(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50"
+                >
+                  Anuluj
+                </button>
+                <button
+                  type="submit"
+                  disabled={isAddingMember}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition-colors flex items-center gap-1.5 disabled:opacity-60"
+                >
+                  {isAddingMember ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      <span>Dodawanie studenta...</span>
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus size={14} />
+                      <span>Zapisz członka koła</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+
       {/* ── Header View Switcher Tabs ────────────────────────────────────── */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-200 pb-4">
         
@@ -493,6 +913,31 @@ export default function QuarantineTab({
             <span>📦 Archiwum / Odrzucone ({archiveCount})</span>
           </button>
         </div>
+
+        {/* Global Action Tools: Inicjalizacja arkusza & Ręczne dodanie członka */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowInitModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-colors shadow-2xs"
+            title="Eksportuj wszystkich 165 aktywnych członków do pustego arkusza Rejestr_Zgloszen"
+          >
+            <Database size={14} className="text-indigo-600" />
+            <span>Zainicjalizuj bazę do Rejestru Zgłoszeń</span>
+          </button>
+
+          <button
+            onClick={() => setShowAddMemberModal(true)}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition-colors"
+            title="Dodaj ręcznie nowego członka bezpośrednio do bazy CRM i Rejestru Zgłoszeń"
+          >
+            <UserPlus size={14} />
+            <span>+ Dodaj członka ręcznie</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-100 pb-3">
+
 
         {/* Pending Filters & Action Tools */}
         {viewMode === 'pending' && (

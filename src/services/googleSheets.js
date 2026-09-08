@@ -131,6 +131,74 @@ export async function claimGuestAttendance(nazwiskoGoscia, nowyNrIndeksu) {
   return await sendToGAS(payload);
 }
 
+/**
+ * Inicjalizuje arkusz Rejestr_Zgloszen wszystkimi bieżącymi członkami koła.
+ * Czyści wiersze poniżej wiersza 1 i hurtowo wstawia dane.
+ */
+export async function initializeSubmissionsRegistryInGAS(members = []) {
+  const payload = {
+    action: "inicjalizuj_rejestr",
+    members: members.map(m => {
+      const rawIdx = String(m.index || m.cleanIndex || m.nrIndeksu || '').trim();
+      const cleanIdx = rawIdx.replace(/\D/g, '').replace(/^0+/, '') || rawIdx;
+      const fullName = String(m.fullName || `${m.firstName || ''} ${m.lastName || ''}`).trim();
+      const email = String(m.email || '').trim();
+      const phone = String(m.phone || '').trim();
+      const fieldAndYear = String(m.fieldAndYear || `${m.field || ''} ${m.year ? '(' + m.year + ')' : ''}`).trim();
+      const mailingConsent = Boolean(m.mailingConsent || m.zgodaNaMailing === "Zgoda na mailing" || m.consentStatus === "Zgody OK");
+      const status = m.status || "active";
+      const timestamp = m.timestamp || new Date().toISOString().slice(0, 10);
+      const aliases = m.aliases || m.alias || '';
+
+      return {
+        index: cleanIdx,
+        fullName,
+        email,
+        phone,
+        fieldAndYear,
+        mailingConsent,
+        status,
+        timestamp,
+        aliases
+      };
+    })
+  };
+
+  return await sendToGAS(payload);
+}
+
+/**
+ * Ręcznie dodaje nowego członka do bazy w arkuszu Rejestr_Zgloszen (appendRow).
+ */
+export async function addMemberManuallyToGAS(member) {
+  const rawIdx = String(member.index || member.cleanIndex || member.nrIndeksu || '').trim();
+  const cleanIdx = rawIdx.replace(/\D/g, '').replace(/^0+/, '') || rawIdx;
+  const fullName = String(member.fullName || `${member.firstName || ''} ${member.lastName || ''}`).trim();
+  const email = String(member.email || '').trim();
+  const phone = String(member.phone || '').trim();
+  const fieldAndYear = String(member.fieldAndYear || `${member.field || ''} ${member.year ? '(' + member.year + ')' : ''}`).trim();
+  const mailingConsent = Boolean(member.mailingConsent || member.zgodaNaMailing === "Zgoda na mailing" || member.consentStatus === "Zgody OK");
+  const status = member.status || "active";
+  const aliases = member.aliases || member.alias || '';
+
+  const payload = {
+    action: "dodaj_czlonka_recznie",
+    member: {
+      index: cleanIdx,
+      fullName,
+      email,
+      phone,
+      fieldAndYear,
+      mailingConsent,
+      status,
+      aliases
+    }
+  };
+
+  return await sendToGAS(payload);
+}
+
+
 // ─── Data graniczna (Cut-off Watermark) dla nowych zgłoszeń w kwarantannie ──
 // Parser ignoruje zgłoszenia starsze niż 5 września 2026 r. 00:00:00
 export const CUTOFF_DATE = new Date('2026-09-05T00:00:00');

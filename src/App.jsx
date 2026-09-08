@@ -550,6 +550,55 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 4000);
   }
 
+  // ── Manual Member Onboarding Handler ────────────────────────────────────
+  function handleAddMember(newMember) {
+    if (!newMember) return;
+    const key = newMember.memberKey || `idx_${newMember.index || Date.now()}`;
+    const memberToAdd = {
+      ...newMember,
+      id: newMember.id || `manual_m_${Date.now()}`,
+      memberKey: key,
+      status: newMember.status || 'active',
+      fromSheet: 'Rejestr_Zgloszen',
+      points: newMember.points || 0,
+      present: newMember.present || 0,
+      absent: newMember.absent || 0,
+      attendancePercent: newMember.attendancePercent || 0,
+      certStatus: newMember.certStatus || 'W toku'
+    };
+
+    // Save override
+    const currentOverrides = JSON.parse(localStorage.getItem(getStorageKey('crm_custom_overrides')) || '{}');
+    currentOverrides[key] = {
+      fullName: memberToAdd.fullName,
+      firstName: memberToAdd.firstName,
+      lastName: memberToAdd.lastName,
+      email: memberToAdd.email,
+      index: memberToAdd.index,
+      field: memberToAdd.field,
+      year: memberToAdd.year,
+      status: memberToAdd.status,
+      mailingConsent: memberToAdd.mailingConsent,
+      zgodaNaMailing: memberToAdd.zgodaNaMailing || (memberToAdd.mailingConsent ? 'Zgoda na mailing' : 'Brak zgody'),
+      consent: memberToAdd.mailingConsent,
+      zgoda: memberToAdd.mailingConsent,
+      consentStatus: memberToAdd.mailingConsent ? 'Zgody OK' : 'Brak zgody',
+      phone: memberToAdd.phone || '',
+      aliases: memberToAdd.aliases || ''
+    };
+    localStorage.setItem(getStorageKey('crm_custom_overrides'), JSON.stringify(currentOverrides));
+
+    // Save into approvedKeys so they are treated as active
+    const newKeys = Array.from(new Set([...approvedKeys, key]));
+    setApprovedKeys(newKeys);
+    localStorage.setItem(getStorageKey('crm_approved_keys'), JSON.stringify(newKeys));
+
+    setMembers(prev => [memberToAdd, ...prev.filter(m => m.id !== memberToAdd.id && m.memberKey !== key)]);
+
+    setToastMessage(`Dodano nowego członka do bazy: ${memberToAdd.fullName}`);
+    setTimeout(() => setToastMessage(null), 4000);
+  }
+
   const handleSubcalendarChange = (_newSubId) => {
     setSelectedSubcalendar(DEFAULT_SUBCALENDAR_ID || '15520558');
     loadMeetings(DEFAULT_SUBCALENDAR_ID || '15520558', academicYear, customStartDate, customEndDate);
@@ -1230,6 +1279,7 @@ export default function App() {
                         onBulkRestoreArchive={handleBulkRestoreArchive}
                         onPermanentDeleteArchive={handlePermanentDeleteArchive}
                         onSaveMember={handleSaveMember}
+                        onAddMember={handleAddMember}
                       />
                     );
                   }
