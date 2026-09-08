@@ -683,18 +683,173 @@ export default function MeetingsTab({
     }
   }
 
-  async function handleProcessAttendance() {
-    if (!rawList || !rawList.trim()) return;
+  const handleProcessAttendance = () => {
     try {
-      const lines = rawList.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-      const parsedList = await processAttendanceFromLines(lines);
-      console.log("Sparsowano wierszy:", parsedList?.length || 0, parsedList);
-    } catch (e) {
-      console.error("Błąd podczas przetwarzania listy:", e);
-    } finally {
+      console.log("--- START PARSOWANIA SPOTKANIA ---");
+      const rawText = rawList || ""; // pobierz zawartość pola textarea
+      if (!rawText.trim()) {
+        alert("Pole z listą obecności jest puste. Wklej dane z Google Meet.");
+        return;
+      }
+
+      // Ensure a meeting is selected
+      const currentMeeting = selectedMeeting || currentSelectedMeeting || activeMeetings[0] || {
+        id: 'M01',
+        code: 'M01',
+        title: 'Spotkanie',
+        date: new Date().toISOString().slice(0, 10),
+      };
+      if (!selectedMeeting) {
+        setSelectedMeeting(currentMeeting);
+      }
+
+      const lines = rawText.split(/\r?\n/);
+      console.log(`Pobrano ${lines.length} linii tekstu.`);
+
+      const parsedList = [];
+      const seenNames = new Set();
+      const matched = [];
+      const unmatched = [];
+
+      for (let i = 0; i < lines.length; i++) {
+        let line = lines[i].trim();
+        // Pomiń linie puste, nagłówki CSV oraz linie metadanych Meet rozpoczynające się od *
+        if (!line || line.startsWith("*") || line.toLowerCase().includes("full name") || line.toLowerCase().startsWith("imię i nazwisko")) {
+          continue;
+        }
+
+        let name = "";
+        let durationMinutes = 60; // domyślny czas
+        let joinTime = "18:00";
+        let extractedIdx = "";
+
+        // 1. FORMAT CSV W CUDZYSŁOWACH: "Imię Nazwisko","Data Godzina","Czas"
+        if (line.includes('","') || (line.startsWith('"') && line.includes(','))) {
+          // Usuń zewnętrzne cudzysłowy i podziel po separatorze ","
+          const cleanLine = line.replace(/^"/, '').replace(/"$/, '');
+          const parts = cleanLine.split(/","|",\s*"/);
+          if (parts.length >= 1) {
+            name = parts[0].trim();
+          }
+          if (parts.length >= 2) {
+            const tMatch = parts[1].match(/(\d{1,2}:\d{2}(?::\d{2})?)/);
+            if (tMatch) joinTime = tMatch[1];
+          }
+          if (parts.length >= 3) {
+            // Parsowanie czasu trwania z formatu hh:mm:ss
+            const timeParts = parts[2].split(':');
+            if (timeParts.length === 3) {
+              const h = parseInt(timeParts[0], 10) || 0;
+              const m = parseInt(timeParts[1], 10) || 0;
+              durationMinutes = (h * 60) + m;
+            } else {
+              durationMinutes = parseDurationToMinutes(parts[2]) || 60;
+            }
+          }
+        } 
+        // 2. FORMAT ZE ZGODNOŚCIĄ INDEKSU: "Agnieszka Czerwińska 2026-06-16... Zgodny ✔️ 5589"
+        else if (line.includes("2026-") || line.includes("Zgodny") || line.includes("Sprawdź")) {
+          const idxMatch = line.match(/(?:Zgodny\s*✔️?\s*|indeks[:\s]*|nr[:\s]*)(\d{3,6})/i) || line.match(/\b(\d{4,6})\b$/);
+          if (idxMatch) extractedIdx = idxMatch[1];
+
+          // Imię to wszystko przed pierwszą datą
+          const dateMatch = line.match(/\d{4}-\d{2}-\d{2}/);
+          if (dateMatch) {
+            name = line.substring(0, dateMatch.index).trim();
+            const afterDate = line.substring(dateMatch.index + dateMatch[0].length).trim();
+            const timeMatch = afterDate.match(/(\d{1,2}:\d{2}(?::\d{2})?)/);
+            if (timeMatch) joinTime = timeMatch[1];
+            const durMatch = afterDate.match(/\s+(\d{1,2}:\d{2}:\d{2}|\d{1,2}:\d{2}|\d+\s*min)/i);
+            if (durMatch) durationMinutes = parseDurationToMinutes(durMatch[1]) || 60;
+          } else {
+            name = line.split(/\s{2,}|\t/)[0].trim();
+          }
+        } 
+        // 3. FALLBACK DLA DOWOLNEGO INNEGO TEKSTU:
+        else {
+          name = line.replace(/["\t]/g, ' ').split(/\s{2,}/)[0].trim();
+        }
+
+        // Oczyszczenie nazwy z cudzysłowów
+        name = name.replace(/^"/, '').replace(/"$/, '').trim();
+
+        if (name && name.length > 2 && !seenNames.has(name.toLowerCase())) {
+          seenNames.add(name.toLowerCase());
+
+          // Sprawdź dopasowanie w bazie członków SKN (jeśli załadowana)
+          let matchedMember = null;
+          if (Array.isArray(members) && members.length > 0) {
+            const normName = normalizeDiacritics(name).toLowerCase().trim();
+            matchedMember = members.find(m => {
+              if (!m) return false;
+              const normFull = normalizeDiacritics(m.fullName || m.name || m.imieNazwisko || `${m.firstName} ${m.lastName}`).toLowerCase().trim();
+              const normReverseFull = normFull.split(' ').reverse().join(' ');
+              const mIdx = String(m.nrIndeksu || m.index || '').trim();
+              if (extractedIdx && mIdx && extractedIdx === mIdx) return true;
+              if (mIdx && normName.includes(mIdx)) return true;
+              if (normName === normFull || normName === normReverseFull) return true;
+              if (normFull.length > 5 && (normName.includes(normFull) || normFull.includes(normName))) return true;
+              return false;
+            });
+          }
+
+          const isSup = isFacultySupervisor(name);
+          const isMonika = isMonikaLyniewska(name) || (extractedIdx === '34327');
+          const isMemberInDB = Boolean(matchedMember || isMonika);
+          const role = isSup ? "supervisor" : (isMemberInDB ? "member" : "guest");
+          const roleDisplay = isSup ? "Opiekun" : (isMemberInDB ? "Członek koła" : "Gość");
+          const isEligible = durationMinutes >= (minDurationThreshold || 15);
+          const status = isSup ? "supervisor" : (role === "guest" ? "guest" : (isEligible ? "approved" : "short_time"));
+          const memberObj = isMemberInDB ? (matchedMember || (isMonika ? { fullName: 'Monika Łyniewska', index: '34327', email: '34327@student.wskz.pl' } : null)) : null;
+          const finalDisplayName = memberObj ? (memberObj.fullName || memberObj.name || memberObj.imieNazwisko || `${memberObj.firstName} ${memberObj.lastName}`) : name;
+
+          parsedList.push({
+            id: `att_${Date.now()}_${i}`,
+            name: finalDisplayName,
+            rawName: finalDisplayName,
+            rawMeetName: name,
+            nrIndeksu: memberObj ? (memberObj.nrIndeksu || memberObj.index) : (isMonika ? '34327' : (extractedIdx || null)),
+            role: role,
+            roleDisplay: roleDisplay,
+            duration: durationMinutes,
+            durationMinutes: durationMinutes,
+            durationStr: `${durationMinutes} min`,
+            joinTime: joinTime || '18:00',
+            status: status,
+            isFromBase: isMemberInDB,
+            member: memberObj,
+            isGuest: role === "guest",
+            isExternalGuest: !isMemberInDB && !isSup,
+            isEligible: isEligible || role === "guest" || isSup,
+            manualApproved: isEligible || role === "guest" || isSup,
+            hasManualOverride: false
+          });
+
+          if (matchedMember) matched.push(matchedMember);
+          else unmatched.push(name);
+        }
+      }
+
+      console.log(`Pomyślnie sparsowano: ${parsedList.length} uczestników. Otwieram modal.`);
+      console.log("Sparsowano wierszy:", parsedList.length, parsedList);
+
+      // Ustawienie stanu i natychmiastowe otwarcie modala
+      setParsedParticipants(parsedList);
+      setManualOverrides({});
+      setResults({ matched, unmatched });
+
+      const storageKey = getMeetingStorageKey(currentMeeting);
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(parsedList));
+      } catch {}
+
       setIsModalOpen(true);
+
+    } catch (error) {
+      console.error("BŁĄD PODCZAS PARSOWANIA:", error);
+      alert("Wystąpił błąd parsowania: " + (error.message || error));
     }
-  }
+  };
 
   async function handleFetchFromSheet() {
     if (!selectedMeeting) return;
@@ -1572,8 +1727,7 @@ export default function MeetingsTab({
                       <button
                         type="button"
                         onClick={handleProcessAttendance}
-                        disabled={!rawList.trim()}
-                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs font-bold transition shadow-sm cursor-pointer"
+                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-sm cursor-pointer"
                       >
                         <Play size={13} />
                         <span>▶ Przetwórz i zweryfikuj listę</span>
@@ -1581,14 +1735,7 @@ export default function MeetingsTab({
 
                       <button
                         type="button"
-                        onClick={async () => {
-                          if (rawList && rawList.trim()) {
-                            const lines = rawList.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-                            const parsedList = await processAttendanceFromLines(lines);
-                            console.log("Sparsowano wierszy:", parsedList?.length || 0, parsedList);
-                          }
-                          setIsModalOpen(true);
-                        }}
+                        onClick={handleProcessAttendance}
                         className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-300 text-xs font-bold transition cursor-pointer"
                       >
                         <span>⛶ Otwórz pełny panel weryfikacji i edycji (Duże okno)</span>
@@ -1734,7 +1881,7 @@ export default function MeetingsTab({
       <AttendanceModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        meeting={selectedMeeting}
+        meeting={selectedMeeting || currentSelectedMeeting || activeMeetings[0] || { id: 'M01', code: 'M01', title: 'Spotkanie', date: new Date().toISOString().slice(0, 10) }}
         members={members}
         participants={parsedParticipants}
         minDurationThreshold={minDurationThreshold}
