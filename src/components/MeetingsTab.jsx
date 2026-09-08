@@ -600,12 +600,23 @@ export default function MeetingsTab({
       }
     });
 
-    setParsedParticipants(participants);
+    // Deduplicate: keep only first occurrence per index or normalized name
+    const seenKeys = new Set();
+    const dedupedParticipants = participants.filter(p => {
+      const key = p.member?.index
+        ? String(p.member.index).trim()
+        : normalizeDiacritics(p.rawName || '').toLowerCase().trim();
+      if (!key || seenKeys.has(key)) return false;
+      seenKeys.add(key);
+      return true;
+    });
+
+    setParsedParticipants(dedupedParticipants);
     setManualOverrides({});
 
     const storageKey = getMeetingStorageKey(selectedMeeting);
     try {
-      localStorage.setItem(storageKey, JSON.stringify(participants));
+      localStorage.setItem(storageKey, JSON.stringify(dedupedParticipants));
     } catch {}
 
     setResults({ matched, unmatched });
