@@ -1063,17 +1063,48 @@ export default function App() {
   }
 
   function handleRestoreArchive(id) {
-    const entry = archivedQuarantine.find(a => a.id === id);
+    const cleanId = String(id || '').trim();
+    const entry = archivedQuarantine.find(a =>
+      String(a.id) === cleanId ||
+      String(a.nrIndeksu || '').trim() === cleanId ||
+      String(a.cleanIndex || '').trim() === cleanId ||
+      String(a.index || '').trim() === cleanId ||
+      String(a.memberKey || '').trim() === cleanId
+    );
     if (!entry) return;
 
-    const newKeys = archivedRowIds.filter(k => k !== id);
+    const rowId = entry.id;
+    const newKeys = archivedRowIds.filter(k => k !== rowId && k !== cleanId);
     setArchivedRowIds(newKeys);
     localStorage.setItem(getStorageKey('crm_archived_row_ids'), JSON.stringify(newKeys));
 
-    setQuarantine(prev => [{ ...entry, isArchived: false, status: 'quarantine' }, ...prev]);
-    setArchivedQuarantine(prev => prev.filter(a => a.id !== id));
+    // Remove from blacklist so student is not re-archived
+    removeMemberFromBlacklist(currentOrg?.id || 'default', entry.id);
+    if (entry.email) removeMemberFromBlacklist(currentOrg?.id || 'default', entry.email);
+    if (entry.cleanIndex || entry.index || entry.nrIndeksu) {
+      removeMemberFromBlacklist(currentOrg?.id || 'default', entry.cleanIndex || entry.index || entry.nrIndeksu);
+    }
+    if (entry.fullName) removeMemberFromBlacklist(currentOrg?.id || 'default', entry.fullName);
 
-    const studentIndex = entry.nrIndeksu || entry.index || entry.cleanIndex || '';
+    // Clear overrides for isArchived
+    const currentOverrides = JSON.parse(localStorage.getItem(getStorageKey('crm_custom_overrides')) || '{}');
+    if (currentOverrides[rowId]) {
+      delete currentOverrides[rowId].isArchived;
+      delete currentOverrides[rowId].isBlacklisted;
+      currentOverrides[rowId].status = 'quarantine';
+    }
+    if (entry.memberKey && currentOverrides[entry.memberKey]) {
+      delete currentOverrides[entry.memberKey].isArchived;
+      delete currentOverrides[entry.memberKey].isBlacklisted;
+      currentOverrides[entry.memberKey].status = 'quarantine';
+    }
+    localStorage.setItem(getStorageKey('crm_custom_overrides'), JSON.stringify(currentOverrides));
+
+    const restoredEntry = { ...entry, isArchived: false, isBlacklisted: false, status: 'quarantine' };
+    setQuarantine(prev => [restoredEntry, ...prev.filter(q => q.id !== rowId)]);
+    setArchivedQuarantine(prev => prev.filter(a => a.id !== rowId && a.id !== cleanId));
+
+    const studentIndex = entry.nrIndeksu || entry.index || entry.cleanIndex || cleanId.replace(/\D/g, '') || '';
     if (studentIndex) {
       changeStudentStatusInGAS({
         nrIndeksu: String(studentIndex).trim(),
@@ -1087,14 +1118,44 @@ export default function App() {
   }
 
   function handleBulkRestoreArchive(ids) {
-    const entriesToRestore = archivedQuarantine.filter(a => ids.includes(a.id));
+    if (!ids || ids.length === 0) return;
+    const idSet = new Set(ids.map(i => String(i).trim()));
+
+    const entriesToRestore = archivedQuarantine.filter(a =>
+      idSet.has(String(a.id)) ||
+      idSet.has(String(a.nrIndeksu || '').trim()) ||
+      idSet.has(String(a.cleanIndex || '').trim()) ||
+      idSet.has(String(a.index || '').trim()) ||
+      idSet.has(String(a.memberKey || '').trim())
+    );
     if (entriesToRestore.length === 0) return;
 
-    const newKeys = archivedRowIds.filter(k => !ids.includes(k));
+    const restoredRowIds = new Set(entriesToRestore.map(e => e.id));
+    const newKeys = archivedRowIds.filter(k => !restoredRowIds.has(k) && !idSet.has(k));
     setArchivedRowIds(newKeys);
     localStorage.setItem(getStorageKey('crm_archived_row_ids'), JSON.stringify(newKeys));
 
+    const currentOverrides = JSON.parse(localStorage.getItem(getStorageKey('crm_custom_overrides')) || '{}');
+
     entriesToRestore.forEach(e => {
+      removeMemberFromBlacklist(currentOrg?.id || 'default', e.id);
+      if (e.email) removeMemberFromBlacklist(currentOrg?.id || 'default', e.email);
+      if (e.cleanIndex || e.index || e.nrIndeksu) {
+        removeMemberFromBlacklist(currentOrg?.id || 'default', e.cleanIndex || e.index || e.nrIndeksu);
+      }
+      if (e.fullName) removeMemberFromBlacklist(currentOrg?.id || 'default', e.fullName);
+
+      if (currentOverrides[e.id]) {
+        delete currentOverrides[e.id].isArchived;
+        delete currentOverrides[e.id].isBlacklisted;
+        currentOverrides[e.id].status = 'quarantine';
+      }
+      if (e.memberKey && currentOverrides[e.memberKey]) {
+        delete currentOverrides[e.memberKey].isArchived;
+        delete currentOverrides[e.memberKey].isBlacklisted;
+        currentOverrides[e.memberKey].status = 'quarantine';
+      }
+
       const studentIndex = e.nrIndeksu || e.index || e.cleanIndex || '';
       if (studentIndex) {
         changeStudentStatusInGAS({
@@ -1105,24 +1166,35 @@ export default function App() {
       }
     });
 
-    setQuarantine(prev => [...entriesToRestore.map(e => ({ ...e, isArchived: false, status: 'quarantine' })), ...prev]);
-    setArchivedQuarantine(prev => prev.filter(a => !ids.includes(a.id)));
+    localStorage.setItem(getStorageKey('crm_custom_overrides'), JSON.stringify(currentOverrides));
+
+    const restoredList = entriesToRestore.map(e => ({ ...e, isArchived: false, isBlacklisted: false, status: 'quarantine' }));
+    setQuarantine(prev => [...restoredList, ...prev.filter(q => !restoredRowIds.has(q.id))]);
+    setArchivedQuarantine(prev => prev.filter(a => !restoredRowIds.has(a.id)));
 
     setToastMessage("Zapisano status w arkuszu Google");
     setTimeout(() => setToastMessage(null), 4000);
   }
 
   function handlePermanentDeleteArchive(id) {
-    const entry = archivedQuarantine.find(a => a.id === id);
+    const cleanId = String(id || '').trim();
+    const entry = archivedQuarantine.find(a =>
+      String(a.id) === cleanId ||
+      String(a.nrIndeksu || '').trim() === cleanId ||
+      String(a.cleanIndex || '').trim() === cleanId ||
+      String(a.index || '').trim() === cleanId ||
+      String(a.memberKey || '').trim() === cleanId
+    );
     if (!entry) return;
 
-    const newKeys = archivedRowIds.filter(k => k !== id);
+    const rowId = entry.id;
+    const newKeys = archivedRowIds.filter(k => k !== rowId && k !== cleanId);
     setArchivedRowIds(newKeys);
     localStorage.setItem(getStorageKey('crm_archived_row_ids'), JSON.stringify(newKeys));
 
-    setArchivedQuarantine(prev => prev.filter(a => a.id !== id));
+    setArchivedQuarantine(prev => prev.filter(a => a.id !== rowId && a.id !== cleanId));
 
-    const studentIndex = entry.nrIndeksu || entry.index || entry.cleanIndex || '';
+    const studentIndex = entry.nrIndeksu || entry.index || entry.cleanIndex || cleanId.replace(/\D/g, '') || '';
     if (studentIndex) {
       changeStudentStatusInGAS({
         nrIndeksu: String(studentIndex).trim(),
@@ -1379,6 +1451,8 @@ export default function App() {
                 <span>Aktywni: <strong className="text-slate-800 font-semibold">{activeMembersCount}</strong></span>
                 <span className="text-slate-300">•</span>
                 <span>Kwarantanna: <strong className="text-amber-700 font-semibold">{quarantine.length}</strong></span>
+                <span className="text-slate-300">•</span>
+                <span>Archiwum: <strong className="text-slate-800 font-semibold">{archivedQuarantine.length}</strong></span>
                 <span className="text-slate-300">•</span>
                 <span>Spotkania: <strong className="text-slate-800 font-semibold">{meetings.length}</strong></span>
               </div>

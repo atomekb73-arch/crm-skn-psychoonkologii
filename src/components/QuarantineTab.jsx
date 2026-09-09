@@ -415,7 +415,8 @@ export default function QuarantineTab({
 
   const handleConfirmSingleDelete = () => {
     if (!deleteModalEntry) return;
-    onPermanentDeleteArchive(deleteModalEntry.id);
+    onPermanentDeleteArchive(String(deleteModalEntry.nrIndeksu || deleteModalEntry.index || deleteModalEntry.cleanIndex || deleteModalEntry.id));
+    setSelectedArchiveIds(prev => prev.filter(id => id !== deleteModalEntry.id));
     setDeleteModalEntry(null);
   };
 
@@ -1537,15 +1538,23 @@ export default function QuarantineTab({
                       <td className="px-3 py-2.5 text-right align-middle whitespace-nowrap">
                         <div className="inline-flex items-center justify-end gap-2">
                           <button
-                            onClick={() => onRestoreArchive(a.id)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-semibold border border-amber-200 transition-colors"
+                            onClick={() => {
+                              onRestoreArchive(String(a.nrIndeksu || a.index || a.cleanIndex || a.id));
+                              setSelectedArchiveIds(prev => prev.filter(id => id !== a.id));
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-semibold border border-amber-200 transition-colors cursor-pointer"
                           >
                             <RotateCcw size={12} />
                             Przywróć
                           </button>
                           <button
-                            onClick={() => setDeleteModalEntry(a)}
-                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            onClick={() => {
+                              if (window.confirm("Czy na pewno chcesz bezpowrotnie usunąć ten wpis z rejestru?")) {
+                                onPermanentDeleteArchive(String(a.nrIndeksu || a.index || a.cleanIndex || a.id));
+                                setSelectedArchiveIds(prev => prev.filter(id => id !== a.id));
+                              }
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                             title="Trwale usuń z archiwum"
                           >
                             <Trash2 size={15} />
