@@ -91,6 +91,16 @@ export default function EditMemberModal({ member, isOpen, onClose, onSave, allMe
     const firstName = nameParts.slice(0, -1).join(' ') || nameParts[0] || '';
     const lastName = nameParts.length > 1 ? nameParts.slice(-1)[0] : '';
 
+    const statusWeryfikacjiMap = {
+      active: 'Aktywny',
+      guest: 'Gosc',
+      resigned: 'Nieaktywny',
+      inactive: 'Nieaktywny',
+      archived: 'Archiwum',
+      pending: 'Oczekuje'
+    };
+    const canonicalStatusWeryfikacji = statusWeryfikacjiMap[status] || status;
+
     onSave({
       ...member,
       fullName: cleanFullName,
@@ -109,6 +119,9 @@ export default function EditMemberModal({ member, isOpen, onClose, onSave, allMe
       aliases: cleanAliases,
       aliasy: cleanAliases,
       status,
+      statusWeryfikacji: canonicalStatusWeryfikacji,
+      isArchived: status === 'archived',
+      isBlacklisted: status === 'archived',
       mailingConsent,
       zgodaNaMailing: mailingConsent ? 'Zgoda na mailing' : 'Brak zgody',
       consent: mailingConsent,
@@ -318,6 +331,7 @@ export default function EditMemberModal({ member, isOpen, onClose, onSave, allMe
                 <option value="guest">🟣 Gość (Wolny słuchacz)</option>
                 <option value="resigned">⚪ Nieaktywny (Rezygnacja)</option>
                 <option value="pending">🟡 Oczekujący</option>
+                <option value="archived">📦 Archiwum</option>
               </select>
             </div>
 

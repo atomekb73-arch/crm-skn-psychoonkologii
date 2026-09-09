@@ -214,19 +214,33 @@ export default function ManagementTab({
   };
 
   const isGuest = (m) => {
-    const s = String(m?.status || '').toLowerCase().trim();
-    return s === 'guest' || s === 'gość' || s === 'gosc' || s === 'wolny słuchacz';
+    const s = String(m?.statusWeryfikacji || m?.status || '').toLowerCase().trim();
+    return s === 'gosc' || s === 'gość' || s === 'guest' || s === 'wolny słuchacz';
   };
 
   const isInactive = (m) => {
-    const s = String(m?.status || '').toLowerCase().trim();
-    return s === 'resigned' || s === 'inactive' || s === 'nieaktywny' || s === 'rezygnacja' || s === 'były' || s === 'byly';
+    const s = String(m?.statusWeryfikacji || m?.status || '').toLowerCase().trim();
+    return s === 'nieaktywny' || s === 'resigned' || s === 'inactive' || s === 'rezygnacja' || s === 'były' || s === 'byly';
+  };
+
+  const isArchived = (m) => {
+    const s = String(m?.statusWeryfikacji || m?.status || '').toLowerCase().trim();
+    return s === 'archiwum' || s === 'archived' || s === 'odrzucony' || s === 'czarna lista' || m?.isArchived;
+  };
+
+  const isPending = (m) => {
+    const s = String(m?.statusWeryfikacji || m?.status || '').toLowerCase().trim();
+    return s === 'oczekuje' || s === 'pending' || s === 'kwarantanna' || s === 'oczekiwanie 💬';
+  };
+
+  const isDeleted = (m) => {
+    const s = String(m?.statusWeryfikacji || m?.status || '').toLowerCase().trim();
+    return s === 'usuniety' || s === 'usunięty' || s === 'deleted';
   };
 
   const isActive = (m) => {
-    if (!m) return false;
-    if (isMemberBlacklisted(m, blacklist)) return false;
-    return !isGuest(m) && !isInactive(m) && !m?.isArchived && m?.status !== 'archived';
+    if (!m || isDeleted(m) || isArchived(m) || isPending(m) || isGuest(m) || isInactive(m)) return false;
+    return true;
   };
 
   // ── Active vs Guests vs Resigned vs Graduates vs Archived Calculations ───────────
@@ -235,15 +249,15 @@ export default function ManagementTab({
     [members]
   );
   const guestMembers = useMemo(
-    () => members.filter(m => isGuest(m) && !m?.isArchived && m?.status !== 'archived'),
+    () => members.filter(m => isGuest(m) && !isArchived(m)),
     [members]
   );
   const resignedMembers = useMemo(
-    () => members.filter(m => isInactive(m) && !m?.isArchived && m?.status !== 'archived'),
+    () => members.filter(m => isInactive(m) && !isArchived(m)),
     [members]
   );
   const archivedMembers = useMemo(
-    () => members.filter(m => m?.isArchived || m?.status === 'archived'),
+    () => members.filter(m => isArchived(m)),
     [members]
   );
   const graduatesList = useMemo(
@@ -259,7 +273,7 @@ export default function ManagementTab({
   const resignedCount = resignedMembers.length;
   const graduatesCount = graduatesList.length;
   const archivedCount = archivedMembers.length;
-  const totalCount = members.filter(m => !m?.isArchived && m?.status !== 'archived').length;
+  const totalCount = members.filter(m => !isArchived(m) && !isDeleted(m)).length;
 
   // ── KPI Calculations (ONLY for active members, Safe against NaN%) ────────
   const avgFreq = useMemo(() => {

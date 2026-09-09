@@ -63,28 +63,30 @@ export async function fetchGasData() {
 
 export function mapStatusToGAS(status) {
   const s = String(status || '').toLowerCase().trim();
-  if (s === 'active' || s === 'zatwierdzony' || s === 'aktywny') return 'Zatwierdzony';
+  if (s === 'active' || s === 'zatwierdzony' || s === 'aktywny') return 'Aktywny';
   if (s === 'guest' || s === 'gosc' || s === 'gość') return 'Gosc';
-  if (s === 'resigned' || s === 'nieaktywny' || s === 'rezygnacja') return 'Nieaktywny';
-  if (s === 'archived' || s === 'archiwum' || s === 'odrzucony') return 'Archiwum';
+  if (s === 'resigned' || s === 'nieaktywny' || s === 'rezygnacja' || s === 'były' || s === 'byly' || s === 'inactive') return 'Nieaktywny';
+  if (s === 'archived' || s === 'archiwum' || s === 'odrzucony' || s === 'czarna lista') return 'Archiwum';
   if (s === 'pending' || s === 'oczekuje' || s === 'kwarantanna') return 'Oczekuje';
-  if (s === 'usuniety' || s === 'deleted') return 'Usuniety';
-  return 'Zatwierdzony';
+  if (s === 'usuniety' || s === 'usunięty' || s === 'deleted') return 'Usuniety';
+  return status || 'Aktywny';
 }
 
-export async function updateVerificationStatus(nrIndeksu, nowyStatus = "Zatwierdzony") {
+export async function updateVerificationStatus(nrIndeksu, nowyStatus = "Aktywny") {
+  const cleanNr = String(nrIndeksu || '').replace(/\D/g, '').trim() || String(nrIndeksu || '').trim();
   return await sendToGAS({
     action: "zmien_status_czlonka",
-    nrIndeksu: String(nrIndeksu).trim(),
+    nrIndeksu: cleanNr,
     nowyStatus: mapStatusToGAS(nowyStatus),
     zatwierdzajacy: "Zarząd SKN"
   });
 }
 
-export async function changeStudentStatusInGAS({ nrIndeksu, nowyStatus = "Zatwierdzony", zatwierdzajacy = "Zarząd SKN" }) {
+export async function changeStudentStatusInGAS({ nrIndeksu, nowyStatus = "Aktywny", zatwierdzajacy = "Zarząd SKN" }) {
+  const cleanNr = String(nrIndeksu || '').replace(/\D/g, '').trim() || String(nrIndeksu || '').trim();
   return await sendToGAS({
     action: "zmien_status_czlonka",
-    nrIndeksu: String(nrIndeksu).trim(),
+    nrIndeksu: cleanNr,
     nowyStatus: mapStatusToGAS(nowyStatus),
     zatwierdzajacy: zatwierdzajacy
   });
@@ -691,6 +693,7 @@ export async function fetchAllData(sheetId = SHEET_ID) {
             const dataAktualizacji = String(item[10] || '').trim();
 
             const isArchived = memberStatus === 'archived';
+            const canonicalStatusWeryfikacji = statusWeryfikacji || (memberStatus === 'active' ? 'Aktywny' : (memberStatus === 'guest' ? 'Gosc' : (memberStatus === 'resigned' ? 'Nieaktywny' : (memberStatus === 'archived' ? 'Archiwum' : 'Oczekuje'))));
             const baseObj = {
               id: `psy_m_gas_${index + 1}`,
               memberKey: cleanIndex ? `idx_${cleanIndex}` : (email ? `email_${email.toLowerCase()}` : `psy_m_${index + 1}`),
@@ -701,11 +704,13 @@ export async function fetchAllData(sheetId = SHEET_ID) {
               lastName,
               index: cleanIndex || rawIdx,
               cleanIndex,
+              nrIndeksu: cleanIndex || rawIdx,
               email: email ? email.toLowerCase().trim() : '',
               phone,
               field: kierunekSemestr || 'Psychologia',
               year: kierunekSemestr || '',
               status: memberStatus,
+              statusWeryfikacji: canonicalStatusWeryfikacji,
               isArchived: isArchived,
               isBlacklisted: isArchived,
               mailingConsent: zgodaMailing === 'Zgoda na mailing' || zgodaMailing === 'true' || zgodaMailing === true,
@@ -729,14 +734,14 @@ export async function fetchAllData(sheetId = SHEET_ID) {
               mappedGasQuarantine.push({
                 ...baseObj,
                 id: `psy_q_gas_${index + 1}`,
-                status: 'Oczekuje',
+                status: 'quarantine',
+                statusWeryfikacji: 'Oczekuje',
                 isDuplicate: false,
                 isResignation: false,
                 fromSheet: 'Rejestr_Zgloszen'
               });
             } else if (memberStatus === 'archived') {
               gasArchived.push(baseObj);
-              mappedGasMembers.push(baseObj);
             } else {
               mappedGasMembers.push(baseObj);
             }
@@ -763,6 +768,7 @@ export async function fetchAllData(sheetId = SHEET_ID) {
           if (memberStatus === 'deleted') return; // Pomijany całkowicie
 
           const isArchived = memberStatus === 'archived';
+          const canonicalStatusWeryfikacji = statusWeryfikacji || (memberStatus === 'active' ? 'Aktywny' : (memberStatus === 'guest' ? 'Gosc' : (memberStatus === 'resigned' ? 'Nieaktywny' : (memberStatus === 'archived' ? 'Archiwum' : 'Oczekuje'))));
           const baseObj = {
             id: `psy_m_gas_${index + 1}`,
             memberKey: cleanIndex ? `idx_${cleanIndex}` : (email ? `email_${email.toLowerCase()}` : `psy_m_${index + 1}`),
@@ -773,11 +779,13 @@ export async function fetchAllData(sheetId = SHEET_ID) {
             lastName,
             index: cleanIndex || rawIdx,
             cleanIndex,
+            nrIndeksu: cleanIndex || rawIdx,
             email: email ? email.toLowerCase().trim() : '',
             phone,
             field: kierunekSemestr || 'Psychologia',
             year: kierunekSemestr || '',
             status: memberStatus,
+            statusWeryfikacji: canonicalStatusWeryfikacji,
             isArchived: isArchived,
             isBlacklisted: isArchived,
             mailingConsent: Boolean(item.mailingConsent || zgodaMailing === 'Zgoda na mailing' || zgodaMailing === 'true' || zgodaMailing === true),
@@ -801,14 +809,14 @@ export async function fetchAllData(sheetId = SHEET_ID) {
             mappedGasQuarantine.push({
               ...baseObj,
               id: `psy_q_gas_${index + 1}`,
-              status: 'Oczekuje',
+              status: 'quarantine',
+              statusWeryfikacji: 'Oczekuje',
               isDuplicate: false,
               isResignation: false,
               fromSheet: 'Rejestr_Zgloszen'
             });
           } else if (memberStatus === 'archived') {
             gasArchived.push(baseObj);
-            mappedGasMembers.push(baseObj);
           } else {
             mappedGasMembers.push(baseObj);
           }

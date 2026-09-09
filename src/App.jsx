@@ -63,22 +63,19 @@ const TABS = [
   { id: 'settings',   label: '⚙️ Ustawienia & Dostęp',         icon: Settings },
 ];
 
-// Sanitization: Switch to row-ID based archiving (crm_archived_row_ids)
+// Sanitization: Complete elimination of local cache overrides (Single Source of Truth)
 if (typeof window !== 'undefined') {
-  if (localStorage.getItem('crm_archived_row_ids_v1') !== 'true') {
+  try {
+    localStorage.removeItem('crm_archived_row_ids');
+    localStorage.removeItem('crm_custom_overrides');
     localStorage.removeItem('crm_archived_keys');
-    localStorage.setItem('crm_archived_row_ids', '[]');
-    const overrides = JSON.parse(localStorage.getItem('crm_custom_overrides') || '{}');
-    Object.keys(overrides).forEach(k => {
-      if (overrides[k]?.isArchived) {
-        delete overrides[k].isArchived;
-        delete overrides[k].status;
-        delete overrides[k].archiveReason;
-      }
+    ['skn_psychoonkologii', 'skn_seksuologii', 'sknu', 'default'].forEach(org => {
+      localStorage.removeItem(`crm_psychoonkologia_${org}_crm_archived_row_ids`);
+      localStorage.removeItem(`crm_psychoonkologia_${org}_crm_custom_overrides`);
+      localStorage.removeItem(`crm_${org}_crm_archived_row_ids`);
+      localStorage.removeItem(`crm_${org}_crm_custom_overrides`);
     });
-    localStorage.setItem('crm_custom_overrides', JSON.stringify(overrides));
-    localStorage.setItem('crm_archived_row_ids_v1', 'true');
-  }
+  } catch {}
 }
 
 export default function App() {
@@ -412,93 +409,99 @@ export default function App() {
         setSubcalendars(onlyPsycho.length > 0 ? onlyPsycho : [{ id: DEFAULT_SUBCALENDAR_ID || '15520558', name: 'Koła Naukowe > 07 🎗️ SKN Psychoonkologii' }]);
       }
 
-      // Read custom overrides & persistent row IDs from localStorage with org prefix
-      const customOverrides = JSON.parse(localStorage.getItem(getStorageKey('crm_custom_overrides')) || '{}');
-      const currentApprovedKeys = new Set(JSON.parse(localStorage.getItem(getStorageKey('crm_approved_keys')) || '[]'));
-      const currentArchivedRowIds = new Set(JSON.parse(localStorage.getItem(getStorageKey('crm_archived_row_ids')) || '[]'));
-      const currentResignedKeys = new Set(JSON.parse(localStorage.getItem(getStorageKey('crm_resigned_keys')) || '[]'));
-      const blacklist = getBlacklistedMembers(currentOrg?.id || 'default');
-
-      const applyOverride = (item) => {
-        const override =
-          (item.id && customOverrides[item.id]) ||
-          (item.memberKey && customOverrides[item.memberKey]);
-
-        if (!override) return item;
-        return { ...item, ...override };
-      };
-
-      // Process members from sheet or fallback to initialMembers
+      // Single Source of Truth: Kolumna H (Status_Weryfikacji) w arkuszu Rejestr_Zgloszen
       const rawMembers = (sheetsData.members && sheetsData.members.length > 0)
         ? sheetsData.members
         : initialMembers;
-      const processedMembers = rawMembers.map((m) => {
-        const overridden = applyOverride(m);
-        const isBlacklisted = isMemberBlacklisted(overridden, blacklist) || isMemberBlacklisted(m, blacklist);
-        const isArchived = isBlacklisted || currentArchivedRowIds.has(m.id) || overridden.isArchived || overridden.status === 'archived';
-        const isResigned = currentResignedKeys.has(m.id) || currentResignedKeys.has(overridden.memberKey) || overridden.status === 'resigned' || overridden.status === 'inactive';
-        const isGuest = overridden.status === 'guest';
+      const rawQuarantine = sheetsData.quarantine || [];
+      const rawArchived = sheetsData.archivedQuarantine || [];
 
-        let effectiveStatus = 'active';
-        if (isArchived) {
-          effectiveStatus = 'archived';
-        } else if (isResigned) {
-          effectiveStatus = 'resigned';
-        } else if (isGuest) {
-          effectiveStatus = 'guest';
-        } else if (overridden.status) {
-          effectiveStatus = overridden.status;
-        }
-
-        return {
-          ...overridden,
-          status: effectiveStatus,
-          isArchived: !!isArchived,
-          isBlacklisted: !!isBlacklisted,
-        };
-      });
-
-      const uniquePendingQuarantine = [];
-      const approvedFromQuarantine = [];
-      const archivedList = [];
-
-      // Extract archived members to archivedList
-      processedMembers.forEach(m => {
-        if (m.isArchived) {
-          archivedList.push(m);
+      // Połącz wszystkie unikalne rekordy z backendu
+      const allLoaded = [...rawMembers, ...rawQuarantine, ...rawArchived];
+      const dedupeMap = new Map();
+      allLoaded.forEach(item => {
+        if (!item) return;
+        const rawIdx = String(item.nrIndeksu || item.index || item.cleanIndex || '').replace(/\D/g, '').trim();
+        const key = rawIdx ? `idx_${rawIdx}` : (item.email ? `email_${String(item.email).toLowerCase().trim()}` : item.id);
+        if (!dedupeMap.has(key) || item.fromSheet === 'Rejestr_Zgloszen') {
+          dedupeMap.set(key, item);
         }
       });
 
-      const gasDecyzjeApproved = new Set(
-        (sheetsData.gasDecyzje || [])
-          .filter(d => (d.nowyStatus || '').toLowerCase().includes('zatwierdz') || (d.status || '').toLowerCase().includes('zatwierdz'))
-          .map(d => String(d.nrIndeksu || '').trim())
-          .filter(Boolean)
-      );
+      const uniqueAll = Array.from(dedupeMap.values());
+      const activeAndGeneralMembers = [];
+      const pendingQuarantineList = [];
+      const archiveQuarantineList = [];
 
-      sheetsData.quarantine.forEach(q => {
-        const overridden = applyOverride(q);
-        const isBlacklisted = isMemberBlacklisted(overridden, blacklist) || isMemberBlacklisted(q, blacklist);
-        const isArchived = isBlacklisted || currentArchivedRowIds.has(q.id) || overridden.isArchived || overridden.status === 'archived';
-        const isApproved = currentApprovedKeys.has(q.id) || currentApprovedKeys.has(q.memberKey) || (q.cleanIndex && gasDecyzjeApproved.has(q.cleanIndex));
+      uniqueAll.forEach(m => {
+        const rawStatus = String(m.statusWeryfikacji || m.status || '').toLowerCase().trim();
 
-        if (isArchived) {
-          archivedList.push({ ...overridden, status: 'archived', isArchived: true, isBlacklisted: !!isBlacklisted });
-        } else if (isApproved) {
-          const isResigned = currentResignedKeys.has(q.id) || currentResignedKeys.has(q.memberKey) || overridden.status === 'resigned';
-          approvedFromQuarantine.push({
-            ...overridden,
-            status: isResigned ? 'resigned' : 'active',
-            isArchived: false,
+        // 1. Usuniety - całkowicie pomijany we wszystkich widokach
+        if (rawStatus === 'usuniety' || rawStatus === 'usunięty' || rawStatus === 'deleted') {
+          return;
+        }
+
+        // 2. Archiwum
+        if (rawStatus === 'archiwum' || rawStatus === 'archived' || rawStatus === 'odrzucony' || rawStatus === 'czarna lista') {
+          archiveQuarantineList.push({
+            ...m,
+            statusWeryfikacji: 'Archiwum',
+            status: 'archived',
+            isArchived: true,
+            isBlacklisted: true
           });
-        } else {
-          uniquePendingQuarantine.push(overridden);
+          return;
         }
+
+        // 3. Oczekuje (Kwarantanna: Oczekujące zgłoszenia)
+        if (rawStatus === 'oczekuje' || rawStatus === 'pending' || rawStatus === 'kwarantanna' || rawStatus === 'oczekiwanie 💬') {
+          pendingQuarantineList.push({
+            ...m,
+            statusWeryfikacji: 'Oczekuje',
+            status: 'quarantine',
+            isArchived: false,
+            isBlacklisted: false
+          });
+          return;
+        }
+
+        // 4. Gość (Główna lista: Goście & Wolni słuchacze)
+        if (rawStatus === 'gosc' || rawStatus === 'gość' || rawStatus === 'guest' || rawStatus === 'wolny słuchacz') {
+          activeAndGeneralMembers.push({
+            ...m,
+            statusWeryfikacji: 'Gosc',
+            status: 'guest',
+            isArchived: false,
+            isBlacklisted: false
+          });
+          return;
+        }
+
+        // 5. Nieaktywny (Główna lista: Byli / Nieaktywni)
+        if (rawStatus === 'nieaktywny' || rawStatus === 'rezygnacja' || rawStatus === 'resigned' || rawStatus === 'inactive' || rawStatus === 'były' || rawStatus === 'byly') {
+          activeAndGeneralMembers.push({
+            ...m,
+            statusWeryfikacji: 'Nieaktywny',
+            status: 'resigned',
+            isArchived: false,
+            isBlacklisted: false
+          });
+          return;
+        }
+
+        // 6. Aktywny / Zatwierdzony (Główna lista: Tylko aktywni)
+        activeAndGeneralMembers.push({
+          ...m,
+          statusWeryfikacji: 'Aktywny',
+          status: 'active',
+          isArchived: false,
+          isBlacklisted: false
+        });
       });
 
-      setMembers([...processedMembers, ...approvedFromQuarantine]);
-      setQuarantine(uniquePendingQuarantine);
-      setArchivedQuarantine(archivedList);
+      setMembers(activeAndGeneralMembers);
+      setQuarantine(pendingQuarantineList);
+      setArchivedQuarantine(archiveQuarantineList);
 
       // Sync & merge correspondence log from Ewidencja_Poczty if present in Google Sheets
       if (sheetsData.mailLog && Array.isArray(sheetsData.mailLog) && sheetsData.mailLog.length > 0 && currentOrg?.id) {
@@ -582,9 +585,6 @@ export default function App() {
   useEffect(() => {
     // Auto-switch subcalendar and re-load when switching active organization
     try {
-      setApprovedKeys(JSON.parse(localStorage.getItem(getStorageKey('crm_approved_keys'))) || []);
-      setArchivedRowIds(JSON.parse(localStorage.getItem(getStorageKey('crm_archived_row_ids'))) || []);
-      setResignedKeys(JSON.parse(localStorage.getItem(getStorageKey('crm_resigned_keys'))) || []);
       if (currentOrg?.subcalendarId) {
         setSelectedSubcalendar(currentOrg.subcalendarId);
       }
@@ -593,41 +593,95 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentOrg.id]);
 
-  // ── Member Edit & Overrides Persistence Handler ─────────────────────────
+  // ── Member Edit & Real-time GAS Atomic Edit Sync ─────────────────────────
   async function handleSaveMember(updatedMember) {
-    const key = updatedMember.memberKey || updatedMember.id;
+    if (!updatedMember) return;
+    const rawIndex = String(updatedMember.nrIndeksu || updatedMember.index || updatedMember.cleanIndex || '').replace(/\D/g, '').trim();
 
-    // Save to localStorage under crm_custom_overrides with org prefix
-    const currentOverrides = JSON.parse(localStorage.getItem(getStorageKey('crm_custom_overrides')) || '{}');
-    currentOverrides[key] = {
-      fullName: updatedMember.fullName,
-      firstName: updatedMember.firstName,
-      lastName: updatedMember.lastName,
-      email: updatedMember.email,
-      index: updatedMember.index,
-      field: updatedMember.field,
-      year: updatedMember.year,
-      status: updatedMember.status,
-      mailingConsent: updatedMember.mailingConsent,
-      zgodaNaMailing: updatedMember.zgodaNaMailing || (updatedMember.mailingConsent ? 'Zgoda na mailing' : 'Brak zgody'),
-      consent: updatedMember.mailingConsent,
-      zgoda: updatedMember.mailingConsent,
-      consentStatus: updatedMember.mailingConsent ? 'Zgody OK' : 'Brak zgody',
+    const statusWeryfikacjiMap = {
+      active: 'Aktywny',
+      guest: 'Gosc',
+      resigned: 'Nieaktywny',
+      inactive: 'Nieaktywny',
+      archived: 'Archiwum',
+      pending: 'Oczekuje',
+      quarantine: 'Oczekuje'
     };
-    localStorage.setItem(getStorageKey('crm_custom_overrides'), JSON.stringify(currentOverrides));
+    const targetStatus = updatedMember.status || 'active';
+    const targetStatusWeryfikacji = updatedMember.statusWeryfikacji || statusWeryfikacjiMap[targetStatus] || targetStatus;
 
-    // Update in React state
-    setMembers(prev => prev.map(m => m.id === updatedMember.id ? updatedMember : m));
-    setQuarantine(prev => prev.map(q => q.id === updatedMember.id ? updatedMember : q));
-    setArchivedQuarantine(prev => prev.map(a => a.id === updatedMember.id ? updatedMember : a));
+    const memberWithCanonical = {
+      ...updatedMember,
+      status: targetStatus,
+      statusWeryfikacji: targetStatusWeryfikacji,
+      isArchived: targetStatus === 'archived',
+      isBlacklisted: targetStatus === 'archived'
+    };
+
+    if (targetStatus === 'archived') {
+      setArchivedQuarantine(prev => [
+        memberWithCanonical,
+        ...(Array.isArray(prev) ? prev : []).filter(a => {
+          const aIdx = String(a.nrIndeksu || a.index || a.cleanIndex || '').replace(/\D/g, '').trim();
+          return a.id !== updatedMember.id && (!rawIndex || aIdx !== rawIndex);
+        })
+      ]);
+      setMembers(prev => (Array.isArray(prev) ? prev : []).filter(m => {
+        const mIdx = String(m.nrIndeksu || m.index || m.cleanIndex || '').replace(/\D/g, '').trim();
+        return m.id !== updatedMember.id && (!rawIndex || mIdx !== rawIndex);
+      }));
+      setQuarantine(prev => (Array.isArray(prev) ? prev : []).filter(q => {
+        const qIdx = String(q.nrIndeksu || q.index || q.cleanIndex || '').replace(/\D/g, '').trim();
+        return q.id !== updatedMember.id && (!rawIndex || qIdx !== rawIndex);
+      }));
+    } else if (targetStatus === 'pending' || targetStatus === 'quarantine') {
+      setQuarantine(prev => [
+        memberWithCanonical,
+        ...(Array.isArray(prev) ? prev : []).filter(q => {
+          const qIdx = String(q.nrIndeksu || q.index || q.cleanIndex || '').replace(/\D/g, '').trim();
+          return q.id !== updatedMember.id && (!rawIndex || qIdx !== rawIndex);
+        })
+      ]);
+      setMembers(prev => (Array.isArray(prev) ? prev : []).filter(m => {
+        const mIdx = String(m.nrIndeksu || m.index || m.cleanIndex || '').replace(/\D/g, '').trim();
+        return m.id !== updatedMember.id && (!rawIndex || mIdx !== rawIndex);
+      }));
+      setArchivedQuarantine(prev => (Array.isArray(prev) ? prev : []).filter(a => {
+        const aIdx = String(a.nrIndeksu || a.index || a.cleanIndex || '').replace(/\D/g, '').trim();
+        return a.id !== updatedMember.id && (!rawIndex || aIdx !== rawIndex);
+      }));
+    } else {
+      // Active, Guest, Resigned -> goes to members
+      setMembers(prev => {
+        const list = Array.isArray(prev) ? prev : [];
+        const exists = list.some(m => {
+          const mIdx = String(m.nrIndeksu || m.index || m.cleanIndex || '').replace(/\D/g, '').trim();
+          return m.id === updatedMember.id || (rawIndex && mIdx === rawIndex);
+        });
+        if (exists) {
+          return list.map(m => {
+            const mIdx = String(m.nrIndeksu || m.index || m.cleanIndex || '').replace(/\D/g, '').trim();
+            return (m.id === updatedMember.id || (rawIndex && mIdx === rawIndex)) ? memberWithCanonical : m;
+          });
+        }
+        return [memberWithCanonical, ...list];
+      });
+      setQuarantine(prev => (Array.isArray(prev) ? prev : []).filter(q => {
+        const qIdx = String(q.nrIndeksu || q.index || q.cleanIndex || '').replace(/\D/g, '').trim();
+        return q.id !== updatedMember.id && (!rawIndex || qIdx !== rawIndex);
+      }));
+      setArchivedQuarantine(prev => (Array.isArray(prev) ? prev : []).filter(a => {
+        const aIdx = String(a.nrIndeksu || a.index || a.cleanIndex || '').replace(/\D/g, '').trim();
+        return a.id !== updatedMember.id && (!rawIndex || aIdx !== rawIndex);
+      }));
+    }
 
     // ── Real-time GAS Atomic Edit Sync (action: "edytuj_dane_czlonka" & "zmien_status_czlonka") ──
-    const studentIndex = String(updatedMember.nrIndeksu || updatedMember.index || updatedMember.cleanIndex || '').trim();
-    if (studentIndex) {
+    if (rawIndex) {
       setCloudSyncStatus(prev => ({ ...prev, status: 'saving', errorMessage: null }));
       try {
         await editMemberInGAS({
-          nrIndeksu: studentIndex,
+          nrIndeksu: rawIndex,
           imieNazwisko: updatedMember.fullName || `${updatedMember.firstName || ''} ${updatedMember.lastName || ''}`.trim(),
           email: updatedMember.email || '',
           telefon: updatedMember.phone || updatedMember.telefon || '',
@@ -635,18 +689,16 @@ export default function App() {
           aliasy: updatedMember.aliases || updatedMember.aliasy || updatedMember.alias || ''
         });
 
-        if (updatedMember.status) {
-          await changeStudentStatusInGAS({
-            nrIndeksu: studentIndex,
-            nowyStatus: updatedMember.status,
-            zatwierdzajacy: "Zarząd SKN"
-          });
-        }
+        await changeStudentStatusInGAS({
+          nrIndeksu: rawIndex,
+          nowyStatus: targetStatusWeryfikacji,
+          zatwierdzajacy: "Zarząd SKN"
+        });
 
         const now = new Date();
         setLastSync(now);
         setCloudSyncStatus({ status: 'synced', lastSyncTime: now, errorMessage: null });
-        setToastMessage(`Pomyślnie zaktualizowano dane studenta: ${updatedMember.fullName || studentIndex}`);
+        setToastMessage(`Pomyślnie zaktualizowano dane studenta: ${updatedMember.fullName || rawIndex}`);
       } catch (err) {
         console.error("[handleSaveMember] Błąd punktowej edycji w GAS:", err);
         setCloudSyncStatus(prev => ({ ...prev, status: 'error', errorMessage: err.message }));
@@ -661,12 +713,19 @@ export default function App() {
   // ── Manual Member Onboarding Handler (Atomic Append Row) ────────────────
   async function handleAddMember(newMember) {
     if (!newMember) return;
-    const key = newMember.memberKey || `idx_${newMember.index || Date.now()}`;
+    const rawIndex = String(newMember.index || newMember.nrIndeksu || newMember.cleanIndex || '').replace(/\D/g, '').trim();
+    const key = newMember.memberKey || (rawIndex ? `idx_${rawIndex}` : `manual_m_${Date.now()}`);
     const memberToAdd = {
       ...newMember,
       id: newMember.id || `manual_m_${Date.now()}`,
       memberKey: key,
+      index: rawIndex || newMember.index || '',
+      cleanIndex: rawIndex,
+      nrIndeksu: rawIndex || newMember.nrIndeksu || '',
       status: newMember.status || 'active',
+      statusWeryfikacji: newMember.statusWeryfikacji || 'Aktywny',
+      isArchived: false,
+      isBlacklisted: false,
       fromSheet: 'Rejestr_Zgloszen',
       points: newMember.points || 0,
       present: newMember.present || 0,
@@ -675,33 +734,10 @@ export default function App() {
       certStatus: newMember.certStatus || 'W toku'
     };
 
-    // Save override
-    const currentOverrides = JSON.parse(localStorage.getItem(getStorageKey('crm_custom_overrides')) || '{}');
-    currentOverrides[key] = {
-      fullName: memberToAdd.fullName,
-      firstName: memberToAdd.firstName,
-      lastName: memberToAdd.lastName,
-      email: memberToAdd.email,
-      index: memberToAdd.index,
-      field: memberToAdd.field,
-      year: memberToAdd.year,
-      status: memberToAdd.status,
-      mailingConsent: memberToAdd.mailingConsent,
-      zgodaNaMailing: memberToAdd.zgodaNaMailing || (memberToAdd.mailingConsent ? 'Zgoda na mailing' : 'Brak zgody'),
-      consent: memberToAdd.mailingConsent,
-      zgoda: memberToAdd.mailingConsent,
-      consentStatus: memberToAdd.mailingConsent ? 'Zgody OK' : 'Brak zgody',
-      phone: memberToAdd.phone || '',
-      aliases: memberToAdd.aliases || ''
-    };
-    localStorage.setItem(getStorageKey('crm_custom_overrides'), JSON.stringify(currentOverrides));
-
-    // Save into approvedKeys so they are treated as active
-    const newKeys = Array.from(new Set([...approvedKeys, key]));
-    setApprovedKeys(newKeys);
-    localStorage.setItem(getStorageKey('crm_approved_keys'), JSON.stringify(newKeys));
-
-    setMembers(prev => [memberToAdd, ...prev.filter(m => m.id !== memberToAdd.id && m.memberKey !== key)]);
+    setMembers(prev => [memberToAdd, ...(Array.isArray(prev) ? prev : []).filter(m => {
+      const mIdx = String(m.nrIndeksu || m.index || m.cleanIndex || '').replace(/\D/g, '').trim();
+      return m.id !== memberToAdd.id && (!rawIndex || mIdx !== rawIndex);
+    })]);
 
     setCloudSyncStatus(prev => ({ ...prev, status: 'saving', errorMessage: null }));
 
@@ -763,59 +799,42 @@ export default function App() {
   async function handleToggleStatus(id, explicitStatus = null) {
     const member = members.find(m => m.id === id);
     if (!member) return;
-    const key = member.memberKey || member.id;
+    const rawIndex = String(member.nrIndeksu || member.index || member.cleanIndex || member.id || '').replace(/\D/g, '').trim();
 
     let targetStatus;
     if (explicitStatus) {
       targetStatus = explicitStatus;
     } else {
-      const isCurrentlyResigned = resignedKeys.includes(key) || member.status === 'resigned' || member.status === 'inactive';
+      const isCurrentlyResigned = member.status === 'resigned' || member.status === 'inactive' || member.statusWeryfikacji === 'Nieaktywny';
       targetStatus = isCurrentlyResigned ? 'active' : 'resigned';
     }
 
-    let updatedKeys;
-    if (targetStatus === 'active' || targetStatus === 'guest') {
-      updatedKeys = resignedKeys.filter(k => k !== key);
-    } else {
-      updatedKeys = Array.from(new Set([...resignedKeys, key]));
-    }
-
-    setResignedKeys(updatedKeys);
-    localStorage.setItem(getStorageKey('crm_resigned_keys'), JSON.stringify(updatedKeys));
-
-    // Save custom override for status
-    const currentOverrides = JSON.parse(localStorage.getItem(getStorageKey('crm_custom_overrides')) || '{}');
-    currentOverrides[key] = {
-      ...(currentOverrides[key] || {}),
-      status: targetStatus,
+    const statusWeryfikacjiMap = {
+      active: 'Aktywny',
+      guest: 'Gosc',
+      resigned: 'Nieaktywny',
+      inactive: 'Nieaktywny',
+      archived: 'Archiwum',
+      quarantine: 'Oczekuje'
     };
-    localStorage.setItem(getStorageKey('crm_custom_overrides'), JSON.stringify(currentOverrides));
+    const targetStatusWeryfikacji = statusWeryfikacjiMap[targetStatus] || targetStatus;
 
     setMembers(prev =>
-      prev.map(m =>
-        m.id === id
-          ? { ...m, status: targetStatus }
-          : m
-      )
+      prev.map(m => {
+        const mIdx = String(m.nrIndeksu || m.index || m.cleanIndex || '').replace(/\D/g, '').trim();
+        return (m.id === id || (rawIndex && mIdx === rawIndex))
+          ? { ...m, status: targetStatus, statusWeryfikacji: targetStatusWeryfikacji, isArchived: false, isBlacklisted: false }
+          : m;
+      })
     );
 
     // ── Real-time GAS Sync (Single Source of Truth - Kolumna H w Rejestr_Zgloszen) ──
-    const studentIndex = member.nrIndeksu || member.index || member.cleanIndex || '';
-    if (studentIndex) {
-      let gasStatusMapping = "Zatwierdzony";
-      if (targetStatus === 'guest') {
-        gasStatusMapping = "Gosc";
-      } else if (targetStatus === 'resigned' || targetStatus === 'inactive') {
-        gasStatusMapping = "Nieaktywny";
-      } else if (targetStatus === 'archived') {
-        gasStatusMapping = "Archiwum";
-      }
-
+    if (rawIndex) {
       setCloudSyncStatus(prev => ({ ...prev, status: 'saving', errorMessage: null }));
       try {
         await changeStudentStatusInGAS({
-          nrIndeksu: String(studentIndex).trim(),
-          nowyStatus: gasStatusMapping,
+          nrIndeksu: rawIndex,
+          nowyStatus: targetStatusWeryfikacji,
           zatwierdzajacy: "Zarząd SKN"
         });
         const now = new Date();
@@ -832,214 +851,213 @@ export default function App() {
   }
 
   // ── Revert Member Back to Quarantine (Cofnięcie zatwierdzenia) ────────────
-  function handleRevertToQuarantine(id) {
+  async function handleRevertToQuarantine(id) {
     const member = members.find(m => m.id === id);
     if (!member) return;
-    const key = member.memberKey;
+    const rawIndex = String(member.nrIndeksu || member.index || member.cleanIndex || member.id || '').replace(/\D/g, '').trim();
 
-    const updatedApprovedKeys = approvedKeys.filter(k => k !== key);
-    setApprovedKeys(updatedApprovedKeys);
-    localStorage.setItem(getStorageKey('crm_approved_keys'), JSON.stringify(updatedApprovedKeys));
+    setMembers(prev => prev.filter(m => {
+      const mIdx = String(m.nrIndeksu || m.index || m.cleanIndex || '').replace(/\D/g, '').trim();
+      return m.id !== id && (!rawIndex || mIdx !== rawIndex);
+    }));
 
-    setMembers(prev => prev.filter(m => m.id !== id));
-    setQuarantine(prev => [{ ...member, status: 'quarantine', isArchived: false }, ...prev]);
+    setQuarantine(prev => [{
+      ...member,
+      status: 'quarantine',
+      statusWeryfikacji: 'Oczekuje',
+      isArchived: false,
+      isBlacklisted: false
+    }, ...prev]);
 
     // ── Real-time GAS Sync (nowyStatus: "Oczekuje") ──
-    const studentIndex = member.nrIndeksu || member.index || member.cleanIndex || '';
-    if (studentIndex) {
-      changeStudentStatusInGAS({
-        nrIndeksu: String(studentIndex).trim(),
-        nowyStatus: "Oczekuje",
-        zatwierdzajacy: "Zarząd SKN"
-      }).catch(err => console.warn("[handleRevertToQuarantine] Błąd zapisu do GAS:", err));
+    if (rawIndex) {
+      setCloudSyncStatus(prev => ({ ...prev, status: 'saving', errorMessage: null }));
+      try {
+        await changeStudentStatusInGAS({
+          nrIndeksu: rawIndex,
+          nowyStatus: "Oczekuje",
+          zatwierdzajacy: "Zarząd SKN"
+        });
+        const now = new Date();
+        setLastSync(now);
+        setCloudSyncStatus({ status: 'synced', lastSyncTime: now, errorMessage: null });
+      } catch (err) {
+        console.warn("[handleRevertToQuarantine] Błąd zapisu do GAS:", err);
+        setCloudSyncStatus(prev => ({ ...prev, status: 'error', errorMessage: err.message }));
+      }
     }
 
-    setToastMessage("Zapisano status w arkuszu Google");
+    setToastMessage("Cofnięto studenta do Kwarantanny");
     setTimeout(() => setToastMessage(null), 4000);
   }
 
-  // ── Move Member to Archive (Duplikat / Usunięcie z Zarządzania po ROW ID) ──
-  function handleArchiveMember(memberOrId, reason = 'duplicate') {
+  // ── Move Member to Archive (Duplikat / Usunięcie z Zarządzania) ──
+  async function handleArchiveMember(memberOrId, reason = 'duplicate') {
     const member = typeof memberOrId === 'object' && memberOrId !== null
       ? memberOrId
       : (members.find(m => m.id === memberOrId) || quarantine.find(q => q.id === memberOrId));
 
     if (!member || !member.id) return;
-    const rowId = member.id;
+    const rawIndex = String(member.nrIndeksu || member.index || member.cleanIndex || member.id || '').replace(/\D/g, '').trim();
 
-    // 1. Zapisz na stałej czarnej liście (crm_psychoonkologia_${orgId}_blacklist_members)
-    addMemberToBlacklist(currentOrg?.id || 'default', {
+    const archivedItem = {
       ...member,
-      archiveReason: reason,
-    });
-
-    // 2. Zapisz w localStorage crm_archived_row_ids
-    const existing = JSON.parse(localStorage.getItem(getStorageKey('crm_archived_row_ids')) || '[]');
-    if (!existing.includes(rowId)) {
-      existing.push(rowId);
-    }
-    localStorage.setItem(getStorageKey('crm_archived_row_ids'), JSON.stringify(existing));
-    setArchivedRowIds(existing);
-
-    // Zapisz nadpisanie wyłącznie dla tego wiersza oraz klucza
-    const currentOverrides = JSON.parse(localStorage.getItem(getStorageKey('crm_custom_overrides')) || '{}');
-    currentOverrides[rowId] = {
-      ...(currentOverrides[rowId] || {}),
-      isArchived: true,
       status: 'archived',
-      archiveReason: reason,
+      statusWeryfikacji: 'Archiwum',
+      isArchived: true,
       isBlacklisted: true,
+      archiveReason: reason,
     };
-    if (member.memberKey) {
-      currentOverrides[member.memberKey] = {
-        ...(currentOverrides[member.memberKey] || {}),
-        isArchived: true,
-        status: 'archived',
-        archiveReason: reason,
-        isBlacklisted: true,
-      };
-    }
-    localStorage.setItem(getStorageKey('crm_custom_overrides'), JSON.stringify(currentOverrides));
 
-    // 3. Zaktualizuj stan w React - przenieś do archiwum
-    setMembers(prev =>
-      prev.map(m =>
-        m.id === rowId || (member.memberKey && m.memberKey === member.memberKey)
-          ? { ...m, status: 'archived', isArchived: true, archiveReason: reason, isBlacklisted: true }
-          : m
-      )
-    );
+    setMembers(prev => (Array.isArray(prev) ? prev : []).filter(m => {
+      const mIdx = String(m.nrIndeksu || m.index || m.cleanIndex || '').replace(/\D/g, '').trim();
+      return m.id !== member.id && (!rawIndex || mIdx !== rawIndex);
+    }));
+
+    setQuarantine(prev => (Array.isArray(prev) ? prev : []).filter(q => {
+      const qIdx = String(q.nrIndeksu || q.index || q.cleanIndex || '').replace(/\D/g, '').trim();
+      return q.id !== member.id && (!rawIndex || qIdx !== rawIndex);
+    }));
 
     setArchivedQuarantine(prev => [
-      { ...member, status: 'archived', isArchived: true, archiveReason: reason, isBlacklisted: true },
-      ...prev.filter(a => a.id !== rowId),
+      archivedItem,
+      ...(Array.isArray(prev) ? prev : []).filter(a => {
+        const aIdx = String(a.nrIndeksu || a.index || a.cleanIndex || '').replace(/\D/g, '').trim();
+        return a.id !== member.id && (!rawIndex || aIdx !== rawIndex);
+      }),
     ]);
 
-    setQuarantine(prev => prev.filter(q => q.id !== rowId));
-
     // ── Real-time GAS Sync dla Archiwum ──
-    const studentIndex = member.nrIndeksu || member.index || member.cleanIndex || '';
-    if (studentIndex) {
-      changeStudentStatusInGAS({
-        nrIndeksu: String(studentIndex).trim(),
-        nowyStatus: "Archiwum",
-        zatwierdzajacy: "Zarząd SKN"
-      }).catch(err => console.warn("[handleArchiveMember] Błąd archiwizacji w GAS:", err));
+    if (rawIndex) {
+      setCloudSyncStatus(prev => ({ ...prev, status: 'saving', errorMessage: null }));
+      try {
+        await changeStudentStatusInGAS({
+          nrIndeksu: rawIndex,
+          nowyStatus: "Archiwum",
+          zatwierdzajacy: "Zarząd SKN"
+        });
+        const now = new Date();
+        setLastSync(now);
+        setCloudSyncStatus({ status: 'synced', lastSyncTime: now, errorMessage: null });
+      } catch (err) {
+        console.warn("[handleArchiveMember] Błąd archiwizacji w GAS:", err);
+        setCloudSyncStatus(prev => ({ ...prev, status: 'error', errorMessage: err.message }));
+      }
     }
 
-    setToastMessage("Zapisano status w arkuszu Google");
+    setToastMessage("Przeniesiono wpis do Archiwum");
     setTimeout(() => setToastMessage(null), 4000);
   }
 
   // ── Bulk Mark Graduates as Former Members (Przenieś absolwentów do Byłych) ────
-  function handleBulkMarkGraduates(memberIds) {
+  async function handleBulkMarkGraduates(memberIds) {
     if (!memberIds || !memberIds.length) return;
     const targetMembers = members.filter(m => memberIds.includes(m.id));
-    const keysToAdd = targetMembers.map(m => m.id);
-
-    const currentResignedKeys = JSON.parse(localStorage.getItem(getStorageKey('crm_resigned_keys')) || '[]');
-    const newResignedKeys = Array.from(new Set([...currentResignedKeys, ...keysToAdd]));
-    setResignedKeys(newResignedKeys);
-    localStorage.setItem(getStorageKey('crm_resigned_keys'), JSON.stringify(newResignedKeys));
 
     setMembers(prev =>
       prev.map(m =>
         memberIds.includes(m.id)
-          ? { ...m, status: 'resigned' }
+          ? { ...m, status: 'resigned', statusWeryfikacji: 'Nieaktywny' }
           : m
       )
     );
 
     // Sync each graduate to GAS as Nieaktywny
-    targetMembers.forEach(m => {
-      const studentIndex = m.nrIndeksu || m.index || m.cleanIndex || '';
-      if (studentIndex) {
-        changeStudentStatusInGAS({
-          nrIndeksu: String(studentIndex).trim(),
-          nowyStatus: "Nieaktywny",
-          zatwierdzajacy: "Zarząd SKN"
-        }).catch(err => console.warn("[handleBulkMarkGraduates] Błąd zapisu do GAS:", err));
-      }
-    });
+    setCloudSyncStatus(prev => ({ ...prev, status: 'saving', errorMessage: null }));
+    try {
+      await Promise.all(
+        targetMembers.map(m => {
+          const rawIdx = String(m.nrIndeksu || m.index || m.cleanIndex || '').replace(/\D/g, '').trim();
+          if (!rawIdx) return Promise.resolve();
+          return changeStudentStatusInGAS({
+            nrIndeksu: rawIdx,
+            nowyStatus: "Nieaktywny",
+            zatwierdzajacy: "Zarząd SKN"
+          });
+        })
+      );
+      const now = new Date();
+      setLastSync(now);
+      setCloudSyncStatus({ status: 'synced', lastSyncTime: now, errorMessage: null });
+    } catch (err) {
+      console.warn("[handleBulkMarkGraduates] Błąd zapisu do GAS:", err);
+      setCloudSyncStatus(prev => ({ ...prev, status: 'error', errorMessage: err.message }));
+    }
 
-    setToastMessage("Zapisano status w arkuszu Google");
+    setToastMessage("Zapisano status absolwentów w arkuszu Google");
     setTimeout(() => setToastMessage(null), 4000);
   }
 
-  // ── Bulk Archive Graduates (Przenieś absolwentów do Archiwum po ROW ID) ───────
-  function handleBulkArchiveGraduates(memberIds) {
+  // ── Bulk Archive Graduates (Przenieś absolwentów do Archiwum) ───────
+  async function handleBulkArchiveGraduates(memberIds) {
     if (!memberIds || !memberIds.length) return;
     const targetMembers = members.filter(m => memberIds.includes(m.id));
 
-    const currentArchivedRowIds = JSON.parse(localStorage.getItem(getStorageKey('crm_archived_row_ids')) || '[]');
-    const newArchivedRowIds = Array.from(new Set([...currentArchivedRowIds, ...memberIds]));
-    setArchivedRowIds(newArchivedRowIds);
-    localStorage.setItem(getStorageKey('crm_archived_row_ids'), JSON.stringify(newArchivedRowIds));
-
-    // Save custom overrides for these row IDs
-    const currentOverrides = JSON.parse(localStorage.getItem(getStorageKey('crm_custom_overrides')) || '{}');
-    memberIds.forEach(id => {
-      currentOverrides[id] = {
-        ...(currentOverrides[id] || {}),
-        isArchived: true,
-        status: 'archived',
-      };
-    });
-    localStorage.setItem(getStorageKey('crm_custom_overrides'), JSON.stringify(currentOverrides));
-
-    setMembers(prev =>
-      prev.map(m =>
-        memberIds.includes(m.id)
-          ? { ...m, status: 'archived', isArchived: true }
-          : m
-      )
-    );
+    setMembers(prev => prev.filter(m => !memberIds.includes(m.id)));
 
     setArchivedQuarantine(prev => [
-      ...targetMembers.map(m => ({ ...m, isArchived: true, status: 'archived' })),
-      ...prev.filter(a => !memberIds.includes(a.id)),
+      ...targetMembers.map(m => ({ ...m, isArchived: true, status: 'archived', statusWeryfikacji: 'Archiwum', isBlacklisted: true })),
+      ...(Array.isArray(prev) ? prev : []).filter(a => !memberIds.includes(a.id)),
     ]);
 
     // Sync each archived graduate to GAS as Archiwum
-    targetMembers.forEach(m => {
-      const studentIndex = m.nrIndeksu || m.index || m.cleanIndex || '';
-      if (studentIndex) {
-        changeStudentStatusInGAS({
-          nrIndeksu: String(studentIndex).trim(),
-          nowyStatus: "Archiwum",
-          zatwierdzajacy: "Zarząd SKN"
-        }).catch(err => console.warn("[handleBulkArchiveGraduates] Błąd zapisu do GAS:", err));
-      }
-    });
+    setCloudSyncStatus(prev => ({ ...prev, status: 'saving', errorMessage: null }));
+    try {
+      await Promise.all(
+        targetMembers.map(m => {
+          const rawIdx = String(m.nrIndeksu || m.index || m.cleanIndex || '').replace(/\D/g, '').trim();
+          if (!rawIdx) return Promise.resolve();
+          return changeStudentStatusInGAS({
+            nrIndeksu: rawIdx,
+            nowyStatus: "Archiwum",
+            zatwierdzajacy: "Zarząd SKN"
+          });
+        })
+      );
+      const now = new Date();
+      setLastSync(now);
+      setCloudSyncStatus({ status: 'synced', lastSyncTime: now, errorMessage: null });
+    } catch (err) {
+      console.warn("[handleBulkArchiveGraduates] Błąd zapisu do GAS:", err);
+      setCloudSyncStatus(prev => ({ ...prev, status: 'error', errorMessage: err.message }));
+    }
 
-    setToastMessage("Zapisano status w arkuszu Google");
+    setToastMessage("Zarchiwizowano absolwentów w arkuszu Google");
     setTimeout(() => setToastMessage(null), 4000);
   }
 
-  // ── Quarantine Handlers with localStorage Persistence & GAS Backend ──────
+  // ── Quarantine Handlers with GAS Backend ──────
   async function handleApprove(id) {
     const entry = quarantine.find(q => q.id === id);
     if (!entry) return;
 
-    const studentIndex = entry.index || entry.cleanIndex || entry.nrIndeksu || '';
+    const rawIndex = String(entry.index || entry.cleanIndex || entry.nrIndeksu || '').replace(/\D/g, '').trim();
+    const approvedMember = { ...entry, status: 'active', statusWeryfikacji: 'Aktywny', isArchived: false, isBlacklisted: false };
 
-    try {
-      await updateVerificationStatus(String(studentIndex).trim(), "Zatwierdzony");
-    } catch (e) {
-      console.warn("Błąd zapisu w GAS:", e);
-    }
-
-    const newKeys = Array.from(new Set([...approvedKeys, entry.memberKey]));
-    setApprovedKeys(newKeys);
-    localStorage.setItem(getStorageKey('crm_approved_keys'), JSON.stringify(newKeys));
-
-    const isResigned = resignedKeys.includes(entry.memberKey);
-    const approvedMember = { ...entry, status: isResigned ? 'resigned' : 'Zatwierdzony' };
-
-    setMembers(prev => [approvedMember, ...prev.filter(m => m.id !== id && m.memberKey !== entry.memberKey)]);
+    setMembers(prev => [approvedMember, ...prev.filter(m => {
+      const mIdx = String(m.nrIndeksu || m.index || m.cleanIndex || '').replace(/\D/g, '').trim();
+      return m.id !== id && (!rawIndex || mIdx !== rawIndex);
+    })]);
     setQuarantine(prev => prev.filter(q => q.id !== id));
 
-    setToastMessage("Zapisano status w arkuszu Google");
+    if (rawIndex) {
+      setCloudSyncStatus(prev => ({ ...prev, status: 'saving', errorMessage: null }));
+      try {
+        await changeStudentStatusInGAS({
+          nrIndeksu: rawIndex,
+          nowyStatus: "Aktywny",
+          zatwierdzajacy: "Zarząd SKN"
+        });
+        const now = new Date();
+        setLastSync(now);
+        setCloudSyncStatus({ status: 'synced', lastSyncTime: now, errorMessage: null });
+      } catch (e) {
+        console.warn("Błąd zapisu w GAS:", e);
+        setCloudSyncStatus(prev => ({ ...prev, status: 'error', errorMessage: e.message }));
+      }
+    }
+
+    setToastMessage("Zatwierdzono studenta i zapisano w arkuszu Google");
     setTimeout(() => setToastMessage(null), 4000);
   }
 
@@ -1047,221 +1065,177 @@ export default function App() {
     const entriesToApprove = quarantine.filter(q => ids.includes(q.id));
     if (entriesToApprove.length === 0) return;
 
-    try {
-      await Promise.all(entriesToApprove.map(entry => {
-        const studentIndex = entry.index || entry.cleanIndex || entry.nrIndeksu || '';
-        return updateVerificationStatus(String(studentIndex).trim(), "Zatwierdzony");
-      }));
-    } catch (e) {
-      console.warn("Błąd zapisu w GAS (bulk):", e);
-    }
+    const approvedMembers = entriesToApprove.map(entry => ({
+      ...entry,
+      status: 'active',
+      statusWeryfikacji: 'Aktywny',
+      isArchived: false,
+      isBlacklisted: false
+    }));
 
-    const keysToAdd = entriesToApprove.map(e => e.memberKey);
-    const newKeys = Array.from(new Set([...approvedKeys, ...keysToAdd]));
-    setApprovedKeys(newKeys);
-    localStorage.setItem(getStorageKey('crm_approved_keys'), JSON.stringify(newKeys));
-
-    const approvedMembers = entriesToApprove.map(entry => {
-      const isResigned = resignedKeys.includes(entry.memberKey);
-      return { ...entry, status: isResigned ? 'resigned' : 'Zatwierdzony' };
-    });
-
-    const approvedKeySet = new Set(keysToAdd);
-    setMembers(prev => [...approvedMembers, ...prev.filter(m => !ids.includes(m.id) && !approvedKeySet.has(m.memberKey))]);
+    setMembers(prev => [...approvedMembers, ...prev.filter(m => !ids.includes(m.id))]);
     setQuarantine(prev => prev.filter(q => !ids.includes(q.id)));
 
-    setToastMessage("Zapisano status w arkuszu Google");
+    setCloudSyncStatus(prev => ({ ...prev, status: 'saving', errorMessage: null }));
+    try {
+      await Promise.all(entriesToApprove.map(entry => {
+        const rawIdx = String(entry.index || entry.cleanIndex || entry.nrIndeksu || '').replace(/\D/g, '').trim();
+        if (!rawIdx) return Promise.resolve();
+        return changeStudentStatusInGAS({
+          nrIndeksu: rawIdx,
+          nowyStatus: "Aktywny",
+          zatwierdzajacy: "Zarząd SKN"
+        });
+      }));
+      const now = new Date();
+      setLastSync(now);
+      setCloudSyncStatus({ status: 'synced', lastSyncTime: now, errorMessage: null });
+    } catch (e) {
+      console.warn("Błąd zapisu w GAS (bulk):", e);
+      setCloudSyncStatus(prev => ({ ...prev, status: 'error', errorMessage: e.message }));
+    }
+
+    setToastMessage(`Zatwierdzono ${entriesToApprove.length} zgłoszeń`);
     setTimeout(() => setToastMessage(null), 4000);
   }
 
-  function handleArchive(id) {
+  async function handleArchive(id) {
     const entry = quarantine.find(q => q.id === id);
     if (!entry) return;
 
-    // Zapisz na czarnej liście / archiwum
-    addMemberToBlacklist(currentOrg?.id || 'default', { ...entry, archiveReason: 'Kwarantanna / Archiwum' });
+    const rawIndex = String(entry.nrIndeksu || entry.index || entry.cleanIndex || '').replace(/\D/g, '').trim();
 
-    const currentIds = Array.isArray(archivedRowIds) ? archivedRowIds : Array.from(archivedRowIds || []);
-    const newKeys = Array.from(new Set([...currentIds, id]));
-    setArchivedRowIds(newKeys);
-    localStorage.setItem(getStorageKey('crm_archived_row_ids'), JSON.stringify(newKeys));
-
-    setArchivedQuarantine(prev => [{ ...entry, isArchived: true, status: 'archived', isBlacklisted: true }, ...(Array.isArray(prev) ? prev : [])]);
+    setArchivedQuarantine(prev => [{
+      ...entry,
+      isArchived: true,
+      status: 'archived',
+      statusWeryfikacji: 'Archiwum',
+      isBlacklisted: true
+    }, ...(Array.isArray(prev) ? prev : [])]);
     setQuarantine(prev => (Array.isArray(prev) ? prev : []).filter(q => q.id !== id));
 
-    const studentIndex = entry.nrIndeksu || entry.index || entry.cleanIndex || '';
-    if (studentIndex) {
-      changeStudentStatusInGAS({
-        nrIndeksu: String(studentIndex).trim(),
-        nowyStatus: "Archiwum",
-        zatwierdzajacy: "Zarząd SKN"
-      }).catch(err => console.warn("[handleArchive] Błąd zapisu do GAS:", err));
+    if (rawIndex) {
+      setCloudSyncStatus(prev => ({ ...prev, status: 'saving', errorMessage: null }));
+      try {
+        await changeStudentStatusInGAS({
+          nrIndeksu: rawIndex,
+          nowyStatus: "Archiwum",
+          zatwierdzajacy: "Zarząd SKN"
+        });
+        const now = new Date();
+        setLastSync(now);
+        setCloudSyncStatus({ status: 'synced', lastSyncTime: now, errorMessage: null });
+      } catch (err) {
+        console.warn("[handleArchive] Błąd zapisu do GAS:", err);
+        setCloudSyncStatus(prev => ({ ...prev, status: 'error', errorMessage: err.message }));
+      }
     }
 
-    setToastMessage("Zapisano status w arkuszu Google");
+    setToastMessage("Przeniesiono do Archiwum");
     setTimeout(() => setToastMessage(null), 4000);
   }
 
-  function handleBulkArchive(ids, reason = 'duplicate') {
+  async function handleBulkArchive(ids, reason = 'duplicate') {
     const entriesToArchive = (Array.isArray(quarantine) ? quarantine : []).filter(q => ids.includes(q.id));
     if (entriesToArchive.length === 0) return;
 
-    // Zapisz na czarnej liście / archiwum
-    entriesToArchive.forEach(entry => {
-      addMemberToBlacklist(currentOrg?.id || 'default', { ...entry, archiveReason: reason });
-    });
-
-    const currentIds = Array.isArray(archivedRowIds) ? archivedRowIds : Array.from(archivedRowIds || []);
-    const newKeys = Array.from(new Set([...currentIds, ...ids]));
-    setArchivedRowIds(newKeys);
-    localStorage.setItem(getStorageKey('crm_archived_row_ids'), JSON.stringify(newKeys));
-
-    const currentOverrides = JSON.parse(localStorage.getItem(getStorageKey('crm_custom_overrides')) || '{}');
-    entriesToArchive.forEach(e => {
-      currentOverrides[e.id] = {
-        ...(currentOverrides[e.id] || {}),
+    setArchivedQuarantine(prev => [
+      ...entriesToArchive.map(e => ({
+        ...e,
         isArchived: true,
         status: 'archived',
+        statusWeryfikacji: 'Archiwum',
         archiveReason: reason,
-        isBlacklisted: true,
-      };
-      if (e.memberKey) {
-        currentOverrides[e.memberKey] = {
-          ...(currentOverrides[e.memberKey] || {}),
-          isArchived: true,
-          status: 'archived',
-          archiveReason: reason,
-          isBlacklisted: true,
-        };
-      }
-
-      const studentIndex = e.nrIndeksu || e.index || e.cleanIndex || '';
-      if (studentIndex) {
-        changeStudentStatusInGAS({
-          nrIndeksu: String(studentIndex).trim(),
-          nowyStatus: "Archiwum",
-          zatwierdzajacy: "Zarząd SKN"
-        }).catch(err => console.warn("[handleBulkArchive] Błąd zapisu do GAS:", err));
-      }
-    });
-    localStorage.setItem(getStorageKey('crm_custom_overrides'), JSON.stringify(currentOverrides));
-
-    setArchivedQuarantine(prev => [
-      ...entriesToArchive.map(e => ({ ...e, isArchived: true, status: 'archived', archiveReason: reason, isBlacklisted: true })),
+        isBlacklisted: true
+      })),
       ...(Array.isArray(prev) ? prev : []).filter(a => !ids.includes(a.id)),
     ]);
     setQuarantine(prev => (Array.isArray(prev) ? prev : []).filter(q => !ids.includes(q.id)));
 
-    setToastMessage("Zapisano status w arkuszu Google");
+    setCloudSyncStatus(prev => ({ ...prev, status: 'saving', errorMessage: null }));
+    try {
+      await Promise.all(
+        entriesToArchive.map(e => {
+          const rawIdx = String(e.nrIndeksu || e.index || e.cleanIndex || '').replace(/\D/g, '').trim();
+          if (!rawIdx) return Promise.resolve();
+          return changeStudentStatusInGAS({
+            nrIndeksu: rawIdx,
+            nowyStatus: "Archiwum",
+            zatwierdzajacy: "Zarząd SKN"
+          });
+        })
+      );
+      const now = new Date();
+      setLastSync(now);
+      setCloudSyncStatus({ status: 'synced', lastSyncTime: now, errorMessage: null });
+    } catch (err) {
+      console.warn("[handleBulkArchive] Błąd zapisu do GAS:", err);
+      setCloudSyncStatus(prev => ({ ...prev, status: 'error', errorMessage: err.message }));
+    }
+
+    setToastMessage(`Zarchiwizowano ${entriesToArchive.length} pozycji`);
     setTimeout(() => setToastMessage(null), 4000);
   }
 
   async function handleRestoreArchive(idOrStudent) {
+    const rawIndex = String(
+      (typeof idOrStudent === 'object' && idOrStudent !== null
+        ? (idOrStudent.nrIndeksu || idOrStudent.index || idOrStudent.cleanIndex || idOrStudent.id)
+        : idOrStudent) || ''
+    ).replace(/\D/g, '').trim();
+
     const cleanId = typeof idOrStudent === 'object' && idOrStudent !== null
-      ? String(idOrStudent.nrIndeksu || idOrStudent.index || idOrStudent.cleanIndex || idOrStudent.id || '').trim()
+      ? String(idOrStudent.id || idOrStudent.nrIndeksu || idOrStudent.index || '').trim()
       : String(idOrStudent || '').trim();
 
     const entry = (typeof idOrStudent === 'object' && idOrStudent !== null)
       ? idOrStudent
-      : (Array.isArray(archivedQuarantine) ? archivedQuarantine : []).find(a =>
-          String(a.id) === cleanId ||
-          String(a.nrIndeksu || '').trim() === cleanId ||
-          String(a.cleanIndex || '').trim() === cleanId ||
-          String(a.index || '').trim() === cleanId ||
-          String(a.memberKey || '').trim() === cleanId
-        ) || (Array.isArray(members) ? members : []).find(m =>
-          String(m.id) === cleanId ||
-          String(m.nrIndeksu || '').trim() === cleanId ||
-          String(m.cleanIndex || '').trim() === cleanId ||
-          String(m.index || '').trim() === cleanId
-        ) || (Array.isArray(quarantine) ? quarantine : []).find(q =>
-          String(q.id) === cleanId ||
-          String(q.nrIndeksu || '').trim() === cleanId ||
-          String(q.cleanIndex || '').trim() === cleanId ||
-          String(q.index || '').trim() === cleanId
-        );
+      : (Array.isArray(archivedQuarantine) ? archivedQuarantine : []).find(a => {
+          const aIdx = String(a.nrIndeksu || a.index || a.cleanIndex || '').replace(/\D/g, '').trim();
+          return (rawIndex && aIdx === rawIndex) || String(a.id) === cleanId;
+        }) || (Array.isArray(members) ? members : []).find(m => {
+          const mIdx = String(m.nrIndeksu || m.index || m.cleanIndex || '').replace(/\D/g, '').trim();
+          return (rawIndex && mIdx === rawIndex) || String(m.id) === cleanId;
+        }) || (Array.isArray(quarantine) ? quarantine : []).find(q => {
+          const qIdx = String(q.nrIndeksu || q.index || q.cleanIndex || '').replace(/\D/g, '').trim();
+          return (rawIndex && qIdx === rawIndex) || String(q.id) === cleanId;
+        });
 
-    const targetIndex = String(
-      (entry && (entry.nrIndeksu || entry.index || entry.cleanIndex || entry.id)) || 
-      cleanId || 
-      ""
-    ).trim();
-
-    if (!targetIndex) return;
+    const targetIndex = rawIndex || String(entry?.nrIndeksu || entry?.index || entry?.cleanIndex || '').replace(/\D/g, '').trim();
     const rowId = entry?.id || cleanId;
 
-    // 1. Bezpieczna aktualizacja stanu zarchiwizowanych bez odwołań do globalnych zmiennych _ czy __
-    setArchivedQuarantine(prev => {
-      const list = Array.isArray(prev) ? prev : [];
-      return list.filter(item => {
-        const itemId = String(item.nrIndeksu || item.index || item.cleanIndex || item.id || "").trim();
-        const itemRowId = String(item.id || '').trim();
-        return itemId !== targetIndex && itemRowId !== rowId && itemRowId !== cleanId;
-      });
-    });
+    // 1. Usuń ze stanu zarchiwizowanych
+    setArchivedQuarantine(prev => (Array.isArray(prev) ? prev : []).filter(item => {
+      const itemIdx = String(item.nrIndeksu || item.index || item.cleanIndex || '').replace(/\D/g, '').trim();
+      const itemRowId = String(item.id || '').trim();
+      return (targetIndex ? itemIdx !== targetIndex : true) && itemRowId !== rowId && itemRowId !== cleanId;
+    }));
 
-    // 2. Aktualizacja localStorage dla identyfikatorów zarchiwizowanych
-    try {
-      const storageKey = getStorageKey ? getStorageKey("crm_archived_row_ids") : "crm_archived_row_ids";
-      const raw = localStorage.getItem(storageKey);
-      const currentIds = raw ? JSON.parse(raw) : (Array.isArray(archivedRowIds) ? archivedRowIds : Array.from(archivedRowIds || []));
-      const updatedIds = (Array.isArray(currentIds) ? currentIds : []).filter(id => {
-        const sId = String(id).trim();
-        return sId !== targetIndex && sId !== rowId && sId !== cleanId;
-      });
-      localStorage.setItem(storageKey, JSON.stringify(updatedIds));
-      setArchivedRowIds(updatedIds);
-    } catch (err) {
-      console.warn("Storage update skipped:", err);
-    }
-
-    // Remove from blacklist so student is not re-archived
-    removeMemberFromBlacklist(currentOrg?.id || 'default', rowId);
-    if (entry?.email) removeMemberFromBlacklist(currentOrg?.id || 'default', entry.email);
-    if (targetIndex) removeMemberFromBlacklist(currentOrg?.id || 'default', targetIndex);
-    if (entry?.fullName || entry?.name) removeMemberFromBlacklist(currentOrg?.id || 'default', entry.fullName || entry.name);
-
-    // Clear overrides for isArchived
-    try {
-      const currentOverrides = JSON.parse(localStorage.getItem(getStorageKey('crm_custom_overrides')) || '{}');
-      if (currentOverrides[rowId]) {
-        delete currentOverrides[rowId].isArchived;
-        delete currentOverrides[rowId].isBlacklisted;
-        currentOverrides[rowId].status = 'active';
-      }
-      if (entry?.memberKey && currentOverrides[entry.memberKey]) {
-        delete currentOverrides[entry.memberKey].isArchived;
-        delete currentOverrides[entry.memberKey].isBlacklisted;
-        currentOverrides[entry.memberKey].status = 'active';
-      }
-      localStorage.setItem(getStorageKey('crm_custom_overrides'), JSON.stringify(currentOverrides));
-    } catch (err) {
-      console.warn("Overrides update skipped:", err);
-    }
-
+    // 2. Dodaj / zaktualizuj w stanie członków jako Aktywny
     const restoredMember = {
       ...(entry || {}),
       id: rowId,
-      nrIndeksu: targetIndex,
-      index: targetIndex,
+      nrIndeksu: targetIndex || entry?.nrIndeksu || entry?.index || '',
+      index: targetIndex || entry?.index || entry?.cleanIndex || '',
+      cleanIndex: targetIndex,
       isArchived: false,
       isBlacklisted: false,
       status: 'active',
-      statusWeryfikacji: 'Zatwierdzony'
+      statusWeryfikacji: 'Aktywny'
     };
 
     setMembers(prev => {
       const arr = Array.isArray(prev) ? prev : [];
       const exists = arr.some(m => {
         const mId = String(m.id || '').trim();
-        const mIndex = String(m.nrIndeksu || m.index || m.cleanIndex || '').trim();
-        return mId === rowId || mIndex === targetIndex;
+        const mIndex = String(m.nrIndeksu || m.index || m.cleanIndex || '').replace(/\D/g, '').trim();
+        return (targetIndex && mIndex === targetIndex) || mId === rowId;
       });
       if (exists) {
         return arr.map(m => {
           const mId = String(m.id || '').trim();
-          const mIndex = String(m.nrIndeksu || m.index || m.cleanIndex || '').trim();
-          return (mId === rowId || mIndex === targetIndex) ? restoredMember : m;
+          const mIndex = String(m.nrIndeksu || m.index || m.cleanIndex || '').replace(/\D/g, '').trim();
+          return ((targetIndex && mIndex === targetIndex) || mId === rowId) ? restoredMember : m;
         });
       }
       return [restoredMember, ...arr];
@@ -1269,28 +1243,29 @@ export default function App() {
 
     setQuarantine(prev => (Array.isArray(prev) ? prev : []).filter(q => {
       const qId = String(q.id || '').trim();
-      const qIndex = String(q.nrIndeksu || q.index || q.cleanIndex || '').trim();
-      return qId !== rowId && qId !== cleanId && qIndex !== targetIndex;
+      const qIndex = String(q.nrIndeksu || q.index || q.cleanIndex || '').replace(/\D/g, '').trim();
+      return qId !== rowId && qId !== cleanId && (targetIndex ? qIndex !== targetIndex : true);
     }));
 
     setToastMessage("Przywrócono studenta do listy aktywnych");
 
     // 3. Wysłanie punktowej aktualizacji do Google Apps Script v8.0
-    setCloudSyncStatus(prev => ({ ...prev, status: 'saving', errorMessage: null }));
-    try {
-      await changeStudentStatusInGAS({
-        nrIndeksu: targetIndex,
-        nowyStatus: "Aktywny",
-        zatwierdzajacy: "Zarząd SKN"
-      });
-      const now = new Date();
-      setLastSync(now);
-      setCloudSyncStatus({ status: 'synced', lastSyncTime: now, errorMessage: null });
-      setToastMessage("Przywrócono studenta do listy aktywnych");
-    } catch (netErr) {
-      console.error("Błąd sieci:", netErr);
-      setCloudSyncStatus(prev => ({ ...prev, status: 'error', errorMessage: netErr.message }));
-      setToastMessage(`Błąd zapisu statusu w arkuszu: ${netErr.message || 'Błąd sieci'}`);
+    if (targetIndex) {
+      setCloudSyncStatus(prev => ({ ...prev, status: 'saving', errorMessage: null }));
+      try {
+        await changeStudentStatusInGAS({
+          nrIndeksu: targetIndex,
+          nowyStatus: "Aktywny",
+          zatwierdzajacy: "Zarząd SKN"
+        });
+        const now = new Date();
+        setLastSync(now);
+        setCloudSyncStatus({ status: 'synced', lastSyncTime: now, errorMessage: null });
+      } catch (netErr) {
+        console.error("Błąd sieci:", netErr);
+        setCloudSyncStatus(prev => ({ ...prev, status: 'error', errorMessage: netErr.message }));
+        setToastMessage(`Błąd zapisu statusu w arkuszu: ${netErr.message || 'Błąd sieci'}`);
+      }
     }
     setTimeout(() => setToastMessage(null), 4000);
   }
@@ -1299,58 +1274,21 @@ export default function App() {
     if (!ids || ids.length === 0) return;
     const idSet = new Set(ids.map(i => String(i || '').trim()));
 
-    const entriesToRestore = (Array.isArray(archivedQuarantine) ? archivedQuarantine : []).filter(a =>
-      idSet.has(String(a.id)) ||
-      idSet.has(String(a.nrIndeksu || '').trim()) ||
-      idSet.has(String(a.cleanIndex || '').trim()) ||
-      idSet.has(String(a.index || '').trim()) ||
-      idSet.has(String(a.memberKey || '').trim())
-    );
+    const entriesToRestore = (Array.isArray(archivedQuarantine) ? archivedQuarantine : []).filter(a => {
+      const aIdx = String(a.nrIndeksu || a.index || a.cleanIndex || '').replace(/\D/g, '').trim();
+      return idSet.has(String(a.id)) || (aIdx && idSet.has(aIdx));
+    });
     if (entriesToRestore.length === 0) return;
 
     const restoredRowIds = new Set(entriesToRestore.map(e => String(e.id)));
     const restoredIndexSet = new Set(
-      entriesToRestore.map(e => String(e.nrIndeksu || e.index || e.cleanIndex || '').trim()).filter(Boolean)
+      entriesToRestore.map(e => String(e.nrIndeksu || e.index || e.cleanIndex || '').replace(/\D/g, '').trim()).filter(Boolean)
     );
 
-    try {
-      const storageKey = getStorageKey ? getStorageKey("crm_archived_row_ids") : "crm_archived_row_ids";
-      const raw = localStorage.getItem(storageKey);
-      const currentIds = raw ? JSON.parse(raw) : (Array.isArray(archivedRowIds) ? archivedRowIds : Array.from(archivedRowIds || []));
-      const updatedIds = (Array.isArray(currentIds) ? currentIds : []).filter(k => {
-        const sK = String(k).trim();
-        return !restoredRowIds.has(sK) && !idSet.has(sK) && !restoredIndexSet.has(sK);
-      });
-      setArchivedRowIds(updatedIds);
-      localStorage.setItem(storageKey, JSON.stringify(updatedIds));
-    } catch (err) {
-      console.warn("Storage update skipped:", err);
-    }
-
-    try {
-      const currentOverrides = JSON.parse(localStorage.getItem(getStorageKey('crm_custom_overrides')) || '{}');
-      entriesToRestore.forEach(e => {
-        const studentIndex = String(e.nrIndeksu || e.index || e.cleanIndex || e.id || '').trim();
-        removeMemberFromBlacklist(currentOrg?.id || 'default', e.id);
-        if (e.email) removeMemberFromBlacklist(currentOrg?.id || 'default', e.email);
-        if (studentIndex) removeMemberFromBlacklist(currentOrg?.id || 'default', studentIndex);
-        if (e.fullName || e.name) removeMemberFromBlacklist(currentOrg?.id || 'default', e.fullName || e.name);
-
-        if (currentOverrides[e.id]) {
-          delete currentOverrides[e.id].isArchived;
-          delete currentOverrides[e.id].isBlacklisted;
-          currentOverrides[e.id].status = 'quarantine';
-        }
-        if (e.memberKey && currentOverrides[e.memberKey]) {
-          delete currentOverrides[e.memberKey].isArchived;
-          delete currentOverrides[e.memberKey].isBlacklisted;
-          currentOverrides[e.memberKey].status = 'quarantine';
-        }
-      });
-      localStorage.setItem(getStorageKey('crm_custom_overrides'), JSON.stringify(currentOverrides));
-    } catch (err) {
-      console.warn("Overrides update skipped:", err);
-    }
+    setArchivedQuarantine(prev => (Array.isArray(prev) ? prev : []).filter(a => {
+      const aIdx = String(a.nrIndeksu || a.index || a.cleanIndex || '').replace(/\D/g, '').trim();
+      return !restoredRowIds.has(String(a.id)) && (!aIdx || !restoredIndexSet.has(aIdx));
+    }));
 
     const restoredList = entriesToRestore.map(e => ({
       ...e,
@@ -1360,16 +1298,15 @@ export default function App() {
       statusWeryfikacji: 'Oczekuje'
     }));
     setQuarantine(prev => [...restoredList, ...(Array.isArray(prev) ? prev : []).filter(q => !restoredRowIds.has(String(q.id)))]);
-    setArchivedQuarantine(prev => (Array.isArray(prev) ? prev : []).filter(a => !restoredRowIds.has(String(a.id)) && !restoredIndexSet.has(String(a.nrIndeksu || a.index || a.cleanIndex || '').trim())));
 
     setCloudSyncStatus(prev => ({ ...prev, status: 'saving', errorMessage: null }));
     try {
       await Promise.all(
         entriesToRestore.map(e => {
-          const studentIndex = String(e.nrIndeksu || e.index || e.cleanIndex || e.id || '').trim();
-          if (!studentIndex) return Promise.resolve();
+          const rawIdx = String(e.nrIndeksu || e.index || e.cleanIndex || e.id || '').replace(/\D/g, '').trim();
+          if (!rawIdx) return Promise.resolve();
           return changeStudentStatusInGAS({
-            nrIndeksu: studentIndex,
+            nrIndeksu: rawIdx,
             nowyStatus: "Oczekuje",
             zatwierdzajacy: "Zarząd SKN"
           });
@@ -1388,68 +1325,37 @@ export default function App() {
   }
 
   async function handlePermanentDeleteArchive(idOrStudent) {
+    const rawIndex = String(
+      (typeof idOrStudent === 'object' && idOrStudent !== null
+        ? (idOrStudent.nrIndeksu || idOrStudent.index || idOrStudent.cleanIndex || idOrStudent.id)
+        : idOrStudent) || ''
+    ).replace(/\D/g, '').trim();
+
     const cleanId = typeof idOrStudent === 'object' && idOrStudent !== null
-      ? String(idOrStudent.nrIndeksu || idOrStudent.index || idOrStudent.cleanIndex || idOrStudent.id || '').trim()
+      ? String(idOrStudent.id || '').trim()
       : String(idOrStudent || '').trim();
 
-    const entry = (typeof idOrStudent === 'object' && idOrStudent !== null)
-      ? idOrStudent
-      : (Array.isArray(archivedQuarantine) ? archivedQuarantine : []).find(a =>
-          String(a.id) === cleanId ||
-          String(a.nrIndeksu || '').trim() === cleanId ||
-          String(a.cleanIndex || '').trim() === cleanId ||
-          String(a.index || '').trim() === cleanId ||
-          String(a.memberKey || '').trim() === cleanId
-        ) || (Array.isArray(members) ? members : []).find(m =>
-          String(m.id) === cleanId ||
-          String(m.nrIndeksu || '').trim() === cleanId ||
-          String(m.cleanIndex || '').trim() === cleanId ||
-          String(m.index || '').trim() === cleanId
-        ) || (Array.isArray(quarantine) ? quarantine : []).find(q =>
-          String(q.id) === cleanId ||
-          String(q.nrIndeksu || '').trim() === cleanId ||
-          String(q.cleanIndex || '').trim() === cleanId ||
-          String(q.index || '').trim() === cleanId
-        );
-
-    const indexToDelete = String(entry?.nrIndeksu || entry?.index || entry?.cleanIndex || cleanId.replace(/\D/g, '') || cleanId || '').trim();
-    const rowId = entry ? entry.id : cleanId;
-
-    try {
-      const storageKey = getStorageKey ? getStorageKey("crm_archived_row_ids") : "crm_archived_row_ids";
-      const raw = localStorage.getItem(storageKey);
-      const currentIds = raw ? JSON.parse(raw) : (Array.isArray(archivedRowIds) ? archivedRowIds : Array.from(archivedRowIds || []));
-      const updatedIds = (Array.isArray(currentIds) ? currentIds : []).filter(k => {
-        const sK = String(k).trim();
-        return sK !== rowId && sK !== cleanId && sK !== indexToDelete;
-      });
-      setArchivedRowIds(updatedIds);
-      localStorage.setItem(storageKey, JSON.stringify(updatedIds));
-    } catch (err) {
-      console.warn("Storage update skipped:", err);
-    }
-
     setArchivedQuarantine(prev => (Array.isArray(prev) ? prev : []).filter(a => {
+      const aIdx = String(a.nrIndeksu || a.index || a.cleanIndex || '').replace(/\D/g, '').trim();
       const aId = String(a.id || '').trim();
-      const aIndex = String(a.nrIndeksu || a.index || a.cleanIndex || '').trim();
-      return aId !== rowId && aId !== cleanId && aIndex !== indexToDelete;
+      return (rawIndex ? aIdx !== rawIndex : true) && aId !== cleanId;
     }));
     setMembers(prev => (Array.isArray(prev) ? prev : []).filter(m => {
+      const mIdx = String(m.nrIndeksu || m.index || m.cleanIndex || '').replace(/\D/g, '').trim();
       const mId = String(m.id || '').trim();
-      const mIndex = String(m.nrIndeksu || m.index || m.cleanIndex || '').trim();
-      return mId !== rowId && mId !== cleanId && mIndex !== indexToDelete;
+      return (rawIndex ? mIdx !== rawIndex : true) && mId !== cleanId;
     }));
     setQuarantine(prev => (Array.isArray(prev) ? prev : []).filter(q => {
+      const qIdx = String(q.nrIndeksu || q.index || q.cleanIndex || '').replace(/\D/g, '').trim();
       const qId = String(q.id || '').trim();
-      const qIndex = String(q.nrIndeksu || q.index || q.cleanIndex || '').trim();
-      return qId !== rowId && qId !== cleanId && qIndex !== indexToDelete;
+      return (rawIndex ? qIdx !== rawIndex : true) && qId !== cleanId;
     }));
 
-    if (indexToDelete) {
+    if (rawIndex) {
       setCloudSyncStatus(prev => ({ ...prev, status: 'saving', errorMessage: null }));
       try {
         await changeStudentStatusInGAS({
-          nrIndeksu: indexToDelete,
+          nrIndeksu: rawIndex,
           nowyStatus: "Usuniety",
           zatwierdzajacy: "Zarząd SKN"
         });
