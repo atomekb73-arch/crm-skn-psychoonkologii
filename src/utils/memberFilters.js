@@ -47,7 +47,13 @@ export const isMemberDeleted = (m) => {
 export const hasMailingConsent = (m) => {
   if (!m) return false;
   const zgoda = String(m.zgodaNaMailing || m.zgodaMailing || '').toLowerCase().trim();
-  if (zgoda === 'zgoda na mailing' || zgoda === 'tak' || zgoda === 'true') return true;
   if (zgoda === 'brak zgody' || zgoda === 'nie' || zgoda === 'false') return false;
-  return Boolean(m.mailingConsent === true || m.consentStatus === 'Zgody OK');
+  return (
+    m.mailingConsent === true ||
+    String(m.zgodaMailing || '').toUpperCase().trim() === 'TAK' ||
+    String(m.zgodaNaMailing || '').toLowerCase().includes('zgoda') ||
+    zgoda === 'tak' ||
+    zgoda === 'true' ||
+    m.consentStatus === 'Zgody OK'
+  );
 };

@@ -1392,9 +1392,7 @@ export default function App() {
   }
 
   const pendingCount = quarantine.length;
-  const activeMembersCount = members.filter(
-    m => (m.status === 'active' || !m.status) && !m.isArchived && m.status !== 'resigned' && m.status !== 'archived'
-  ).length;
+  const activeMembersCount = members.filter(isMemberActive).length;
 
   const customMeetingTypes = useMemo(() => {
     try {
