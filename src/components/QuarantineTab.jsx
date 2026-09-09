@@ -22,6 +22,7 @@ import {
   UserPlus,
   Database,
   AlertCircle,
+  Zap,
 } from 'lucide-react';
 import EditMemberModal from './EditMemberModal';
 import WelcomeMailModal from './WelcomeMailModal';
@@ -126,6 +127,8 @@ export default function QuarantineTab({
   onPermanentDeleteArchive,
   onSaveMember,
   onAddMember,
+  pendingSyncCount = 0,
+  onBatchSyncMembers,
 }) {
   const [viewMode, setViewMode] = useState('pending'); // 'pending' | 'archive'
   const [dupeFilter, setDupeFilter] = useState('all'); // 'all' | 'unique' | 'dupes'
@@ -421,14 +424,16 @@ export default function QuarantineTab({
     setIsInitializingRegistry(true);
     setInitErrorMessage(null);
     try {
-      // 1. Zbuduj listę bieżących członków (jeśli members jest puste, pobierz ze seedMembers)
-      const listToExport = (members && members.length > 0) ? members : seedMembers;
-      console.log(`[handleInitializeRegistry] Rozpoczynam eksport ${listToExport.length} członków do Rejestru Zgłoszeń...`, listToExport);
+      if (onBatchSyncMembers) {
+        await onBatchSyncMembers();
+      } else {
+        const listToExport = (members && members.length > 0) ? members : seedMembers;
+        console.log(`[handleInitializeRegistry] Rozpoczynam eksport ${listToExport.length} członków do Rejestru Zgłoszeń...`, listToExport);
+        await initializeSubmissionsRegistryInGAS(listToExport);
+      }
 
-      await initializeSubmissionsRegistryInGAS(listToExport);
-
-      console.log(`[handleInitializeRegistry] Pomyślnie wywołano inicjalizację ${listToExport.length} rekordów w Google Apps Script.`);
-      setInitSuccessMessage(`Baza ${listToExport.length} członków została pomyślnie wysłana do arkusza Google!`);
+      console.log(`[handleInitializeRegistry] Pomyślnie wywołano inicjalizację rekordów w Google Apps Script.`);
+      setInitSuccessMessage(`Baza ${members.length || seedMembers.length} członków została pomyślnie wysłana do arkusza Google!`);
       setTimeout(() => {
         setInitSuccessMessage(null);
         setShowInitModal(false);
@@ -436,6 +441,24 @@ export default function QuarantineTab({
     } catch (err) {
       console.error("[handleInitializeRegistry] Błąd podczas inicjalizacji bazy:", err);
       setInitErrorMessage(`Błąd połączenia z arkuszem Google: ${err.message || err}`);
+    } finally {
+      setIsInitializingRegistry(false);
+    }
+  };
+
+  // ── Handler: Bezpośrednia szybka synchronizacja wsadowa zmian ─────────────
+  const handleDirectBatchSync = async () => {
+    setIsInitializingRegistry(true);
+    try {
+      if (onBatchSyncMembers) {
+        await onBatchSyncMembers();
+      } else {
+        const listToExport = (members && members.length > 0) ? members : seedMembers;
+        await initializeSubmissionsRegistryInGAS(listToExport);
+      }
+    } catch (err) {
+      console.error("[handleDirectBatchSync] Błąd podczas synchronizacji bazy:", err);
+      alert(`Błąd połączenia z arkuszem Google: ${err.message || err}`);
     } finally {
       setIsInitializingRegistry(false);
     }
@@ -1060,14 +1083,36 @@ export default function QuarantineTab({
 
         {/* Global Action Tools: Inicjalizacja arkusza & Ręczne dodanie członka */}
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowInitModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-colors shadow-2xs"
-            title="Eksportuj wszystkich 165 aktywnych członków do pustego arkusza Rejestr_Zgloszen"
-          >
-            <Database size={14} className="text-indigo-600" />
-            <span>Zainicjalizuj bazę do Rejestru Zgłoszeń</span>
-          </button>
+          {pendingSyncCount > 0 ? (
+            <button
+              onClick={handleDirectBatchSync}
+              disabled={isInitializingRegistry}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white animate-pulse shadow-md transition-all cursor-pointer disabled:opacity-60"
+              title={`Masz ${pendingSyncCount} nieutrwalonych zmian. Kliknij, aby zsynchronizować bazę z arkuszem Google Sheets.`}
+            >
+              {isInitializingRegistry ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" />
+                  <span>Synchronizuję ({members.length})...</span>
+                </>
+              ) : (
+                <>
+                  <Zap size={14} className="fill-amber-100 text-amber-100" />
+                  <span>⚡ Zsynchronizuj zmiany z arkuszem ({pendingSyncCount})</span>
+                </>
+              )}
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowInitModal(true)}
+              disabled={isInitializingRegistry}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-colors shadow-2xs disabled:opacity-60"
+              title="Eksportuj wszystkich aktywnych członków do pustego arkusza Rejestr_Zgloszen"
+            >
+              <Database size={14} className="text-indigo-600" />
+              <span>Zainicjalizuj bazę do Rejestru Zgłoszeń</span>
+            </button>
+          )}
 
           <button
             onClick={() => setShowAddMemberModal(true)}

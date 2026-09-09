@@ -32,7 +32,7 @@ import LoginScreen from './components/LoginScreen';
 import { useAuth } from './context/AuthContext';
 import { useOrg } from './context/OrgContext';
 import { useAcademicYear } from './context/AcademicYearContext';
-import { fetchAllData, AUTHORIZED_INDEXES, updateVerificationStatus, changeStudentStatusInGAS } from './services/googleSheets';
+import { fetchAllData, AUTHORIZED_INDEXES, updateVerificationStatus, changeStudentStatusInGAS, initializeSubmissionsRegistryInGAS } from './services/googleSheets';
 import { fetchTeamupEvents, fetchTeamupSubcalendars, DEFAULT_SUBCALENDAR_ID } from './services/teamupService';
 import { materials, initialMembers, initialMeetings } from './data/mockData';
 import { getRecordKey } from './utils/helpers';
@@ -164,6 +164,36 @@ export default function App() {
     setCustomEndDate,
     getRangeForYear,
   } = useAcademicYear();
+
+  const [pendingSyncCount, setPendingSyncCount] = useState(() => {
+    try {
+      const saved = localStorage.getItem(getStorageKey('crm_pending_sync_count'));
+      return saved ? parseInt(saved, 10) || 0 : 0;
+    } catch {
+      return 0;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(getStorageKey('crm_pending_sync_count'), String(pendingSyncCount));
+    } catch {}
+  }, [pendingSyncCount, currentOrg]);
+
+  // Data Loss Prevention: warn user before closing/reloading page if there are unsynced changes
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (pendingSyncCount > 0) {
+        e.preventDefault();
+        e.returnValue = 'Masz niezsynchronizowane zmiany w arkuszu Google Sheets. Czy na pewno chcesz opuścić stronę?';
+        return e.returnValue;
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [pendingSyncCount]);
 
   const [loadingMeetings, setLoadingMeetings] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
@@ -595,8 +625,27 @@ export default function App() {
 
     setMembers(prev => [memberToAdd, ...prev.filter(m => m.id !== memberToAdd.id && m.memberKey !== key)]);
 
-    setToastMessage(`Dodano nowego członka do bazy: ${memberToAdd.fullName}`);
-    setTimeout(() => setToastMessage(null), 4000);
+    // Increment pending sync buffer
+    setPendingSyncCount(prev => prev + 1);
+
+    setToastMessage("Dodano studenta do kolejki roboczej. Pamiętaj o synchronizacji z arkuszem.");
+    setTimeout(() => setToastMessage(null), 5000);
+  }
+
+  // ── Batch Sync Members with Google Sheets (Rejestr_Zgloszen) ──────────────
+  async function handleBatchSyncMembers() {
+    const listToExport = (members && members.length > 0) ? members : initialMembers;
+    console.log(`[handleBatchSyncMembers] Synchronizacja ${listToExport.length} członków do Rejestru Zgłoszeń...`, listToExport);
+
+    await initializeSubmissionsRegistryInGAS(listToExport);
+
+    setPendingSyncCount(0);
+    try {
+      localStorage.setItem(getStorageKey('crm_pending_sync_count'), '0');
+    } catch {}
+
+    setToastMessage(`Pomyślnie zsynchronizowano ${listToExport.length} członków z arkuszem Google Sheets!`);
+    setTimeout(() => setToastMessage(null), 5000);
   }
 
   const handleSubcalendarChange = (_newSubId) => {
@@ -1280,6 +1329,8 @@ export default function App() {
                         onPermanentDeleteArchive={handlePermanentDeleteArchive}
                         onSaveMember={handleSaveMember}
                         onAddMember={handleAddMember}
+                        pendingSyncCount={pendingSyncCount}
+                        onBatchSyncMembers={handleBatchSyncMembers}
                       />
                     );
                   }
@@ -1328,6 +1379,9 @@ export default function App() {
                       onBulkRestoreArchive={handleBulkRestoreArchive}
                       onPermanentDeleteArchive={handlePermanentDeleteArchive}
                       onSaveMember={handleSaveMember}
+                      onAddMember={handleAddMember}
+                      pendingSyncCount={pendingSyncCount}
+                      onBatchSyncMembers={handleBatchSyncMembers}
                     />
                   );
 
