@@ -605,6 +605,12 @@ export async function fetchAllData(sheetId = SHEET_ID) {
 
 function mapVerificationStatus(rawStatus) {
   const s = String(rawStatus || '').toLowerCase().trim();
+  if (s === 'usuniety' || s === 'usunięty' || s === 'deleted') {
+    return 'deleted';
+  }
+  if (s === 'oczekuje' || s === 'pending' || s === 'kwarantanna') {
+    return 'pending';
+  }
   if (s === 'nieaktywny' || s === 'rezygnacja' || s === 'resigned' || s === 'inactive' || s === 'były' || s === 'byly') {
     return 'resigned';
   }
@@ -617,8 +623,12 @@ function mapVerificationStatus(rawStatus) {
   return 'active';
 }
 
+      let gasArchived = [];
       if (gasMembersRaw && gasMembersRaw.length > 0) {
-        const mappedGasMembers = gasMembersRaw.map((item, index) => {
+        const mappedGasMembers = [];
+        const mappedGasQuarantine = [];
+
+        gasMembersRaw.forEach((item, index) => {
           // Obsługa obiektu lub surowego wiersza z GAS
           if (Array.isArray(item)) {
             const rawIdx = String(item[1] || '').trim();
@@ -633,9 +643,11 @@ function mapVerificationStatus(rawStatus) {
             const firstName = parts[0] || '';
             const lastName = parts.slice(1).join(' ') || '';
             const memberStatus = mapVerificationStatus(statusWeryfikacji);
-            const isArchived = memberStatus === 'archived';
 
-            return {
+            if (memberStatus === 'deleted') return; // Pomijany całkowicie
+
+            const isArchived = memberStatus === 'archived';
+            const baseObj = {
               id: `psy_m_gas_${index + 1}`,
               memberKey: cleanIndex ? `idx_${cleanIndex}` : (email ? `email_${email.toLowerCase()}` : `psy_m_${index + 1}`),
               fullName: imieNazwisko,
@@ -663,6 +675,23 @@ function mapVerificationStatus(rawStatus) {
               timestamp: String(item[0] || item[8] || new Date().toISOString().slice(0, 10)),
               fromSheet: 'Rejestr_Zgloszen',
             };
+
+            if (memberStatus === 'pending') {
+              mappedGasQuarantine.push({
+                ...baseObj,
+                id: `psy_q_gas_${index + 1}`,
+                status: 'Oczekuje',
+                isDuplicate: false,
+                isResignation: false,
+                fromSheet: 'Rejestr_Zgloszen'
+              });
+            } else if (memberStatus === 'archived') {
+              gasArchived.push(baseObj);
+              mappedGasMembers.push(baseObj);
+            } else {
+              mappedGasMembers.push(baseObj);
+            }
+            return;
           }
 
           const rawIdx = String(item.nrIndeksu || item.index || item.cleanIndex || '').trim();
@@ -677,9 +706,11 @@ function mapVerificationStatus(rawStatus) {
           const firstName = parts[0] || '';
           const lastName = parts.slice(1).join(' ') || '';
           const memberStatus = mapVerificationStatus(statusWeryfikacji);
-          const isArchived = memberStatus === 'archived';
 
-          return {
+          if (memberStatus === 'deleted') return; // Pomijany całkowicie
+
+          const isArchived = memberStatus === 'archived';
+          const baseObj = {
             id: `psy_m_gas_${index + 1}`,
             memberKey: cleanIndex ? `idx_${cleanIndex}` : (email ? `email_${email.toLowerCase()}` : `psy_m_${index + 1}`),
             fullName: imieNazwisko,
@@ -707,10 +738,29 @@ function mapVerificationStatus(rawStatus) {
             timestamp: String(item.dataWplywu || item.dataWeryfikacji || item.timestamp || new Date().toISOString().slice(0, 10)),
             fromSheet: 'Rejestr_Zgloszen',
           };
-        }).filter(m => m.fullName && (m.index || m.email));
+
+          if (memberStatus === 'pending') {
+            mappedGasQuarantine.push({
+              ...baseObj,
+              id: `psy_q_gas_${index + 1}`,
+              status: 'Oczekuje',
+              isDuplicate: false,
+              isResignation: false,
+              fromSheet: 'Rejestr_Zgloszen'
+            });
+          } else if (memberStatus === 'archived') {
+            gasArchived.push(baseObj);
+            mappedGasMembers.push(baseObj);
+          } else {
+            mappedGasMembers.push(baseObj);
+          }
+        });
 
         if (mappedGasMembers.length > 0) {
           members = mappedGasMembers;
+        }
+        if (mappedGasQuarantine.length > 0) {
+          quarantine = [...mappedGasQuarantine, ...quarantine.filter(q => !mappedGasQuarantine.some(gq => (gq.cleanIndex && gq.cleanIndex === q.cleanIndex) || (gq.email && gq.email === q.email)))];
         }
       }
 
@@ -811,7 +861,7 @@ function mapVerificationStatus(rawStatus) {
       console.warn('Błąd pobierania Ewidencja_Poczty z Google Sheets:', err);
     }
 
-    return { members, quarantine, mailLog, attendanceByMeeting, gasDecyzje };
+    return { members, quarantine, archivedQuarantine: gasArchived, mailLog, attendanceByMeeting, gasDecyzje };
   }
 
   const zarzadzanieTable = await fetchSheet('Zarz%C4%85dzanie', cleanId);

@@ -735,7 +735,7 @@ export default function App() {
       }).catch(err => console.warn("[handleToggleStatus] Błąd zapisu do GAS:", err));
     }
 
-    setToastMessage("Zaktualizowano status w bazie Google Sheets");
+    setToastMessage("Zapisano status w arkuszu Google");
     setTimeout(() => setToastMessage(null), 4000);
   }
 
@@ -750,7 +750,20 @@ export default function App() {
     localStorage.setItem(getStorageKey('crm_approved_keys'), JSON.stringify(updatedApprovedKeys));
 
     setMembers(prev => prev.filter(m => m.id !== id));
-    setQuarantine(prev => [member, ...prev]);
+    setQuarantine(prev => [{ ...member, status: 'quarantine', isArchived: false }, ...prev]);
+
+    // ── Real-time GAS Sync (nowyStatus: "Oczekuje") ──
+    const studentIndex = member.nrIndeksu || member.index || member.cleanIndex || '';
+    if (studentIndex) {
+      changeStudentStatusInGAS({
+        nrIndeksu: String(studentIndex).trim(),
+        nowyStatus: "Oczekuje",
+        zatwierdzajacy: "Zarząd SKN"
+      }).catch(err => console.warn("[handleRevertToQuarantine] Błąd zapisu do GAS:", err));
+    }
+
+    setToastMessage("Zapisano status w arkuszu Google");
+    setTimeout(() => setToastMessage(null), 4000);
   }
 
   // ── Move Member to Archive (Duplikat / Usunięcie z Zarządzania po ROW ID) ──
@@ -822,7 +835,7 @@ export default function App() {
       }).catch(err => console.warn("[handleArchiveMember] Błąd archiwizacji w GAS:", err));
     }
 
-    setToastMessage("Zaktualizowano status w bazie Google Sheets");
+    setToastMessage("Zapisano status w arkuszu Google");
     setTimeout(() => setToastMessage(null), 4000);
   }
 
@@ -857,7 +870,7 @@ export default function App() {
       }
     });
 
-    setToastMessage("Zaktualizowano status w bazie Google Sheets");
+    setToastMessage("Zapisano status w arkuszu Google");
     setTimeout(() => setToastMessage(null), 4000);
   }
 
@@ -907,7 +920,7 @@ export default function App() {
       }
     });
 
-    setToastMessage("Zaktualizowano status w bazie Google Sheets");
+    setToastMessage("Zapisano status w arkuszu Google");
     setTimeout(() => setToastMessage(null), 4000);
   }
 
@@ -934,7 +947,7 @@ export default function App() {
     setMembers(prev => [approvedMember, ...prev.filter(m => m.id !== id && m.memberKey !== entry.memberKey)]);
     setQuarantine(prev => prev.filter(q => q.id !== id));
 
-    setToastMessage("Status zapisany w Decyzje_Kwarantanny");
+    setToastMessage("Zapisano status w arkuszu Google");
     setTimeout(() => setToastMessage(null), 4000);
   }
 
@@ -965,7 +978,7 @@ export default function App() {
     setMembers(prev => [...approvedMembers, ...prev.filter(m => !ids.includes(m.id) && !approvedKeySet.has(m.memberKey))]);
     setQuarantine(prev => prev.filter(q => !ids.includes(q.id)));
 
-    setToastMessage("Status zapisany w Decyzje_Kwarantanny");
+    setToastMessage("Zapisano status w arkuszu Google");
     setTimeout(() => setToastMessage(null), 4000);
   }
 
@@ -982,6 +995,18 @@ export default function App() {
 
     setArchivedQuarantine(prev => [{ ...entry, isArchived: true, status: 'archived', isBlacklisted: true }, ...prev]);
     setQuarantine(prev => prev.filter(q => q.id !== id));
+
+    const studentIndex = entry.nrIndeksu || entry.index || entry.cleanIndex || '';
+    if (studentIndex) {
+      changeStudentStatusInGAS({
+        nrIndeksu: String(studentIndex).trim(),
+        nowyStatus: "Archiwum",
+        zatwierdzajacy: "Zarząd SKN"
+      }).catch(err => console.warn("[handleArchive] Błąd zapisu do GAS:", err));
+    }
+
+    setToastMessage("Zapisano status w arkuszu Google");
+    setTimeout(() => setToastMessage(null), 4000);
   }
 
   function handleBulkArchive(ids, reason = 'duplicate') {
@@ -1015,6 +1040,15 @@ export default function App() {
           isBlacklisted: true,
         };
       }
+
+      const studentIndex = e.nrIndeksu || e.index || e.cleanIndex || '';
+      if (studentIndex) {
+        changeStudentStatusInGAS({
+          nrIndeksu: String(studentIndex).trim(),
+          nowyStatus: "Archiwum",
+          zatwierdzajacy: "Zarząd SKN"
+        }).catch(err => console.warn("[handleBulkArchive] Błąd zapisu do GAS:", err));
+      }
     });
     localStorage.setItem(getStorageKey('crm_custom_overrides'), JSON.stringify(currentOverrides));
 
@@ -1024,7 +1058,7 @@ export default function App() {
     ]);
     setQuarantine(prev => prev.filter(q => !ids.includes(q.id)));
 
-    setToastMessage(`Przeniesiono ${entriesToArchive.length} rekordów do Archiwum/Odrzucone.`);
+    setToastMessage("Zapisano status w arkuszu Google");
     setTimeout(() => setToastMessage(null), 4000);
   }
 
@@ -1038,6 +1072,18 @@ export default function App() {
 
     setQuarantine(prev => [{ ...entry, isArchived: false, status: 'quarantine' }, ...prev]);
     setArchivedQuarantine(prev => prev.filter(a => a.id !== id));
+
+    const studentIndex = entry.nrIndeksu || entry.index || entry.cleanIndex || '';
+    if (studentIndex) {
+      changeStudentStatusInGAS({
+        nrIndeksu: String(studentIndex).trim(),
+        nowyStatus: "Oczekuje",
+        zatwierdzajacy: "Zarząd SKN"
+      }).catch(err => console.warn("[handleRestoreArchive] Błąd zapisu do GAS:", err));
+    }
+
+    setToastMessage("Zapisano status w arkuszu Google");
+    setTimeout(() => setToastMessage(null), 4000);
   }
 
   function handleBulkRestoreArchive(ids) {
@@ -1048,8 +1094,22 @@ export default function App() {
     setArchivedRowIds(newKeys);
     localStorage.setItem(getStorageKey('crm_archived_row_ids'), JSON.stringify(newKeys));
 
+    entriesToRestore.forEach(e => {
+      const studentIndex = e.nrIndeksu || e.index || e.cleanIndex || '';
+      if (studentIndex) {
+        changeStudentStatusInGAS({
+          nrIndeksu: String(studentIndex).trim(),
+          nowyStatus: "Oczekuje",
+          zatwierdzajacy: "Zarząd SKN"
+        }).catch(err => console.warn("[handleBulkRestoreArchive] Błąd zapisu do GAS:", err));
+      }
+    });
+
     setQuarantine(prev => [...entriesToRestore.map(e => ({ ...e, isArchived: false, status: 'quarantine' })), ...prev]);
     setArchivedQuarantine(prev => prev.filter(a => !ids.includes(a.id)));
+
+    setToastMessage("Zapisano status w arkuszu Google");
+    setTimeout(() => setToastMessage(null), 4000);
   }
 
   function handlePermanentDeleteArchive(id) {
@@ -1061,6 +1121,18 @@ export default function App() {
     localStorage.setItem(getStorageKey('crm_archived_row_ids'), JSON.stringify(newKeys));
 
     setArchivedQuarantine(prev => prev.filter(a => a.id !== id));
+
+    const studentIndex = entry.nrIndeksu || entry.index || entry.cleanIndex || '';
+    if (studentIndex) {
+      changeStudentStatusInGAS({
+        nrIndeksu: String(studentIndex).trim(),
+        nowyStatus: "Usuniety",
+        zatwierdzajacy: "Zarząd SKN"
+      }).catch(err => console.warn("[handlePermanentDeleteArchive] Błąd zapisu do GAS:", err));
+    }
+
+    setToastMessage("Zapisano status w arkuszu Google");
+    setTimeout(() => setToastMessage(null), 4000);
   }
 
   // ── Mark attendance ─────────────────────────────────────────────────────────

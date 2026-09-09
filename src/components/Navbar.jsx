@@ -45,7 +45,7 @@ export default function Navbar({
   // Safe handler for main tab click
   const handleMainTabClick = (tabId) => {
     setActiveTab(tabId);
-    if (tabId === 'members' && !membersSubTab) setMembersSubTab('management');
+    if (tabId === 'members') setMembersSubTab('management');
     if (tabId === 'documentation' && !documentationSubTab) setDocumentationSubTab('reports');
     if (tabId === 'settings_tools' && !settingsToolsSubTab) setSettingsToolsSubTab('settings');
   };
