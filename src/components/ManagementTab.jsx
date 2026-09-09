@@ -1195,7 +1195,7 @@ export default function ManagementTab({
                 <div>
                   <div>Przenieś do Archiwum & Czarna lista</div>
                   <div className="text-[10px] font-normal text-rose-600/80">
-                    Trwale usuwa z listy aktywnych i dodaje na czarną listę (np. Artur Gołaś) – rekord nie powróci po odświeżeniu
+                    Trwale usuwa z listy aktywnych i dodaje na czarną listę (np. Grzegorz Brzęczyszczykiewicz) – rekord nie powróci po odświeżeniu.
                   </div>
                 </div>
               </button>

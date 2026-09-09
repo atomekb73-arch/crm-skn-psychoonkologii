@@ -625,7 +625,7 @@ export default function ResearchTab() {
                         type="text"
                         value={formState.authors}
                         onChange={(e) => setFormState({ ...formState, authors: e.target.value })}
-                        placeholder="np. Tomasz Bratkowski, Ewelina Kozłowska"
+                        placeholder="np. Jan Kowalski, Anna Nowak"
                         className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
                       />
                     </div>
@@ -662,7 +662,7 @@ export default function ResearchTab() {
                         type="text"
                         value={formState.speakers}
                         onChange={(e) => setFormState({ ...formState, speakers: e.target.value })}
-                        placeholder="np. Igor Leśniewski, Magdalena Mosznińska"
+                        placeholder="np. Jan Kowalski, Anna Nowak"
                         className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
                       />
                     </div>

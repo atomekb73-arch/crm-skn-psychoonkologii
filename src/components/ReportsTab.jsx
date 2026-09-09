@@ -1240,7 +1240,7 @@ export default function ReportsTab({
                       type="text"
                       value={newMeetingForm.speaker}
                       onChange={(e) => setNewMeetingForm(prev => ({ ...prev, speaker: e.target.value }))}
-                      placeholder="np. Nomin Galindev, Tomasz Bratkowski"
+                      placeholder="np. Jan Kowalski, Anna Nowak"
                       className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
                     />
                   </div>
@@ -1560,7 +1560,7 @@ export default function ReportsTab({
                     required
                     value={manualForm.recipientName}
                     onChange={(e) => setManualForm(prev => ({ ...prev, recipientName: e.target.value }))}
-                    placeholder="np. Magda Czepirska"
+                    placeholder="np. Anna Nowak"
                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
