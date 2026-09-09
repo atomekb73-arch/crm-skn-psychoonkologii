@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, User, Mail, Hash, BookOpen, Calendar, Phone, Sparkles, Clock, CheckCircle2, RefreshCw } from 'lucide-react';
 
-export default function EditMemberModal({ member, isOpen, onClose, onSave }) {
+export default function EditMemberModal({ member, isOpen, onClose, onSave, allMembers = [] }) {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [index, setIndex] = useState('');
@@ -30,6 +30,36 @@ export default function EditMemberModal({ member, isOpen, onClose, onSave }) {
     }
   }, [member]);
 
+  const currentIdx = String(index || '').trim();
+  const initialIdx = String(member?.index || member?.cleanIndex || member?.nrIndeksu || '').trim();
+  const initialId = String(member?.id || '').trim();
+  const currentEmail = String(email || '').trim().toLowerCase();
+  const initialEmail = String(member?.email || '').trim().toLowerCase();
+
+  const isDuplicateIndex = Boolean(
+    currentIdx &&
+    (allMembers || []).some(m => {
+      const mIdx = String(m.nrIndeksu || m.index || m.cleanIndex || '').trim();
+      const mId = String(m.id || '').trim();
+      // Zawsze wykluczaj aktualnie edytowany rekord
+      if (mId && initialId && mId === initialId) return false;
+      if (mIdx && initialIdx && mIdx === initialIdx) return false;
+      return mIdx === currentIdx;
+    })
+  );
+
+  const isDuplicateEmail = Boolean(
+    currentEmail &&
+    (allMembers || []).some(m => {
+      const mEmail = String(m.email || '').trim().toLowerCase();
+      const mId = String(m.id || '').trim();
+      // Zawsze wykluczaj aktualnie edytowany rekord
+      if (mId && initialId && mId === initialId) return false;
+      if (mEmail && initialEmail && mEmail === initialEmail) return false;
+      return mEmail === currentEmail;
+    })
+  );
+
   if (!isOpen || !member) return null;
 
   const dataWplywu = member.dataWplywu || member.timestamp || '—';
@@ -38,7 +68,11 @@ export default function EditMemberModal({ member, isOpen, onClose, onSave }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const cleanIdx = index.replace(/\D/g, ''); // automatyczne czyszczenie ze liter i spacji
+    if (isDuplicateIndex) {
+      alert("Podany numer indeksu jest już przypisany do innego członka koła.");
+      return;
+    }
+    const cleanIdx = index.replace(/\D/g, '') || index.trim(); // automatyczne czyszczenie ze liter i spacji
     const nameParts = fullName.trim().split(' ');
     const firstName = nameParts.slice(0, -1).join(' ') || nameParts[0] || '';
     const lastName = nameParts.length > 1 ? nameParts.slice(-1)[0] : '';
@@ -46,6 +80,7 @@ export default function EditMemberModal({ member, isOpen, onClose, onSave }) {
     onSave({
       ...member,
       fullName: fullName.trim(),
+      imieNazwisko: fullName.trim(),
       firstName,
       lastName,
       email: email.trim(),
@@ -86,7 +121,7 @@ export default function EditMemberModal({ member, isOpen, onClose, onSave }) {
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
           >
             <X size={18} />
           </button>
@@ -148,10 +183,17 @@ export default function EditMemberModal({ member, isOpen, onClose, onSave }) {
                   required
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-indigo-300 outline-none"
+                  className={`w-full pl-9 pr-3 py-2 rounded-xl border text-xs focus:ring-2 outline-none ${
+                    isDuplicateEmail ? 'border-amber-400 bg-amber-50/40 focus:ring-amber-300' : 'border-slate-200 focus:ring-indigo-300'
+                  }`}
                   placeholder="student@gmail.com"
                 />
               </div>
+              {isDuplicateEmail && (
+                <p className="text-[10px] text-amber-600 font-medium mt-1">
+                  ⚠️ Email przypisany do innej osoby
+                </p>
+              )}
             </div>
 
             <div>
@@ -166,10 +208,17 @@ export default function EditMemberModal({ member, isOpen, onClose, onSave }) {
                   type="text"
                   value={index}
                   onChange={e => setIndex(e.target.value.replace(/\D/g, ''))}
-                  className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 font-mono text-xs focus:ring-2 focus:ring-indigo-300 outline-none"
+                  className={`w-full pl-9 pr-3 py-2 rounded-xl border font-mono text-xs focus:ring-2 outline-none ${
+                    isDuplicateIndex ? 'border-amber-400 bg-amber-50/40 focus:ring-amber-300' : 'border-slate-200 focus:ring-indigo-300'
+                  }`}
                   placeholder="np. 15998"
                 />
               </div>
+              {isDuplicateIndex && (
+                <p className="text-[10px] text-amber-600 font-medium mt-1">
+                  ⚠️ Indeks przypisany do innej osoby
+                </p>
+              )}
             </div>
           </div>
 

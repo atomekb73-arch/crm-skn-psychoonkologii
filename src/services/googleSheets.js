@@ -61,11 +61,22 @@ export async function fetchGasData() {
   }
 }
 
+export function mapStatusToGAS(status) {
+  const s = String(status || '').toLowerCase().trim();
+  if (s === 'active' || s === 'zatwierdzony' || s === 'aktywny') return 'Zatwierdzony';
+  if (s === 'guest' || s === 'gosc' || s === 'gość') return 'Gosc';
+  if (s === 'resigned' || s === 'nieaktywny' || s === 'rezygnacja') return 'Nieaktywny';
+  if (s === 'archived' || s === 'archiwum' || s === 'odrzucony') return 'Archiwum';
+  if (s === 'pending' || s === 'oczekuje' || s === 'kwarantanna') return 'Oczekuje';
+  if (s === 'usuniety' || s === 'deleted') return 'Usuniety';
+  return 'Zatwierdzony';
+}
+
 export async function updateVerificationStatus(nrIndeksu, nowyStatus = "Zatwierdzony") {
   return await sendToGAS({
     action: "zmien_status_czlonka",
     nrIndeksu: String(nrIndeksu).trim(),
-    nowyStatus: nowyStatus,
+    nowyStatus: mapStatusToGAS(nowyStatus),
     zatwierdzajacy: "Zarząd SKN"
   });
 }
@@ -74,7 +85,7 @@ export async function changeStudentStatusInGAS({ nrIndeksu, nowyStatus = "Zatwie
   return await sendToGAS({
     action: "zmien_status_czlonka",
     nrIndeksu: String(nrIndeksu).trim(),
-    nowyStatus: nowyStatus,
+    nowyStatus: mapStatusToGAS(nowyStatus),
     zatwierdzajacy: zatwierdzajacy
   });
 }

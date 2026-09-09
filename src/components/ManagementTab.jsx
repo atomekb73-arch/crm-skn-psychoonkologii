@@ -534,6 +534,7 @@ export default function ManagementTab({
         member={editingMember}
         isOpen={!!editingMember}
         onClose={() => setEditingMember(null)}
+        allMembers={members}
         onSave={(updated) => {
           if (onSaveMember) onSaveMember(updated);
         }}

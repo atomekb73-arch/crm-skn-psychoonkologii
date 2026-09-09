@@ -621,8 +621,8 @@ export default function App() {
     setQuarantine(prev => prev.map(q => q.id === updatedMember.id ? updatedMember : q));
     setArchivedQuarantine(prev => prev.map(a => a.id === updatedMember.id ? updatedMember : a));
 
-    // ── Real-time GAS Atomic Edit Sync (action: "edytuj_dane_czlonka") ──
-    const studentIndex = updatedMember.nrIndeksu || updatedMember.index || updatedMember.cleanIndex || '';
+    // ── Real-time GAS Atomic Edit Sync (action: "edytuj_dane_czlonka" & "zmien_status_czlonka") ──
+    const studentIndex = String(updatedMember.nrIndeksu || updatedMember.index || updatedMember.cleanIndex || '').trim();
     if (studentIndex) {
       setCloudSyncStatus(prev => ({ ...prev, status: 'saving', errorMessage: null }));
       try {
@@ -634,17 +634,27 @@ export default function App() {
           kierunek: updatedMember.field || updatedMember.kierunek || '',
           aliasy: updatedMember.aliases || updatedMember.aliasy || updatedMember.alias || ''
         });
+
+        if (updatedMember.status) {
+          await changeStudentStatusInGAS({
+            nrIndeksu: studentIndex,
+            nowyStatus: updatedMember.status,
+            zatwierdzajacy: "Zarząd SKN"
+          });
+        }
+
         const now = new Date();
         setLastSync(now);
         setCloudSyncStatus({ status: 'synced', lastSyncTime: now, errorMessage: null });
+        setToastMessage(`Pomyślnie zaktualizowano dane studenta: ${updatedMember.fullName || studentIndex}`);
       } catch (err) {
-        console.warn("[handleSaveMember] Błąd punktowej edycji w GAS:", err);
+        console.error("[handleSaveMember] Błąd punktowej edycji w GAS:", err);
         setCloudSyncStatus(prev => ({ ...prev, status: 'error', errorMessage: err.message }));
+        setToastMessage(`Błąd zapisu do arkusza Google: ${err.message || 'Błąd sieci'}`);
       }
+    } else {
+      setToastMessage(`Pomyślnie zaktualizowano dane studenta: ${updatedMember.fullName || ''}`);
     }
-
-    // Show Toast Notification
-    setToastMessage(`Pomyślnie zaktualizowano dane studenta: ${updatedMember.fullName}`);
     setTimeout(() => setToastMessage(null), 4000);
   }
 
@@ -1226,18 +1236,24 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 4000);
 
     if (indexToRestore) {
-      setCloudSyncStatus('saving');
-      changeStudentStatusInGAS({
-        nrIndeksu: indexToRestore,
-        nowyStatus: "Aktywny",
-        zatwierdzajacy: "Zarząd SKN"
-      })
-      .then(() => setCloudSyncStatus('synced'))
-      .catch(err => {
-        console.warn("[handleRestoreArchive] Błąd zapisu do GAS:", err);
-        setCloudSyncStatus('error');
-      });
+      setCloudSyncStatus(prev => ({ ...prev, status: 'saving', errorMessage: null }));
+      try {
+        await changeStudentStatusInGAS({
+          nrIndeksu: indexToRestore,
+          nowyStatus: "Aktywny",
+          zatwierdzajacy: "Zarząd SKN"
+        });
+        const now = new Date();
+        setLastSync(now);
+        setCloudSyncStatus({ status: 'synced', lastSyncTime: now, errorMessage: null });
+        setToastMessage("Przywrócono studenta do listy aktywnych");
+      } catch (err) {
+        console.error("[handleRestoreArchive] Błąd zapisu do GAS:", err);
+        setCloudSyncStatus(prev => ({ ...prev, status: 'error', errorMessage: err.message }));
+        setToastMessage(`Błąd zapisu statusu w arkuszu: ${err.message || 'Błąd sieci'}`);
+      }
     }
+    setTimeout(() => setToastMessage(null), 4000);
   }
 
   async function handleBulkRestoreArchive(ids) {
@@ -1296,10 +1312,7 @@ export default function App() {
     setQuarantine(prev => [...restoredList, ...prev.filter(q => !restoredRowIds.has(q.id))]);
     setArchivedQuarantine(prev => prev.filter(a => !restoredRowIds.has(a.id) && !restoredIndexSet.has(String(a.nrIndeksu || a.index || a.cleanIndex || '').trim())));
 
-    setToastMessage(`Przywrócono ${entriesToRestore.length} rekordów do Kwarantanny`);
-    setTimeout(() => setToastMessage(null), 4000);
-
-    setCloudSyncStatus('saving');
+    setCloudSyncStatus(prev => ({ ...prev, status: 'saving', errorMessage: null }));
     try {
       await Promise.all(
         entriesToRestore.map(e => {
@@ -1312,11 +1325,16 @@ export default function App() {
           });
         })
       );
-      setCloudSyncStatus('synced');
+      const now = new Date();
+      setLastSync(now);
+      setCloudSyncStatus({ status: 'synced', lastSyncTime: now, errorMessage: null });
+      setToastMessage(`Przywrócono ${entriesToRestore.length} rekordów do Kwarantanny`);
     } catch (err) {
-      console.warn("[handleBulkRestoreArchive] Błąd zapisu do GAS:", err);
-      setCloudSyncStatus('error');
+      console.error("[handleBulkRestoreArchive] Błąd zapisu do GAS:", err);
+      setCloudSyncStatus(prev => ({ ...prev, status: 'error', errorMessage: err.message }));
+      setToastMessage(`Błąd zapisu masowego w arkuszu: ${err.message || 'Błąd sieci'}`);
     }
+    setTimeout(() => setToastMessage(null), 4000);
   }
 
   async function handlePermanentDeleteArchive(idOrStudent) {
@@ -1355,22 +1373,27 @@ export default function App() {
     setMembers(prev => prev.filter(m => m.id !== rowId && m.id !== cleanId && String(m.nrIndeksu || m.index || m.id).trim() !== indexToDelete));
     setQuarantine(prev => prev.filter(q => q.id !== rowId && q.id !== cleanId && String(q.nrIndeksu || q.index || q.id).trim() !== indexToDelete));
 
-    setToastMessage("Trwale usunięto wpis z rejestru");
-    setTimeout(() => setToastMessage(null), 4000);
-
     if (indexToDelete) {
-      setCloudSyncStatus('saving');
-      changeStudentStatusInGAS({
-        nrIndeksu: indexToDelete,
-        nowyStatus: "Usuniety",
-        zatwierdzajacy: "Zarząd SKN"
-      })
-      .then(() => setCloudSyncStatus('synced'))
-      .catch(err => {
-        console.warn("[handlePermanentDeleteArchive] Błąd zapisu do GAS:", err);
-        setCloudSyncStatus('error');
-      });
+      setCloudSyncStatus(prev => ({ ...prev, status: 'saving', errorMessage: null }));
+      try {
+        await changeStudentStatusInGAS({
+          nrIndeksu: indexToDelete,
+          nowyStatus: "Usuniety",
+          zatwierdzajacy: "Zarząd SKN"
+        });
+        const now = new Date();
+        setLastSync(now);
+        setCloudSyncStatus({ status: 'synced', lastSyncTime: now, errorMessage: null });
+        setToastMessage("Trwale usunięto wpis z rejestru");
+      } catch (err) {
+        console.error("[handlePermanentDeleteArchive] Błąd zapisu do GAS:", err);
+        setCloudSyncStatus(prev => ({ ...prev, status: 'error', errorMessage: err.message }));
+        setToastMessage(`Błąd usuwania wpisu z arkusza: ${err.message || 'Błąd sieci'}`);
+      }
+    } else {
+      setToastMessage("Trwale usunięto wpis z rejestru");
     }
+    setTimeout(() => setToastMessage(null), 4000);
   }
 
   // ── Mark attendance ─────────────────────────────────────────────────────────
