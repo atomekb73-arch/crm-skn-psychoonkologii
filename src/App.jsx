@@ -583,7 +583,7 @@ export default function App() {
     // Auto-switch subcalendar and re-load when switching active organization
     try {
       setApprovedKeys(JSON.parse(localStorage.getItem(getStorageKey('crm_approved_keys'))) || []);
-      setArchivedRowIds(new Set(JSON.parse(localStorage.getItem(getStorageKey('crm_archived_row_ids'))) || []));
+      setArchivedRowIds(JSON.parse(localStorage.getItem(getStorageKey('crm_archived_row_ids'))) || []);
       setResignedKeys(JSON.parse(localStorage.getItem(getStorageKey('crm_resigned_keys'))) || []);
       if (currentOrg?.subcalendarId) {
         setSelectedSubcalendar(currentOrg.subcalendarId);
