@@ -165,6 +165,28 @@ export default function QuarantineTab({
 
   const [sortConfig, setSortConfig] = useState({ key: 'timestamp', direction: 'desc' });
 
+  // Walidacja w czasie rzeczywistym duplikatów dla formularza ręcznego dodawania członka
+  const duplicateIndexFound = useMemo(() => {
+    const rawIdx = (newMemberForm.index || '').trim();
+    const cleanIdx = rawIdx.replace(/\D/g, '').replace(/^0+/, '') || rawIdx;
+    if (!cleanIdx) return null;
+
+    return (members || []).find(m => {
+      const mIdx = String(m.index || m.cleanIndex || m.nrIndeksu || '').replace(/\D/g, '').replace(/^0+/, '').trim();
+      return mIdx && mIdx === cleanIdx;
+    }) || null;
+  }, [newMemberForm.index, members]);
+
+  const duplicateEmailFound = useMemo(() => {
+    const cleanEmail = (newMemberForm.email || '').toLowerCase().trim();
+    if (!cleanEmail) return null;
+
+    return (members || []).find(m => {
+      const mEmail = String(m.email || '').toLowerCase().trim();
+      return mEmail && mEmail === cleanEmail;
+    }) || null;
+  }, [newMemberForm.email, members]);
+
 
   // 1. Zbuduj zbiór referencyjny z aktywnych członków Zarządzania (Tryb Tylko do Odczytu)
   const managementKeys = useMemo(() => {
@@ -438,16 +460,34 @@ export default function QuarantineTab({
       return;
     }
 
-    // Walidacja unikalności numeru indeksu w aktualnej bazie członków
-    const indexExists = (members || []).some(m => {
-      const mIdx = String(m.index || m.cleanIndex || '').replace(/\D/g, '').replace(/^0+/, '').trim();
-      return mIdx === cleanIdx;
+    const cleanEmail = (newMemberForm.email || '').toLowerCase().trim();
+
+    // 1. Walidacja unikalności numeru indeksu w aktualnej bazie członków
+    const existingByIndex = (members || []).find(m => {
+      const mIdx = String(m.index || m.cleanIndex || m.nrIndeksu || '').replace(/\D/g, '').replace(/^0+/, '').trim();
+      return mIdx && mIdx === cleanIdx;
     });
 
-    if (indexExists) {
-      setAddMemberError(`Student o numerze indeksu ${cleanIdx} już istnieje na liście członków!`);
+    if (existingByIndex) {
+      const name = existingByIndex.imieNazwisko || existingByIndex.fullName || existingByIndex.firstName || 'Student';
+      setAddMemberError(`⚠️ Ten numer indeksu (${cleanIdx}) znajduje się już w bazie danych! Należy do: ${name} (indeks: ${existingByIndex.index || cleanIdx}).`);
       return;
     }
+
+    // 2. Walidacja unikalności adresu email w aktualnej bazie członków
+    if (cleanEmail) {
+      const existingByEmail = (members || []).find(m => {
+        const mEmail = String(m.email || '').toLowerCase().trim();
+        return mEmail && mEmail === cleanEmail;
+      });
+
+      if (existingByEmail) {
+        const name = existingByEmail.imieNazwisko || existingByEmail.fullName || existingByEmail.firstName || 'Student';
+        setAddMemberError(`⚠️ Ten adres e-mail (${cleanEmail}) znajduje się już w bazie danych! Należy do: ${name} (indeks: ${existingByEmail.index || existingByEmail.cleanIndex || 'Brak'}).`);
+        return;
+      }
+    }
+
 
     setIsAddingMember(true);
     try {
@@ -744,6 +784,76 @@ export default function QuarantineTab({
                 </div>
               )}
 
+              {/* ⚠️ Real-time Duplicate Warning Banner for Index */}
+              {duplicateIndexFound && (
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs space-y-2 animate-in fade-in slide-in-from-top-1 duration-150 shadow-2xs">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                    <div className="leading-snug">
+                      <span className="font-bold">Ten numer indeksu znajduje się już w bazie danych!</span>
+                      <p className="text-[11px] text-amber-800 mt-0.5">
+                        Należy do: <strong className="font-bold text-amber-950">{duplicateIndexFound.imieNazwisko || duplicateIndexFound.fullName || duplicateIndexFound.firstName}</strong> (indeks: <span className="font-mono font-bold text-amber-950">{duplicateIndexFound.index || duplicateIndexFound.cleanIndex || duplicateIndexFound.nrIndeksu}</span>, email: <span className="text-amber-900">{duplicateIndexFound.email || 'Brak'}</span>).
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 pt-1 border-t border-amber-200/80">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAddMemberModal(false);
+                        setEditingMember(duplicateIndexFound);
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-amber-700 hover:bg-amber-800 text-white font-bold text-[11px] transition-colors shadow-2xs cursor-pointer flex items-center gap-1"
+                    >
+                      <Pencil size={11} />
+                      <span>Przejdź do edycji tego studenta</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewMemberForm(prev => ({ ...prev, index: '' }))}
+                      className="px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 font-semibold text-[11px] transition-colors border border-amber-300 cursor-pointer"
+                    >
+                      Popraw dane
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ⚠️ Real-time Duplicate Warning Banner for Email */}
+              {!duplicateIndexFound && duplicateEmailFound && (
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs space-y-2 animate-in fade-in slide-in-from-top-1 duration-150 shadow-2xs">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                    <div className="leading-snug">
+                      <span className="font-bold">Ten adres e-mail znajduje się już w bazie danych!</span>
+                      <p className="text-[11px] text-amber-800 mt-0.5">
+                        Należy do: <strong className="font-bold text-amber-950">{duplicateEmailFound.imieNazwisko || duplicateEmailFound.fullName || duplicateEmailFound.firstName}</strong> (indeks: <span className="font-mono font-bold text-amber-950">{duplicateEmailFound.index || duplicateEmailFound.cleanIndex || duplicateEmailFound.nrIndeksu || 'Brak'}</span>, email: <span className="text-amber-900">{duplicateEmailFound.email}</span>).
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 pt-1 border-t border-amber-200/80">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAddMemberModal(false);
+                        setEditingMember(duplicateEmailFound);
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-amber-700 hover:bg-amber-800 text-white font-bold text-[11px] transition-colors shadow-2xs cursor-pointer flex items-center gap-1"
+                    >
+                      <Pencil size={11} />
+                      <span>Przejdź do edycji tego studenta</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewMemberForm(prev => ({ ...prev, email: '' }))}
+                      className="px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 font-semibold text-[11px] transition-colors border border-amber-300 cursor-pointer"
+                    >
+                      Popraw dane
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* Imię i Nazwisko */}
                 <div className="space-y-1 sm:col-span-2">
@@ -764,6 +874,9 @@ export default function QuarantineTab({
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
                     <span>Nr Indeksu <span className="text-rose-600">*</span></span>
+                    {duplicateIndexFound && (
+                      <span className="text-[10px] font-bold text-amber-700">⚠️ Duplikat indeksu</span>
+                    )}
                   </label>
                   <input
                     type="text"
@@ -771,19 +884,32 @@ export default function QuarantineTab({
                     placeholder="np. 12345"
                     value={newMemberForm.index}
                     onChange={(e) => setNewMemberForm({ ...newMemberForm, index: e.target.value })}
-                    className="w-full px-3 py-2 text-xs font-mono rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    className={`w-full px-3 py-2 text-xs font-mono rounded-xl border transition-colors focus:outline-none focus:ring-2 ${
+                      duplicateIndexFound
+                        ? 'border-amber-400 bg-amber-50/40 text-amber-950 focus:ring-amber-500/20 focus:border-amber-500'
+                        : 'border-slate-200 focus:ring-indigo-500/20 focus:border-indigo-500'
+                    }`}
                   />
                 </div>
 
                 {/* Adres Email */}
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700">Adres Email</label>
+                  <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                    <span>Adres Email</span>
+                    {duplicateEmailFound && (
+                      <span className="text-[10px] font-bold text-amber-700">⚠️ Duplikat adresu email</span>
+                    )}
+                  </label>
                   <input
                     type="email"
                     placeholder="student@example.com"
                     value={newMemberForm.email}
                     onChange={(e) => setNewMemberForm({ ...newMemberForm, email: e.target.value })}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    className={`w-full px-3 py-2 text-xs rounded-xl border transition-colors focus:outline-none focus:ring-2 ${
+                      duplicateEmailFound
+                        ? 'border-amber-400 bg-amber-50/40 text-amber-950 focus:ring-amber-500/20 focus:border-amber-500'
+                        : 'border-slate-200 focus:ring-indigo-500/20 focus:border-indigo-500'
+                    }`}
                   />
                 </div>
 
@@ -874,8 +1000,13 @@ export default function QuarantineTab({
                 </button>
                 <button
                   type="submit"
-                  disabled={isAddingMember}
-                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition-colors flex items-center gap-1.5 disabled:opacity-60"
+                  disabled={isAddingMember || Boolean(duplicateIndexFound) || Boolean(duplicateEmailFound)}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-xs font-bold shadow-sm transition-colors flex items-center gap-1.5"
+                  title={
+                    duplicateIndexFound || duplicateEmailFound
+                      ? 'Popraw zduplikowane dane przed zapisem'
+                      : 'Zapisz nowego członka koła'
+                  }
                 >
                   {isAddingMember ? (
                     <>
@@ -891,6 +1022,7 @@ export default function QuarantineTab({
                 </button>
               </div>
             </form>
+
           </div>
         </div>
       )}
