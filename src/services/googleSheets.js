@@ -429,12 +429,32 @@ function formatDate(d) {
   });
 }
 
+function mapVerificationStatus(rawStatus) {
+  const s = String(rawStatus || '').toLowerCase().trim();
+  if (s === 'usuniety' || s === 'usunięty' || s === 'deleted') {
+    return 'deleted';
+  }
+  if (s === 'oczekuje' || s === 'pending' || s === 'kwarantanna') {
+    return 'pending';
+  }
+  if (s === 'nieaktywny' || s === 'rezygnacja' || s === 'resigned' || s === 'inactive' || s === 'były' || s === 'byly') {
+    return 'resigned';
+  }
+  if (s === 'gosc' || s === 'gość' || s === 'guest' || s === 'wolny słuchacz') {
+    return 'guest';
+  }
+  if (s === 'archiwum' || s === 'archived' || s === 'odrzucony' || s === 'czarna lista') {
+    return 'archived';
+  }
+  return 'active';
+}
+
 // ─── Główna funkcja pobierania danych ──────────────────────────────────────────
 
 export async function fetchAllData(sheetId = SHEET_ID) {
   const cleanId = extractSheetId(sheetId) || SHEET_ID;
   if (!cleanId) {
-    return { members: seedMembers, quarantine: [] };
+    return { members: seedMembers, quarantine: [], archivedQuarantine: [], mailLog: [], attendanceByMeeting: {}, gasDecyzje: [] };
   }
 
   // ── Dedykowany parser dla SKN Psychoonkologii WSKZ ────────────────────────
@@ -444,6 +464,10 @@ export async function fetchAllData(sheetId = SHEET_ID) {
   if (cleanId === '1HbpVQkKdtKqsg0Ew5d3AigZBq-wvQYmJ-vpSIIWLFpg' || cleanId === SHEET_ID) {
     let members = [];
     let quarantine = [];
+    let gasArchived = [];
+    let attendanceByMeeting = {};
+    let gasDecyzje = [];
+    let mailLog = [];
 
     // 1. Pobierz aktualną listę aktywnych członków koła z Zarządzanie lub Aktualna_lista_KN
     try {
@@ -619,8 +643,6 @@ export async function fetchAllData(sheetId = SHEET_ID) {
     }
 
     // 3. Pobierz ewidencję obecności oraz członków z Rejestru Zgłoszeń z backendu Google Apps Script (GET ?action=pobierz_dane)
-    const attendanceByMeeting = {};
-    let gasDecyzje = [];
     try {
       const gasData = await fetchGasData();
 
@@ -629,30 +651,10 @@ export async function fetchAllData(sheetId = SHEET_ID) {
         ? gasData.czlonkowie
         : ((gasData && Array.isArray(gasData.data) && gasData.data.length > 0) ? gasData.data : null);
 
-function mapVerificationStatus(rawStatus) {
-  const s = String(rawStatus || '').toLowerCase().trim();
-  if (s === 'usuniety' || s === 'usunięty' || s === 'deleted') {
-    return 'deleted';
-  }
-  if (s === 'oczekuje' || s === 'pending' || s === 'kwarantanna') {
-    return 'pending';
-  }
-  if (s === 'nieaktywny' || s === 'rezygnacja' || s === 'resigned' || s === 'inactive' || s === 'były' || s === 'byly') {
-    return 'resigned';
-  }
-  if (s === 'gosc' || s === 'gość' || s === 'guest' || s === 'wolny słuchacz') {
-    return 'guest';
-  }
-  if (s === 'archiwum' || s === 'archived' || s === 'odrzucony' || s === 'czarna lista') {
-    return 'archived';
-  }
-  return 'active';
-}
-
-      let gasArchived = [];
       if (gasMembersRaw && gasMembersRaw.length > 0) {
         const mappedGasMembers = [];
         const mappedGasQuarantine = [];
+        gasArchived = [];
 
         gasMembersRaw.forEach((item, index) => {
           // Obsługa obiektu lub surowego wiersza z GAS
@@ -896,7 +898,7 @@ function mapVerificationStatus(rawStatus) {
     }
 
     // 4. Pobierz ewidencję poczty z dedykowanej zakładki Ewidencja_Poczty
-    let mailLog = [];
+    mailLog = [];
     try {
       const mailRes = await fetchMailRegistryFromSheet(cleanId);
       if (mailRes.ok && Array.isArray(mailRes.entries) && mailRes.entries.length > 0) {
