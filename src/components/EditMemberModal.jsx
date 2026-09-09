@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
-import { X, User, Mail, Hash, BookOpen, Calendar } from 'lucide-react';
+import { X, User, Mail, Hash, BookOpen, Calendar, Phone, Sparkles, Clock, CheckCircle2, RefreshCw } from 'lucide-react';
 
 export default function EditMemberModal({ member, isOpen, onClose, onSave }) {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [index, setIndex] = useState('');
+  const [phone, setPhone] = useState('');
   const [field, setField] = useState('');
   const [year, setYear] = useState('');
+  const [aliases, setAliases] = useState('');
   const [status, setStatus] = useState('active');
   const [mailingConsent, setMailingConsent] = useState(false);
 
@@ -14,9 +16,11 @@ export default function EditMemberModal({ member, isOpen, onClose, onSave }) {
     if (member) {
       setFullName(member.fullName || `${member.firstName || ''} ${member.lastName || ''}`.trim());
       setEmail(member.email || '');
-      setIndex(member.index || '');
-      setField(member.field || '');
+      setIndex(member.index || member.cleanIndex || member.nrIndeksu || '');
+      setPhone(member.phone || member.telefon || '');
+      setField(member.field || member.kierunek || '');
       setYear(member.year || '');
+      setAliases(member.aliases || member.aliasy || member.alias || '');
       setStatus(member.status || 'active');
 
       const hasConsent =
@@ -27,6 +31,10 @@ export default function EditMemberModal({ member, isOpen, onClose, onSave }) {
   }, [member]);
 
   if (!isOpen || !member) return null;
+
+  const dataWplywu = member.dataWplywu || member.timestamp || '—';
+  const dataWeryfikacji = member.dataWeryfikacji || '—';
+  const dataAktualizacji = member.dataAktualizacji || 'Brak modyfikacji';
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -42,8 +50,15 @@ export default function EditMemberModal({ member, isOpen, onClose, onSave }) {
       lastName,
       email: email.trim(),
       index: cleanIdx,
+      cleanIndex: cleanIdx,
+      nrIndeksu: cleanIdx,
+      phone: phone.trim(),
+      telefon: phone.trim(),
       field: field.trim(),
+      kierunek: field.trim(),
       year: year.trim(),
+      aliases: aliases.trim(),
+      aliasy: aliases.trim(),
       status,
       mailingConsent,
       zgodaNaMailing: mailingConsent ? 'Zgoda na mailing' : 'Brak zgody',
@@ -56,7 +71,7 @@ export default function EditMemberModal({ member, isOpen, onClose, onSave }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
-      <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl border border-slate-100 space-y-5 animate-in fade-in zoom-in-95 duration-150">
+      <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl border border-slate-100 space-y-4 animate-in fade-in zoom-in-95 duration-150">
         
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -66,7 +81,7 @@ export default function EditMemberModal({ member, isOpen, onClose, onSave }) {
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900">Edycja danych członka</h3>
-              <p className="text-xs text-slate-400">Korekta danych w bazie CRM</p>
+              <p className="text-xs text-slate-400">Punktowa aktualizacja profilu w arkuszu Google</p>
             </div>
           </div>
           <button
@@ -77,8 +92,33 @@ export default function EditMemberModal({ member, isOpen, onClose, onSave }) {
           </button>
         </div>
 
+        {/* Audit Dates Metadata Box */}
+        <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-3 space-y-1.5 text-xs text-slate-600 font-medium">
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-slate-500">
+              <Clock size={13} className="text-indigo-600" />
+              <span>Data wpływu zgłoszenia:</span>
+            </span>
+            <strong className="font-mono text-slate-800 font-semibold">{dataWplywu}</strong>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-slate-500">
+              <CheckCircle2 size={13} className="text-emerald-600" />
+              <span>Data weryfikacji:</span>
+            </span>
+            <strong className="font-mono text-slate-800 font-semibold">{dataWeryfikacji}</strong>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-slate-500">
+              <RefreshCw size={13} className="text-amber-600" />
+              <span>Ostatnia aktualizacja:</span>
+            </span>
+            <strong className="font-mono text-slate-800 font-semibold">{dataAktualizacji}</strong>
+          </div>
+        </div>
+
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-3.5">
           <div>
             <label htmlFor="edit-member-fullname" className="block text-xs font-semibold text-slate-700 mb-1">Imię i Nazwisko</label>
             <div className="relative">
@@ -128,6 +168,40 @@ export default function EditMemberModal({ member, isOpen, onClose, onSave }) {
                   onChange={e => setIndex(e.target.value.replace(/\D/g, ''))}
                   className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 font-mono text-xs focus:ring-2 focus:ring-indigo-300 outline-none"
                   placeholder="np. 15998"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="edit-member-phone" className="block text-xs font-semibold text-slate-700 mb-1">Telefon</label>
+              <div className="relative">
+                <Phone size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  id="edit-member-phone"
+                  name="phone"
+                  type="text"
+                  value={phone}
+                  onChange={e => setPhone(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-indigo-300 outline-none font-mono"
+                  placeholder="np. +48 500 000 000"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="edit-member-alias" className="block text-xs font-semibold text-slate-700 mb-1">Aliasy Meet / Nickname</label>
+              <div className="relative">
+                <Sparkles size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  id="edit-member-alias"
+                  name="aliases"
+                  type="text"
+                  value={aliases}
+                  onChange={e => setAliases(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-indigo-300 outline-none"
+                  placeholder="np. Jan K., jankow"
                 />
               </div>
             </div>
@@ -204,13 +278,13 @@ export default function EditMemberModal({ member, isOpen, onClose, onSave }) {
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+              className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition cursor-pointer"
             >
               Anuluj
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition shadow-sm"
+              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition shadow-sm cursor-pointer"
             >
               Zapisz zmiany
             </button>

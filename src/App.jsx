@@ -32,7 +32,7 @@ import LoginScreen from './components/LoginScreen';
 import { useAuth } from './context/AuthContext';
 import { useOrg } from './context/OrgContext';
 import { useAcademicYear } from './context/AcademicYearContext';
-import { fetchAllData, AUTHORIZED_INDEXES, updateVerificationStatus, changeStudentStatusInGAS, initializeSubmissionsRegistryInGAS } from './services/googleSheets';
+import { fetchAllData, AUTHORIZED_INDEXES, updateVerificationStatus, changeStudentStatusInGAS, initializeSubmissionsRegistryInGAS, editMemberInGAS } from './services/googleSheets';
 import { fetchTeamupEvents, fetchTeamupSubcalendars, DEFAULT_SUBCALENDAR_ID } from './services/teamupService';
 import { materials, initialMembers, initialMeetings } from './data/mockData';
 import { getRecordKey } from './utils/helpers';
@@ -586,6 +586,19 @@ export default function App() {
     setMembers(prev => prev.map(m => m.id === updatedMember.id ? updatedMember : m));
     setQuarantine(prev => prev.map(q => q.id === updatedMember.id ? updatedMember : q));
     setArchivedQuarantine(prev => prev.map(a => a.id === updatedMember.id ? updatedMember : a));
+
+    // ── Real-time GAS Atomic Edit Sync (action: "edytuj_dane_czlonka") ──
+    const studentIndex = updatedMember.nrIndeksu || updatedMember.index || updatedMember.cleanIndex || '';
+    if (studentIndex) {
+      editMemberInGAS({
+        nrIndeksu: studentIndex,
+        imieNazwisko: updatedMember.fullName || `${updatedMember.firstName || ''} ${updatedMember.lastName || ''}`.trim(),
+        email: updatedMember.email || '',
+        telefon: updatedMember.phone || updatedMember.telefon || '',
+        kierunek: updatedMember.field || updatedMember.kierunek || '',
+        aliasy: updatedMember.aliases || updatedMember.aliasy || updatedMember.alias || ''
+      }).catch(err => console.warn("[handleSaveMember] Błąd punktowej edycji w GAS:", err));
+    }
 
     // Show Toast Notification
     setToastMessage(`Pomyślnie zaktualizowano dane studenta: ${updatedMember.fullName}`);

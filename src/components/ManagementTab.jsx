@@ -1074,13 +1074,29 @@ export default function ManagementTab({
               </div>
               <div>
                 <h3 className="text-base font-bold text-slate-900">Zarządzanie wpisem studenta</h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  Wybierz akcję dla <strong className="font-semibold text-slate-800">{decisionModalMember.fullName || decisionModalMember.firstName}</strong> (nr indeksu: <strong className="font-mono text-slate-800">{decisionModalMember.index || 'Brak'}</strong>):
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Profil: <strong className="font-semibold text-slate-800">{decisionModalMember.fullName || decisionModalMember.firstName}</strong> (nr indeksu: <strong className="font-mono text-slate-800">{decisionModalMember.index || 'Brak'}</strong>)
                 </p>
               </div>
             </div>
 
-            <div className="space-y-3 pt-2">
+            {/* Audit Dates Metadata Card */}
+            <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-2.5 space-y-1 text-[11px] text-slate-600">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Data wpływu zgłoszenia:</span>
+                <strong className="font-mono text-slate-800 font-semibold">{decisionModalMember.dataWplywu || decisionModalMember.timestamp || '—'}</strong>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Data weryfikacji:</span>
+                <strong className="font-mono text-slate-800 font-semibold">{decisionModalMember.dataWeryfikacji || '—'}</strong>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Ostatnia aktualizacja:</span>
+                <strong className="font-mono text-slate-800 font-semibold">{decisionModalMember.dataAktualizacji || 'Brak modyfikacji'}</strong>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-1">
               {/* Quick Status Selection Block */}
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                 <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">

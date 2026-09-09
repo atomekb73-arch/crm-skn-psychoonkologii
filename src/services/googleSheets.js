@@ -139,7 +139,7 @@ export async function claimGuestAttendance(nazwiskoGoscia, nowyNrIndeksu) {
 
 /**
  * Inicjalizuje arkusz Rejestr_Zgloszen wszystkimi bieżącymi członkami koła.
- * Czyści wiersze poniżej wiersza 1 i hurtowo wstawia dane.
+ * Czyści wiersze poniżej wiersza 1 i hurtowo wstawia dane (zachowując oryginalne daty wpływu i weryfikacji).
  */
 export async function initializeSubmissionsRegistryInGAS(members = []) {
   const payload = {
@@ -155,12 +155,14 @@ export async function initializeSubmissionsRegistryInGAS(members = []) {
         ''
       ).trim();
       const email = String(m.email || '').trim();
-      const phone = String(m.phone || '').trim();
+      const phone = String(m.phone || m.telefon || '').trim();
       const fieldAndYear = String(m.fieldAndYear || `${m.field || ''} ${m.year ? '(' + m.year + ')' : ''}`).trim();
       const mailingConsent = Boolean(m.mailingConsent || m.zgodaNaMailing === "Zgoda na mailing" || m.consentStatus === "Zgody OK");
       const status = m.status || "active";
-      const timestamp = m.timestamp || new Date().toISOString().slice(0, 10);
-      const aliases = m.aliases || m.alias || '';
+      const dataWplywu = m.dataWplywu || m.timestamp || new Date().toISOString().slice(0, 10);
+      const dataWeryfikacji = m.dataWeryfikacji || '';
+      const dataAktualizacji = m.dataAktualizacji || '';
+      const aliases = m.aliases || m.aliasy || m.alias || '';
 
       return {
         index: cleanIdx,
@@ -171,10 +173,34 @@ export async function initializeSubmissionsRegistryInGAS(members = []) {
         fieldAndYear,
         mailingConsent,
         status,
-        timestamp,
+        timestamp: dataWplywu,
+        dataWplywu,
+        dataWeryfikacji,
+        dataAktualizacji,
         aliases
       };
     })
+  };
+
+  return await sendToGAS(payload);
+}
+
+/**
+ * Punktowa edycja danych członka w arkuszu Rejestr_Zgloszen (atomic row update).
+ * Aktualizuje dane profilowe i ustawia Data_Aktualizacji w kolumnie K.
+ */
+export async function editMemberInGAS({ nrIndeksu, imieNazwisko, email, telefon, kierunek, aliasy }) {
+  const rawIdx = String(nrIndeksu || '').trim();
+  const cleanIdx = rawIdx.replace(/\D/g, '').replace(/^0+/, '') || rawIdx;
+
+  const payload = {
+    action: "edytuj_dane_czlonka",
+    nrIndeksu: cleanIdx,
+    imieNazwisko: String(imieNazwisko || '').trim(),
+    email: String(email || '').trim(),
+    telefon: String(telefon || '').trim(),
+    kierunek: String(kierunek || '').trim(),
+    aliasy: String(aliasy || '').trim()
   };
 
   return await sendToGAS(payload);
@@ -646,6 +672,11 @@ function mapVerificationStatus(rawStatus) {
 
             if (memberStatus === 'deleted') return; // Pomijany całkowicie
 
+            const dataWplywu = String(item[0] || '').trim();
+            const dataWeryfikacji = String(item[8] || '').trim();
+            const aliasy = String(item[9] || '').trim();
+            const dataAktualizacji = String(item[10] || '').trim();
+
             const isArchived = memberStatus === 'archived';
             const baseObj = {
               id: `psy_m_gas_${index + 1}`,
@@ -667,12 +698,17 @@ function mapVerificationStatus(rawStatus) {
               mailingConsent: zgodaMailing === 'Zgoda na mailing' || zgodaMailing === 'true' || zgodaMailing === true,
               zgodaNaMailing: zgodaMailing || 'Zgoda na mailing',
               consentStatus: (zgodaMailing === 'Zgoda na mailing' || zgodaMailing === 'true' || zgodaMailing === true) ? 'Zgody OK' : 'Brak zgody',
+              dataWplywu: dataWplywu || '2026-09-04',
+              dataWeryfikacji: dataWeryfikacji || '',
+              dataAktualizacji: dataAktualizacji || '',
+              aliasy: aliasy || '',
+              aliases: aliasy || '',
               points: 0,
               present: 0,
               absent: 0,
               attendancePercent: 0,
               certStatus: 'W toku',
-              timestamp: String(item[0] || item[8] || new Date().toISOString().slice(0, 10)),
+              timestamp: String(dataWplywu || dataWeryfikacji || new Date().toISOString().slice(0, 10)),
               fromSheet: 'Rejestr_Zgloszen',
             };
 
@@ -702,6 +738,10 @@ function mapVerificationStatus(rawStatus) {
           const kierunekSemestr = String(item.kierunek || item.field || '').trim();
           const zgodaMailing = item.zgodaMailing || item.zgodaNaMailing || (item.mailingConsent ? 'Zgoda na mailing' : 'Brak zgody');
           const statusWeryfikacji = String(item.statusWeryfikacji || item.status || 'active').trim();
+          const dataWplywu = String(item.dataWplywu || item.timestamp || item.data || '').trim();
+          const dataWeryfikacji = String(item.dataWeryfikacji || '').trim();
+          const aliasy = String(item.aliasy || item.aliases || item.alias || item.meetAlias || '').trim();
+          const dataAktualizacji = String(item.dataAktualizacji || item.lastModified || item.updatedAt || '').trim();
           const parts = imieNazwisko.split(' ');
           const firstName = parts[0] || '';
           const lastName = parts.slice(1).join(' ') || '';
@@ -730,12 +770,17 @@ function mapVerificationStatus(rawStatus) {
             mailingConsent: Boolean(item.mailingConsent || zgodaMailing === 'Zgoda na mailing' || zgodaMailing === 'true' || zgodaMailing === true),
             zgodaNaMailing: (Boolean(item.mailingConsent || zgodaMailing === 'Zgoda na mailing' || zgodaMailing === 'true' || zgodaMailing === true)) ? 'Zgoda na mailing' : 'Brak zgody',
             consentStatus: (Boolean(item.mailingConsent || zgodaMailing === 'Zgoda na mailing' || zgodaMailing === 'true' || zgodaMailing === true)) ? 'Zgody OK' : 'Brak zgody',
+            dataWplywu: dataWplywu || '2026-09-04',
+            dataWeryfikacji: dataWeryfikacji || '',
+            dataAktualizacji: dataAktualizacji || '',
+            aliasy: aliasy || '',
+            aliases: aliasy || '',
             points: 0,
             present: 0,
             absent: 0,
             attendancePercent: 0,
             certStatus: 'W toku',
-            timestamp: String(item.dataWplywu || item.dataWeryfikacji || item.timestamp || new Date().toISOString().slice(0, 10)),
+            timestamp: String(dataWplywu || dataWeryfikacji || new Date().toISOString().slice(0, 10)),
             fromSheet: 'Rejestr_Zgloszen',
           };
 

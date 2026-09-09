@@ -721,7 +721,7 @@ export default function QuarantineTab({
                 <div className="mt-3 p-2.5 rounded-xl bg-amber-50 border border-amber-200/80 text-[11px] text-amber-800 flex items-start gap-2">
                   <AlertCircle size={15} className="text-amber-600 shrink-0 mt-0.5" />
                   <span>
-                    Operacja wyczyści wiersze poniżej wiersza 1 (nagłówków) w arkuszu i wklei kompletną listę członków ze statusem "Zatwierdzony".
+                    Ta operacja wykonuje pełną re-indeksację arkusza (zachowując oryginalne daty wpływu i weryfikacji). Używaj jej tylko w celach administracyjnych / serwisowych.
                   </span>
                 </div>
 
