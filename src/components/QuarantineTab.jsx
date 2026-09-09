@@ -141,12 +141,6 @@ export default function QuarantineTab({
   const [editingMember, setEditingMember] = useState(null);
   const [welcomeMailMember, setWelcomeMailMember] = useState(null);
 
-  // Modals for Initialization and Manual Member Onboarding
-  const [showInitModal, setShowInitModal] = useState(false);
-  const [isInitializingRegistry, setIsInitializingRegistry] = useState(false);
-  const [initSuccessMessage, setInitSuccessMessage] = useState(null);
-  const [initErrorMessage, setInitErrorMessage] = useState(null);
-
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [isAddingMember, setIsAddingMember] = useState(false);
   const [addMemberError, setAddMemberError] = useState('');
@@ -420,55 +414,10 @@ export default function QuarantineTab({
     setDeleteModalEntry(null);
   };
 
-  // ── Handler: Inicjalizacja bazy do Rejestru Zgłoszeń ────────────────────────
-  const handleInitializeRegistry = async () => {
-    setIsInitializingRegistry(true);
-    setInitErrorMessage(null);
-    try {
-      if (onBatchSyncMembers) {
-        await onBatchSyncMembers();
-      } else {
-        const listToExport = (members && members.length > 0) ? members : seedMembers;
-        console.log(`[handleInitializeRegistry] Rozpoczynam eksport ${listToExport.length} członków do Rejestru Zgłoszeń...`, listToExport);
-        await initializeSubmissionsRegistryInGAS(listToExport);
-      }
-
-      console.log(`[handleInitializeRegistry] Pomyślnie wywołano inicjalizację rekordów w Google Apps Script.`);
-      setInitSuccessMessage(`Baza ${members.length || seedMembers.length} członków została pomyślnie wysłana do arkusza Google!`);
-      setTimeout(() => {
-        setInitSuccessMessage(null);
-        setShowInitModal(false);
-      }, 3500);
-    } catch (err) {
-      console.error("[handleInitializeRegistry] Błąd podczas inicjalizacji bazy:", err);
-      setInitErrorMessage(`Błąd połączenia z arkuszem Google: ${err.message || err}`);
-    } finally {
-      setIsInitializingRegistry(false);
-    }
-  };
-
-  // ── Handler: Bezpośrednia szybka synchronizacja wsadowa zmian ─────────────
-  const handleDirectBatchSync = async () => {
-    setIsInitializingRegistry(true);
-    try {
-      if (onBatchSyncMembers) {
-        await onBatchSyncMembers();
-      } else {
-        const listToExport = (members && members.length > 0) ? members : seedMembers;
-        await initializeSubmissionsRegistryInGAS(listToExport);
-      }
-    } catch (err) {
-      console.error("[handleDirectBatchSync] Błąd podczas synchronizacji bazy:", err);
-      alert(`Błąd połączenia z arkuszem Google: ${err.message || err}`);
-    } finally {
-      setIsInitializingRegistry(false);
-    }
-  };
-
-
   // ── Handler: Zapis nowego członka dodanego ręcznie ─────────────────────────
   const handleSaveNewMember = async (e) => {
     if (e) e.preventDefault();
+    if (isAddingMember) return;
     setAddMemberError('');
 
     const cleanName = (newMemberForm.fullName || '').trim();
@@ -511,7 +460,6 @@ export default function QuarantineTab({
         return;
       }
     }
-
 
     setIsAddingMember(true);
     try {
@@ -558,7 +506,6 @@ export default function QuarantineTab({
         certStatus: 'W toku'
       };
 
-
       // 1. Zapisz alias Google Meet jeśli podano
       if (meetAlias) {
         const currentAliases = getAliasesFromStorage() || {};
@@ -566,25 +513,14 @@ export default function QuarantineTab({
         saveAliasesToStorage(currentAliases);
       }
 
-      // 2. Dodaj do stanu CRM
+      // 2. Dodaj do stanu CRM i zsynchronizuj atomowo z chmurą
       if (onAddMember) {
-        onAddMember(newMemberObj);
+        await onAddMember(newMemberObj);
       } else if (onSaveMember) {
-        onSaveMember(newMemberObj);
+        await onSaveMember(newMemberObj);
       }
 
-      // 3. Wyślij do Google Apps Script w tle
-      try {
-        await addMemberManuallyToGAS({
-          ...newMemberObj,
-          fieldAndYear: field && year ? `${field} (${year})` : (field || year),
-          aliases: meetAlias
-        });
-      } catch (gasErr) {
-        console.warn("Błąd wysyłki do GAS (rejestr zgłoszeń):", gasErr);
-      }
-
-      // Reset formularza i zamknięcie modala
+      // 3. Reset formularza i zamknięcie modala
       setNewMemberForm({
         fullName: '',
         index: '',
@@ -705,78 +641,6 @@ export default function QuarantineTab({
         </div>
       )}
 
-      {/* ── Modal: Potwierdzenie Inicjalizacji Rejestru Zgłoszeń ──────────── */}
-      {showInitModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl border border-slate-100 space-y-4 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-start gap-3">
-              <div className="w-11 h-11 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
-                <Database size={22} />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-base font-bold text-slate-900">Inicjalizacja arkusza Rejestr_Zgloszen</h3>
-                <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
-                  Czy na pewno chcesz wyeksportować bieżące <strong className="font-bold text-indigo-700">{members.length} rekordów</strong> członków do arkusza <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded font-mono text-[11px]">Rejestr_Zgloszen</code> w Google Sheets?
-                </p>
-                <div className="mt-3 p-2.5 rounded-xl bg-amber-50 border border-amber-200/80 text-[11px] text-amber-800 flex items-start gap-2">
-                  <AlertCircle size={15} className="text-amber-600 shrink-0 mt-0.5" />
-                  <span>
-                    Ta operacja wykonuje pełną re-indeksację arkusza (zachowując oryginalne daty wpływu i weryfikacji). Używaj jej tylko w celach administracyjnych / serwisowych.
-                  </span>
-                </div>
-
-                {initSuccessMessage && (
-                  <div className="mt-3 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-700 flex items-center gap-2">
-                    <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
-                    <span>{initSuccessMessage}</span>
-                  </div>
-                )}
-
-                {initErrorMessage && (
-                  <div className="mt-3 p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700 flex items-center gap-2">
-                    <AlertTriangle size={16} className="text-rose-600 shrink-0" />
-                    <span>{initErrorMessage}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-              <button
-                type="button"
-                disabled={isInitializingRegistry}
-                onClick={() => {
-                  setShowInitModal(false);
-                  setInitSuccessMessage(null);
-                  setInitErrorMessage(null);
-                }}
-                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50"
-              >
-                Anuluj
-              </button>
-              <button
-                type="button"
-                disabled={isInitializingRegistry}
-                onClick={handleInitializeRegistry}
-                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition-colors flex items-center gap-1.5 disabled:opacity-60"
-              >
-                {isInitializingRegistry ? (
-                  <>
-                    <Loader2 size={14} className="animate-spin" />
-                    <span>Eksportowanie ({members.length})...</span>
-                  </>
-                ) : (
-                  <>
-                    <Database size={14} />
-                    <span>Tak, zainicjalizuj bazę ({members.length})</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ── Modal: Ręczne dodanie nowego członka koła ──────────────────────── */}
       {showAddMemberModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 overflow-y-auto">
@@ -794,7 +658,7 @@ export default function QuarantineTab({
               <button
                 type="button"
                 onClick={() => setShowAddMemberModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors"
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X size={18} />
               </button>
@@ -1018,14 +882,14 @@ export default function QuarantineTab({
                   type="button"
                   disabled={isAddingMember}
                   onClick={() => setShowAddMemberModal(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50"
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   Anuluj
                 </button>
                 <button
                   type="submit"
                   disabled={isAddingMember || Boolean(duplicateIndexFound) || Boolean(duplicateEmailFound)}
-                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-xs font-bold shadow-sm transition-colors flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-xs font-bold shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
                   title={
                     duplicateIndexFound || duplicateEmailFound
                       ? 'Popraw zduplikowane dane przed zapisem'
@@ -1035,7 +899,7 @@ export default function QuarantineTab({
                   {isAddingMember ? (
                     <>
                       <Loader2 size={14} className="animate-spin" />
-                      <span>Dodawanie studenta...</span>
+                      <span>Zapisywanie do rejestru...</span>
                     </>
                   ) : (
                     <>
@@ -1050,7 +914,6 @@ export default function QuarantineTab({
           </div>
         </div>
       )}
-
 
       {/* ── Header View Switcher Tabs ────────────────────────────────────── */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-200 pb-4">
@@ -1082,42 +945,11 @@ export default function QuarantineTab({
           </button>
         </div>
 
-        {/* Global Action Tools: Inicjalizacja arkusza & Ręczne dodanie członka */}
+        {/* Global Action Tools: Ręczne dodanie członka */}
         <div className="flex items-center gap-2">
-          {pendingSyncCount > 0 ? (
-            <button
-              onClick={handleDirectBatchSync}
-              disabled={isInitializingRegistry}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white animate-pulse shadow-md transition-all cursor-pointer disabled:opacity-60"
-              title={`Masz ${pendingSyncCount} nieutrwalonych zmian. Kliknij, aby zsynchronizować bazę z arkuszem Google Sheets.`}
-            >
-              {isInitializingRegistry ? (
-                <>
-                  <Loader2 size={14} className="animate-spin" />
-                  <span>Synchronizuję ({members.length})...</span>
-                </>
-              ) : (
-                <>
-                  <Zap size={14} className="fill-amber-100 text-amber-100" />
-                  <span>⚡ Zsynchronizuj zmiany z arkuszem ({pendingSyncCount})</span>
-                </>
-              )}
-            </button>
-          ) : (
-            <button
-              onClick={() => setShowInitModal(true)}
-              disabled={isInitializingRegistry}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-colors shadow-2xs disabled:opacity-60"
-              title="Eksportuj wszystkich aktywnych członków do pustego arkusza Rejestr_Zgloszen"
-            >
-              <Database size={14} className="text-indigo-600" />
-              <span>Zainicjalizuj bazę do Rejestru Zgłoszeń</span>
-            </button>
-          )}
-
           <button
             onClick={() => setShowAddMemberModal(true)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition-colors"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition-colors cursor-pointer"
             title="Dodaj ręcznie nowego członka bezpośrednio do bazy CRM i Rejestru Zgłoszeń"
           >
             <UserPlus size={14} />

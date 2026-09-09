@@ -27,12 +27,13 @@ import SettingsTab   from './components/SettingsTab';
 import Navbar        from './components/Navbar';
 import SettingsModal from './components/SettingsModal';
 import ProfileMenu   from './components/ProfileMenu';
+import SyncIndicator from './components/SyncIndicator';
 import ErrorBoundary from './components/ErrorBoundary';
 import LoginScreen from './components/LoginScreen';
 import { useAuth } from './context/AuthContext';
 import { useOrg } from './context/OrgContext';
 import { useAcademicYear } from './context/AcademicYearContext';
-import { fetchAllData, AUTHORIZED_INDEXES, updateVerificationStatus, changeStudentStatusInGAS, initializeSubmissionsRegistryInGAS, editMemberInGAS } from './services/googleSheets';
+import { fetchAllData, AUTHORIZED_INDEXES, updateVerificationStatus, changeStudentStatusInGAS, initializeSubmissionsRegistryInGAS, editMemberInGAS, addMemberManuallyToGAS } from './services/googleSheets';
 import { fetchTeamupEvents, fetchTeamupSubcalendars, DEFAULT_SUBCALENDAR_ID } from './services/teamupService';
 import { materials, initialMembers, initialMeetings } from './data/mockData';
 import { getRecordKey } from './utils/helpers';
@@ -210,6 +211,11 @@ export default function App() {
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState(null);
   const [lastSync, setLastSync]     = useState(null);
+  const [cloudSyncStatus, setCloudSyncStatus] = useState({
+    status: 'synced',
+    lastSyncTime: null,
+    errorMessage: null,
+  });
 
   const mergeMeetingWithLocalStorage = useCallback((m) => {
     if (!m) return m;
@@ -387,9 +393,14 @@ export default function App() {
   }, [selectedSubcalendar, academicYear, customStartDate, customEndDate, currentOrg, getRangeForYear, mergeMeetingWithLocalStorage]);
 
   // ── Fetch All Live Data & Categorize by Approved/Archived/Resigned Keys ───
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (options = {}) => {
+    const { silent = false } = options || {};
+    if (!silent) {
+      setLoading(true);
+    }
     setError(null);
+    setCloudSyncStatus(prev => ({ ...prev, status: 'saving', errorMessage: null }));
+
     try {
       const [sheetsData, subcals] = await Promise.all([
         fetchAllData(currentOrg.sheetId),
@@ -510,7 +521,9 @@ export default function App() {
 
       await loadMeetings(selectedSubcalendar, academicYear, customStartDate, customEndDate, sheetsData.attendanceByMeeting);
 
-      setLastSync(new Date());
+      const now = new Date();
+      setLastSync(now);
+      setCloudSyncStatus({ status: 'synced', lastSyncTime: now, errorMessage: null });
 
       // Auto-snapshot: Save local snapshot after successful sync (max 5 rotated per org)
       try {
@@ -520,10 +533,31 @@ export default function App() {
       } catch {}
     } catch (err) {
       setError(err.message);
+      setCloudSyncStatus(prev => ({ ...prev, status: 'error', errorMessage: err.message }));
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, [currentOrg, loadMeetings, getStorageKey]);
+
+  // ── Focus & Window Polling Revalidation (Cicha synchronizacja w tle) ─────
+  useEffect(() => {
+    let lastFocusTime = 0;
+    const handleWindowFocus = () => {
+      const now = Date.now();
+      // Throttle focus revalidation to at most once every 15 seconds
+      if (now - lastFocusTime > 15000) {
+        lastFocusTime = now;
+        loadData({ silent: true });
+      }
+    };
+
+    window.addEventListener('focus', handleWindowFocus);
+    return () => {
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, [loadData]);
 
   useEffect(() => {
     // Purge legacy mock attendance data for M01 from localStorage on startup
@@ -560,7 +594,7 @@ export default function App() {
   }, [currentOrg.id]);
 
   // ── Member Edit & Overrides Persistence Handler ─────────────────────────
-  function handleSaveMember(updatedMember) {
+  async function handleSaveMember(updatedMember) {
     const key = updatedMember.memberKey || updatedMember.id;
 
     // Save to localStorage under crm_custom_overrides with org prefix
@@ -590,14 +624,23 @@ export default function App() {
     // ── Real-time GAS Atomic Edit Sync (action: "edytuj_dane_czlonka") ──
     const studentIndex = updatedMember.nrIndeksu || updatedMember.index || updatedMember.cleanIndex || '';
     if (studentIndex) {
-      editMemberInGAS({
-        nrIndeksu: studentIndex,
-        imieNazwisko: updatedMember.fullName || `${updatedMember.firstName || ''} ${updatedMember.lastName || ''}`.trim(),
-        email: updatedMember.email || '',
-        telefon: updatedMember.phone || updatedMember.telefon || '',
-        kierunek: updatedMember.field || updatedMember.kierunek || '',
-        aliasy: updatedMember.aliases || updatedMember.aliasy || updatedMember.alias || ''
-      }).catch(err => console.warn("[handleSaveMember] Błąd punktowej edycji w GAS:", err));
+      setCloudSyncStatus(prev => ({ ...prev, status: 'saving', errorMessage: null }));
+      try {
+        await editMemberInGAS({
+          nrIndeksu: studentIndex,
+          imieNazwisko: updatedMember.fullName || `${updatedMember.firstName || ''} ${updatedMember.lastName || ''}`.trim(),
+          email: updatedMember.email || '',
+          telefon: updatedMember.phone || updatedMember.telefon || '',
+          kierunek: updatedMember.field || updatedMember.kierunek || '',
+          aliasy: updatedMember.aliases || updatedMember.aliasy || updatedMember.alias || ''
+        });
+        const now = new Date();
+        setLastSync(now);
+        setCloudSyncStatus({ status: 'synced', lastSyncTime: now, errorMessage: null });
+      } catch (err) {
+        console.warn("[handleSaveMember] Błąd punktowej edycji w GAS:", err);
+        setCloudSyncStatus(prev => ({ ...prev, status: 'error', errorMessage: err.message }));
+      }
     }
 
     // Show Toast Notification
@@ -605,8 +648,8 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 4000);
   }
 
-  // ── Manual Member Onboarding Handler ────────────────────────────────────
-  function handleAddMember(newMember) {
+  // ── Manual Member Onboarding Handler (Atomic Append Row) ────────────────
+  async function handleAddMember(newMember) {
     if (!newMember) return;
     const key = newMember.memberKey || `idx_${newMember.index || Date.now()}`;
     const memberToAdd = {
@@ -650,10 +693,19 @@ export default function App() {
 
     setMembers(prev => [memberToAdd, ...prev.filter(m => m.id !== memberToAdd.id && m.memberKey !== key)]);
 
-    // Increment pending sync buffer
-    setPendingSyncCount(prev => prev + 1);
+    setCloudSyncStatus(prev => ({ ...prev, status: 'saving', errorMessage: null }));
 
-    setToastMessage("Dodano studenta do kolejki roboczej. Pamiętaj o synchronizacji z arkuszem.");
+    try {
+      await addMemberManuallyToGAS(memberToAdd);
+      const now = new Date();
+      setLastSync(now);
+      setCloudSyncStatus({ status: 'synced', lastSyncTime: now, errorMessage: null });
+      setToastMessage("Student został trwale dodany do rejestru");
+    } catch (gasErr) {
+      console.warn("Błąd dodawania do rejestru w GAS:", gasErr);
+      setCloudSyncStatus(prev => ({ ...prev, status: 'error', errorMessage: gasErr.message }));
+      setToastMessage(`Student dodany lokalnie, błąd synchronizacji z chmurą: ${gasErr.message || gasErr}`);
+    }
     setTimeout(() => setToastMessage(null), 5000);
   }
 
@@ -662,14 +714,22 @@ export default function App() {
     const listToExport = (members && members.length > 0) ? members : initialMembers;
     console.log(`[handleBatchSyncMembers] Synchronizacja ${listToExport.length} członków do Rejestru Zgłoszeń...`, listToExport);
 
-    await initializeSubmissionsRegistryInGAS(listToExport);
-
-    setPendingSyncCount(0);
+    setCloudSyncStatus(prev => ({ ...prev, status: 'saving', errorMessage: null }));
     try {
-      localStorage.setItem(getStorageKey('crm_pending_sync_count'), '0');
-    } catch {}
+      await initializeSubmissionsRegistryInGAS(listToExport);
+      setPendingSyncCount(0);
+      try {
+        localStorage.setItem(getStorageKey('crm_pending_sync_count'), '0');
+      } catch {}
 
-    setToastMessage(`Pomyślnie zsynchronizowano ${listToExport.length} członków z arkuszem Google Sheets!`);
+      const now = new Date();
+      setLastSync(now);
+      setCloudSyncStatus({ status: 'synced', lastSyncTime: now, errorMessage: null });
+      setToastMessage(`Pomyślnie zsynchronizowano ${listToExport.length} członków z arkuszem Google Sheets!`);
+    } catch (err) {
+      setCloudSyncStatus(prev => ({ ...prev, status: 'error', errorMessage: err.message }));
+      setToastMessage(`Błąd synchronizacji z arkuszem: ${err.message || err}`);
+    }
     setTimeout(() => setToastMessage(null), 5000);
   }
 
@@ -690,7 +750,7 @@ export default function App() {
   };
 
   // ── Member Status Toggle / Setter (Aktywni vs Goście vs Rezygnacja) ────────
-  function handleToggleStatus(id, explicitStatus = null) {
+  async function handleToggleStatus(id, explicitStatus = null) {
     const member = members.find(m => m.id === id);
     if (!member) return;
     const key = member.memberKey || member.id;
@@ -741,11 +801,20 @@ export default function App() {
         gasStatusMapping = "Archiwum";
       }
 
-      changeStudentStatusInGAS({
-        nrIndeksu: String(studentIndex).trim(),
-        nowyStatus: gasStatusMapping,
-        zatwierdzajacy: "Zarząd SKN"
-      }).catch(err => console.warn("[handleToggleStatus] Błąd zapisu do GAS:", err));
+      setCloudSyncStatus(prev => ({ ...prev, status: 'saving', errorMessage: null }));
+      try {
+        await changeStudentStatusInGAS({
+          nrIndeksu: String(studentIndex).trim(),
+          nowyStatus: gasStatusMapping,
+          zatwierdzajacy: "Zarząd SKN"
+        });
+        const now = new Date();
+        setLastSync(now);
+        setCloudSyncStatus({ status: 'synced', lastSyncTime: now, errorMessage: null });
+      } catch (err) {
+        console.warn("[handleToggleStatus] Błąd zapisu do GAS:", err);
+        setCloudSyncStatus(prev => ({ ...prev, status: 'error', errorMessage: err.message }));
+      }
     }
 
     setToastMessage("Zapisano status w arkuszu Google");
@@ -1438,25 +1507,12 @@ export default function App() {
 
           {/* Sync status + Settings + refresh */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            {/* Status pill (Single-line) */}
-            <div className={`hidden sm:inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-medium border whitespace-nowrap shrink-0 ${
-              error
-                ? 'bg-red-50 border-red-100 text-red-600'
-                : loading
-                ? 'bg-amber-50 border-amber-100 text-amber-600'
-                : lastSync
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                : 'bg-slate-50 border-slate-100 text-slate-500'
-            }`}>
-              {error
-                ? <><WifiOff size={12} /> <span>Błąd połączenia</span></>
-                : loading
-                ? <><RefreshCw size={12} className="animate-spin" /> <span>Ładowanie…</span></>
-                : lastSync
-                ? <><Wifi size={12} /> <span>Zsynchronizowano {syncLabel}</span></>
-                : <><Wifi size={12} /> <span>Oczekiwanie…</span></>
-              }
-            </div>
+            {/* Intelligent Cloud Sync Indicator */}
+            <SyncIndicator
+              status={cloudSyncStatus.status}
+              lastSyncTime={cloudSyncStatus.lastSyncTime || lastSync}
+              onRetry={() => loadData({ silent: false })}
+            />
 
             {/* Record count (Single-line row) */}
             {lastSync && !error && (
@@ -1473,7 +1529,7 @@ export default function App() {
 
             {/* Refresh button */}
             <button
-              onClick={loadData}
+              onClick={() => loadData({ silent: false })}
               disabled={loading}
               title="Odśwież dane z Google Sheets i Teamup"
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold transition-all shadow-sm cursor-pointer whitespace-nowrap"

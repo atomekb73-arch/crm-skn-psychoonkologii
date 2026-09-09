@@ -66,6 +66,7 @@ import {
   saveEmailConfig,
   DEFAULT_EMAIL_CONFIG,
 } from '../utils/storage';
+import { initializeSubmissionsRegistryInGAS } from '../services/googleSheets';
 
 const DEFAULT_ACCESS_USERS = [
   {
@@ -1720,7 +1721,7 @@ export default function SettingsTab({ members = [], meetings = [] }) {
           </div>
         )}
 
-        {/* KARTA KOŁA */}
+        {/* KARTA KOŁA: Zarządzanie Bazą Danych & Google Workspace */}
         <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-sm space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
             <div className="flex items-center gap-3">
@@ -1729,13 +1730,13 @@ export default function SettingsTab({ members = [], meetings = [] }) {
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-base font-bold text-slate-800">6. Kopia Zapasowa & Migawki Koła (Snapshots)</h2>
+                  <h2 className="text-base font-bold text-slate-800">6. Zarządzanie Bazą Danych & Google Workspace</h2>
                   <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
                     {currentOrg?.shortName || currentOrg?.name}
                   </span>
                 </div>
                 <p className="text-xs text-slate-400">
-                  Hermetyczny eksport, import oraz punkty przywracania stanu (Snapshots) dla aktywnego koła naukowego.
+                  Hermetyczny eksport, import, punkty przywracania stanu (Snapshots) oraz serwisowa re-indeksacja arkuszy Google Sheets.
                 </p>
               </div>
             </div>
@@ -1749,6 +1750,41 @@ export default function SettingsTab({ members = [], meetings = [] }) {
                 onChange={handleImportOrgFile}
                 className="hidden"
               />
+
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmModal({
+                    title: "Awaryjna re-indeksacja arkusza Rejestr_Zgloszen",
+                    message: "Operacja serwisowa: czy na pewno chcesz zsynchronizować cały stan aplikacji z arkuszem? (Daty wpływu i weryfikacji zostaną zachowane)",
+                    type: "warning",
+                    onConfirm: async () => {
+                      try {
+                        setIsProcessingBackup(true);
+                        await initializeSubmissionsRegistryInGAS(members);
+                        setBackupFeedback({
+                          type: "success",
+                          message: "Pomyślnie zsynchronizowano i przeprowadzono re-indeksację arkusza Rejestr_Zgloszen!",
+                        });
+                        setTimeout(() => setBackupFeedback(null), 5000);
+                      } catch (err) {
+                        setBackupFeedback({
+                          type: "error",
+                          message: `Błąd re-indeksacji arkusza: ${err.message || err}`,
+                        });
+                      } finally {
+                        setIsProcessingBackup(false);
+                        setConfirmModal(null);
+                      }
+                    },
+                  });
+                }}
+                disabled={isProcessingBackup}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition cursor-pointer disabled:opacity-50"
+                title="Awaryjna re-indeksacja arkusza Rejestr_Zgloszen w Google Sheets"
+              >
+                <span>🔧 Awaryjna re-indeksacja arkusza Rejestr_Zgloszen</span>
+              </button>
 
               <button
                 type="button"
