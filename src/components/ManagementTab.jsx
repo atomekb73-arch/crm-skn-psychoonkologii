@@ -214,6 +214,11 @@ export default function ManagementTab({
     return parsedPoints || 0;
   };
 
+  const isActive = (m) => isMemberActive(m);
+  const isGuest = (m) => isMemberGuest(m);
+  const isInactive = (m) => isMemberInactive(m);
+  const isArchived = (m) => isMemberArchived(m);
+
   // ── Active vs Guests vs Resigned vs Graduates vs Archived Calculations ───────────
   const activeMembers = useMemo(
     () => members.filter(m => isMemberActive(m)),
