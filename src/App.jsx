@@ -1222,15 +1222,32 @@ export default function App() {
     };
 
     // Optimistic state updates:
-    setArchivedQuarantine(prev => prev.filter(a => a.id !== rowId && a.id !== cleanId && String(a.nrIndeksu || a.index || a.id).trim() !== indexToRestore));
+    setArchivedQuarantine(prev => (Array.isArray(prev) ? prev : []).filter(a => {
+      const aId = String(a.id || '').trim();
+      const aIndex = String(a.nrIndeksu || a.index || a.cleanIndex || '').trim();
+      return aId !== rowId && aId !== cleanId && aIndex !== indexToRestore;
+    }));
     setMembers(prev => {
-      const exists = prev.some(m => m.id === rowId || String(m.nrIndeksu || m.index || m.id).trim() === indexToRestore);
+      const arr = Array.isArray(prev) ? prev : [];
+      const exists = arr.some(m => {
+        const mId = String(m.id || '').trim();
+        const mIndex = String(m.nrIndeksu || m.index || m.cleanIndex || '').trim();
+        return mId === rowId || mIndex === indexToRestore;
+      });
       if (exists) {
-        return prev.map(m => (m.id === rowId || String(m.nrIndeksu || m.index || m.id).trim() === indexToRestore) ? restoredMember : m);
+        return arr.map(m => {
+          const mId = String(m.id || '').trim();
+          const mIndex = String(m.nrIndeksu || m.index || m.cleanIndex || '').trim();
+          return (mId === rowId || mIndex === indexToRestore) ? restoredMember : m;
+        });
       }
-      return [restoredMember, ...prev];
+      return [restoredMember, ...arr];
     });
-    setQuarantine(prev => prev.filter(q => q.id !== rowId && String(q.nrIndeksu || q.index || q.id).trim() !== indexToRestore));
+    setQuarantine(prev => (Array.isArray(prev) ? prev : []).filter(q => {
+      const qId = String(q.id || '').trim();
+      const qIndex = String(q.nrIndeksu || q.index || q.cleanIndex || '').trim();
+      return qId !== rowId && qId !== cleanId && qIndex !== indexToRestore;
+    }));
 
     setToastMessage("Przywrócono studenta do listy aktywnych");
     setTimeout(() => setToastMessage(null), 4000);
@@ -1260,7 +1277,7 @@ export default function App() {
     if (!ids || ids.length === 0) return;
     const idSet = new Set(ids.map(i => String(i || '').trim()));
 
-    const entriesToRestore = archivedQuarantine.filter(a =>
+    const entriesToRestore = (Array.isArray(archivedQuarantine) ? archivedQuarantine : []).filter(a =>
       idSet.has(String(a.id)) ||
       idSet.has(String(a.nrIndeksu || '').trim()) ||
       idSet.has(String(a.cleanIndex || '').trim()) ||
@@ -1309,8 +1326,8 @@ export default function App() {
       status: 'quarantine',
       statusWeryfikacji: 'Oczekuje'
     }));
-    setQuarantine(prev => [...restoredList, ...prev.filter(q => !restoredRowIds.has(q.id))]);
-    setArchivedQuarantine(prev => prev.filter(a => !restoredRowIds.has(a.id) && !restoredIndexSet.has(String(a.nrIndeksu || a.index || a.cleanIndex || '').trim())));
+    setQuarantine(prev => [...restoredList, ...(Array.isArray(prev) ? prev : []).filter(q => !restoredRowIds.has(q.id))]);
+    setArchivedQuarantine(prev => (Array.isArray(prev) ? prev : []).filter(a => !restoredRowIds.has(a.id) && !restoredIndexSet.has(String(a.nrIndeksu || a.index || a.cleanIndex || '').trim())));
 
     setCloudSyncStatus(prev => ({ ...prev, status: 'saving', errorMessage: null }));
     try {
@@ -1344,18 +1361,18 @@ export default function App() {
 
     const entry = (typeof idOrStudent === 'object' && idOrStudent !== null)
       ? idOrStudent
-      : archivedQuarantine.find(a =>
+      : (Array.isArray(archivedQuarantine) ? archivedQuarantine : []).find(a =>
           String(a.id) === cleanId ||
           String(a.nrIndeksu || '').trim() === cleanId ||
           String(a.cleanIndex || '').trim() === cleanId ||
           String(a.index || '').trim() === cleanId ||
           String(a.memberKey || '').trim() === cleanId
-        ) || members.find(m =>
+        ) || (Array.isArray(members) ? members : []).find(m =>
           String(m.id) === cleanId ||
           String(m.nrIndeksu || '').trim() === cleanId ||
           String(m.cleanIndex || '').trim() === cleanId ||
           String(m.index || '').trim() === cleanId
-        ) || quarantine.find(q =>
+        ) || (Array.isArray(quarantine) ? quarantine : []).find(q =>
           String(q.id) === cleanId ||
           String(q.nrIndeksu || '').trim() === cleanId ||
           String(q.cleanIndex || '').trim() === cleanId ||
@@ -1369,9 +1386,21 @@ export default function App() {
     setArchivedRowIds(newKeys);
     localStorage.setItem(getStorageKey('crm_archived_row_ids'), JSON.stringify(newKeys));
 
-    setArchivedQuarantine(prev => prev.filter(a => a.id !== rowId && a.id !== cleanId && String(a.nrIndeksu || a.index || a.id).trim() !== indexToDelete));
-    setMembers(prev => prev.filter(m => m.id !== rowId && m.id !== cleanId && String(m.nrIndeksu || m.index || m.id).trim() !== indexToDelete));
-    setQuarantine(prev => prev.filter(q => q.id !== rowId && q.id !== cleanId && String(q.nrIndeksu || q.index || q.id).trim() !== indexToDelete));
+    setArchivedQuarantine(prev => (Array.isArray(prev) ? prev : []).filter(a => {
+      const aId = String(a.id || '').trim();
+      const aIndex = String(a.nrIndeksu || a.index || a.cleanIndex || '').trim();
+      return aId !== rowId && aId !== cleanId && aIndex !== indexToDelete;
+    }));
+    setMembers(prev => (Array.isArray(prev) ? prev : []).filter(m => {
+      const mId = String(m.id || '').trim();
+      const mIndex = String(m.nrIndeksu || m.index || m.cleanIndex || '').trim();
+      return mId !== rowId && mId !== cleanId && mIndex !== indexToDelete;
+    }));
+    setQuarantine(prev => (Array.isArray(prev) ? prev : []).filter(q => {
+      const qId = String(q.id || '').trim();
+      const qIndex = String(q.nrIndeksu || q.index || q.cleanIndex || '').trim();
+      return qId !== rowId && qId !== cleanId && qIndex !== indexToDelete;
+    }));
 
     if (indexToDelete) {
       setCloudSyncStatus(prev => ({ ...prev, status: 'saving', errorMessage: null }));

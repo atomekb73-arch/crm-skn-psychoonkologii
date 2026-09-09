@@ -420,8 +420,8 @@ export default function QuarantineTab({
     if (isAddingMember) return;
     setAddMemberError('');
 
-    const cleanName = (newMemberForm.fullName || '').trim();
-    const rawIdx = (newMemberForm.index || '').trim();
+    const cleanName = String(newMemberForm?.fullName || '').trim();
+    const rawIdx = String(newMemberForm?.index || '').trim();
     const cleanIdx = rawIdx.replace(/\D/g, '').replace(/^0+/, '') || rawIdx;
 
     if (!cleanName) {
@@ -433,7 +433,7 @@ export default function QuarantineTab({
       return;
     }
 
-    const cleanEmail = (newMemberForm.email || '').toLowerCase().trim();
+    const cleanEmail = String(newMemberForm?.email || '').toLowerCase().trim();
 
     // 1. Walidacja unikalności numeru indeksu w aktualnej bazie członków
     const existingByIndex = (members || []).find(m => {
@@ -463,16 +463,17 @@ export default function QuarantineTab({
 
     setIsAddingMember(true);
     try {
-      const parts = cleanName.split(/\s+/);
+      const parts = cleanName.split(/\s+/).filter(Boolean);
       const firstName = parts[0] || '';
       const lastName = parts.slice(1).join(' ') || '';
-      const email = (newMemberForm.email || '').trim();
-      const phone = (newMemberForm.phone || '').trim();
-      const field = (newMemberForm.field || 'Psychologia').trim();
-      const year = (newMemberForm.year || '').trim();
-      const meetAlias = (newMemberForm.meetAlias || '').trim();
-      const status = newMemberForm.status || 'active';
-      const mailingConsent = Boolean(newMemberForm.mailingConsent);
+      const email = String(newMemberForm?.email || '').trim();
+      const phone = String(newMemberForm?.phone || '').trim();
+      const field = String(newMemberForm?.field || 'Psychologia').trim();
+      const year = String(newMemberForm?.year || '').trim();
+      const rawAliases = newMemberForm?.meetAlias || newMemberForm?.aliases || '';
+      const meetAlias = Array.isArray(rawAliases) ? rawAliases.join(', ').trim() : String(rawAliases || '').trim();
+      const status = newMemberForm?.status || 'active';
+      const mailingConsent = Boolean(newMemberForm?.mailingConsent);
 
       const newMemberObj = {
         id: `manual_${cleanIdx}_${Date.now()}`,

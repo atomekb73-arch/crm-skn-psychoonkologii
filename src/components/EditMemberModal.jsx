@@ -14,13 +14,18 @@ export default function EditMemberModal({ member, isOpen, onClose, onSave, allMe
 
   useEffect(() => {
     if (member) {
-      setFullName(member.fullName || `${member.firstName || ''} ${member.lastName || ''}`.trim());
-      setEmail(member.email || '');
-      setIndex(member.index || member.cleanIndex || member.nrIndeksu || '');
-      setPhone(member.phone || member.telefon || '');
-      setField(member.field || member.kierunek || '');
-      setYear(member.year || '');
-      setAliases(member.aliases || member.aliasy || member.alias || '');
+      const rawFullName = member.fullName || `${member.firstName || ''} ${member.lastName || ''}`.trim();
+      setFullName(String(rawFullName || ''));
+      setEmail(String(member.email || ''));
+      setIndex(String(member.index || member.cleanIndex || member.nrIndeksu || ''));
+      setPhone(String(member.phone || member.telefon || ''));
+      setField(String(member.field || member.kierunek || ''));
+      setYear(String(member.year || ''));
+      
+      const rawAliases = member.aliases || member.aliasy || member.alias || member.meetAlias || '';
+      const cleanInitAliases = Array.isArray(rawAliases) ? rawAliases.join(', ') : String(rawAliases || '');
+      setAliases(cleanInitAliases);
+      
       setStatus(member.status || 'active');
 
       const hasConsent =
@@ -72,28 +77,37 @@ export default function EditMemberModal({ member, isOpen, onClose, onSave, allMe
       alert("Podany numer indeksu jest już przypisany do innego członka koła.");
       return;
     }
-    const cleanIdx = index.replace(/\D/g, '') || index.trim(); // automatyczne czyszczenie ze liter i spacji
-    const nameParts = fullName.trim().split(' ');
+    const cleanFullName = String(fullName || '').trim();
+    const cleanEmailVal = String(email || '').trim();
+    const cleanPhoneVal = String(phone || '').trim();
+    const cleanFieldVal = String(field || '').trim();
+    const cleanYearVal = String(year || '').trim();
+    const cleanIdx = String(index || '').replace(/\D/g, '') || String(index || '').trim(); // automatyczne czyszczenie ze liter i spacji
+    const cleanAliases = Array.isArray(aliases)
+      ? aliases.join(', ').trim()
+      : String(aliases || '').trim();
+
+    const nameParts = cleanFullName.split(/\s+/).filter(Boolean);
     const firstName = nameParts.slice(0, -1).join(' ') || nameParts[0] || '';
     const lastName = nameParts.length > 1 ? nameParts.slice(-1)[0] : '';
 
     onSave({
       ...member,
-      fullName: fullName.trim(),
-      imieNazwisko: fullName.trim(),
+      fullName: cleanFullName,
+      imieNazwisko: cleanFullName,
       firstName,
       lastName,
-      email: email.trim(),
+      email: cleanEmailVal,
       index: cleanIdx,
       cleanIndex: cleanIdx,
       nrIndeksu: cleanIdx,
-      phone: phone.trim(),
-      telefon: phone.trim(),
-      field: field.trim(),
-      kierunek: field.trim(),
-      year: year.trim(),
-      aliases: aliases.trim(),
-      aliasy: aliases.trim(),
+      phone: cleanPhoneVal,
+      telefon: cleanPhoneVal,
+      field: cleanFieldVal,
+      kierunek: cleanFieldVal,
+      year: cleanYearVal,
+      aliases: cleanAliases,
+      aliasy: cleanAliases,
       status,
       mailingConsent,
       zgodaNaMailing: mailingConsent ? 'Zgoda na mailing' : 'Brak zgody',

@@ -13,7 +13,7 @@ export function extractSheetId(input) {
 const envSheetInput = import.meta.env?.VITE_GOOGLE_SHEET_ID || import.meta.env?.VITE_SHEETS_URL;
 export const SHEET_ID = envSheetInput ? extractSheetId(envSheetInput) : '1HbpVQkKdtKqsg0Ew5d3AigZBq-wvQYmJ-vpSIIWLFpg';
 
-export const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbydPZ28vXNVUSF1IRxYCY-hhgxlJgVKesYnsI6FFvnn63uZnFapa0J7Q0hXwYAfw8vO/exec";
+export const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyEDD3RNJQCqLUr_rhDzXhoHQn6UKoFsiyHPOjrGUe4tZhotTsOLcXF5HTez890YgjK/exec";
 export const GAS_ENDPOINT = GAS_WEBAPP_URL;
 
 
@@ -396,10 +396,10 @@ function parseName(row) {
 }
 
 function parseEmail(row) {
-  const d = cellStr(row.c[3]);
-  const b = cellStr(row.c[1]);
-  if (d && d.includes('@') && !d.includes(' ')) return d.toLowerCase().trim();
-  return b.toLowerCase().trim();
+  const d = cellStr(row?.c?.[3]);
+  const b = cellStr(row?.c?.[1]);
+  if (d && String(d).includes('@') && !String(d).includes(' ')) return String(d).toLowerCase().trim();
+  return String(b || '').toLowerCase().trim();
 }
 
 function cleanName(name) {
