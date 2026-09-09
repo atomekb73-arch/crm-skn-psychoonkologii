@@ -40,6 +40,7 @@ import { getRecordKey } from './utils/helpers';
 import { getAcademicYearKey } from './utils/academicYear';
 import { getCanonicalMeetingsForOrg, filterLegitimateMeetings } from './utils/canonicalMeetings';
 import { getMeetingType, calculateCategorizedFrequency } from './utils/meetingTypes';
+import { isMemberActive, isMemberGuest, isMemberInactive, isMemberArchived, hasMailingConsent } from './utils/memberFilters';
 import {
   createOrgSnapshot,
   getBlacklistedMembers,
@@ -1408,21 +1409,7 @@ export default function App() {
   }, [currentOrg?.id]);
 
   const membersMetrics = useMemo(() => {
-    const isGuest = (m) => {
-      const s = String(m?.status || '').toLowerCase().trim();
-      return s === 'guest' || s === 'gość' || s === 'gosc' || s === 'wolny słuchacz';
-    };
-    const isInactive = (m) => {
-      const s = String(m?.status || '').toLowerCase().trim();
-      return s === 'resigned' || s === 'inactive' || s === 'nieaktywny' || s === 'rezygnacja' || s === 'były' || s === 'byly';
-    };
-    const isActive = (m) => {
-      if (!m) return false;
-      if (isMemberBlacklisted(m, blacklist)) return false;
-      return !isGuest(m) && !isInactive(m) && !m?.isArchived && m?.status !== 'archived';
-    };
-
-    const activeMembersList = members.filter(m => isActive(m));
+    const activeMembersList = members.filter(m => isMemberActive(m));
     const activeCount = activeMembersList.length;
     const safeMeetings = Array.isArray(meetings) ? meetings : [];
     const isSknSeks = currentOrg?.id === 'skn_seksuologii';
@@ -1472,7 +1459,7 @@ export default function App() {
       }
 
       const email = (m?.email || '').trim().toLowerCase();
-      if (email && email.includes('@') && m?.zgodaNaMailing === 'Zgoda na mailing' && !seenEmails.has(email)) {
+      if (email && email.includes('@') && hasMailingConsent(m) && !seenEmails.has(email)) {
         seenEmails.add(email);
         consentsCount++;
       }
@@ -1486,7 +1473,7 @@ export default function App() {
       certReady: certReadyCount,
       mailingConsentsCount: consentsCount,
     };
-  }, [members, meetings, customMeetingTypes, blacklist, currentOrg?.id]);
+  }, [members, meetings, customMeetingTypes, currentOrg?.id]);
 
   const syncLabel = lastSync
     ? lastSync.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })

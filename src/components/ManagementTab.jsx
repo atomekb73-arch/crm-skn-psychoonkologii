@@ -34,6 +34,7 @@ import { useSettings } from '../context/SettingsContext';
 import { useOrg } from '../context/OrgContext';
 import { getOfficialMemberRecord, getMemberStats, activityRegistry } from '../utils/activityRegistry';
 import { getBlacklistedMembers, addMemberToBlacklist, isMemberBlacklisted } from '../utils/storage';
+import { isMemberActive, isMemberGuest, isMemberInactive, isMemberArchived, isMemberPending, isMemberDeleted, hasMailingConsent } from '../utils/memberFilters';
 import EditMemberModal from './EditMemberModal';
 import CertificateModal from './CertificateModal';
 
@@ -213,51 +214,21 @@ export default function ManagementTab({
     return parsedPoints || 0;
   };
 
-  const isGuest = (m) => {
-    const s = String(m?.statusWeryfikacji || m?.status || '').toLowerCase().trim();
-    return s === 'gosc' || s === 'gość' || s === 'guest' || s === 'wolny słuchacz';
-  };
-
-  const isInactive = (m) => {
-    const s = String(m?.statusWeryfikacji || m?.status || '').toLowerCase().trim();
-    return s === 'nieaktywny' || s === 'resigned' || s === 'inactive' || s === 'rezygnacja' || s === 'były' || s === 'byly';
-  };
-
-  const isArchived = (m) => {
-    const s = String(m?.statusWeryfikacji || m?.status || '').toLowerCase().trim();
-    return s === 'archiwum' || s === 'archived' || s === 'odrzucony' || s === 'czarna lista' || m?.isArchived;
-  };
-
-  const isPending = (m) => {
-    const s = String(m?.statusWeryfikacji || m?.status || '').toLowerCase().trim();
-    return s === 'oczekuje' || s === 'pending' || s === 'kwarantanna' || s === 'oczekiwanie 💬';
-  };
-
-  const isDeleted = (m) => {
-    const s = String(m?.statusWeryfikacji || m?.status || '').toLowerCase().trim();
-    return s === 'usuniety' || s === 'usunięty' || s === 'deleted';
-  };
-
-  const isActive = (m) => {
-    if (!m || isDeleted(m) || isArchived(m) || isPending(m) || isGuest(m) || isInactive(m)) return false;
-    return true;
-  };
-
   // ── Active vs Guests vs Resigned vs Graduates vs Archived Calculations ───────────
   const activeMembers = useMemo(
-    () => members.filter(m => isActive(m)),
+    () => members.filter(m => isMemberActive(m)),
     [members]
   );
   const guestMembers = useMemo(
-    () => members.filter(m => isGuest(m) && !isArchived(m)),
+    () => members.filter(m => isMemberGuest(m)),
     [members]
   );
   const resignedMembers = useMemo(
-    () => members.filter(m => isInactive(m) && !isArchived(m)),
+    () => members.filter(m => isMemberInactive(m)),
     [members]
   );
   const archivedMembers = useMemo(
-    () => members.filter(m => isArchived(m)),
+    () => members.filter(m => isMemberArchived(m)),
     [members]
   );
   const graduatesList = useMemo(
@@ -273,7 +244,7 @@ export default function ManagementTab({
   const resignedCount = resignedMembers.length;
   const graduatesCount = graduatesList.length;
   const archivedCount = archivedMembers.length;
-  const totalCount = members.filter(m => !isArchived(m) && !isDeleted(m)).length;
+  const totalCount = members.filter(m => !isMemberArchived(m) && !isMemberDeleted(m)).length;
 
   // ── KPI Calculations (ONLY for active members, Safe against NaN%) ────────
   const avgFreq = useMemo(() => {
@@ -304,7 +275,7 @@ export default function ManagementTab({
       const email = (m?.email || '').trim().toLowerCase();
       if (!email || !email.includes('@')) return false;
 
-      const hasConsent = m?.zgodaNaMailing === 'Zgoda na mailing';
+      const hasConsent = hasMailingConsent(m);
 
       if (hasConsent && !seenEmails.has(email)) {
         seenEmails.add(email);
@@ -358,8 +329,8 @@ export default function ManagementTab({
 
       if (key === 'status') {
         const getStatusOrder = (item) => {
-          if (isActive(item)) return 0;
-          if (isGuest(item)) return 1;
+          if (isMemberActive(item)) return 0;
+          if (isMemberGuest(item)) return 1;
           return 2;
         };
         return (getStatusOrder(a) - getStatusOrder(b)) * dir;
@@ -396,8 +367,8 @@ export default function ManagementTab({
       }
 
       if (key === 'mailingConsent') {
-        const aVal = (a?.mailingConsent === true || a?.consent === true || a?.zgoda === true || a?.consentStatus === 'Zgody OK' || String(a?.mailingConsent).toLowerCase() === 'tak') ? 1 : 0;
-        const bVal = (b?.mailingConsent === true || b?.consent === true || b?.zgoda === true || b?.consentStatus === 'Zgody OK' || String(b?.mailingConsent).toLowerCase() === 'tak') ? 1 : 0;
+        const aVal = hasMailingConsent(a) ? 1 : 0;
+        const bVal = hasMailingConsent(b) ? 1 : 0;
         return (aVal - bVal) * dir;
       }
 
@@ -1031,7 +1002,7 @@ export default function ManagementTab({
 
                   {/* Hidden on Print: Mailing Consent */}
                   <td className="w-16 px-2 py-2.5 text-center align-middle whitespace-nowrap print:hidden">
-                    {(m.zgodaNaMailing === 'Zgoda na mailing' || (m.mailingConsent === true && m.zgodaNaMailing !== 'Brak zgody' && m.consentStatus !== 'Brak zgody')) ? (
+                    {hasMailingConsent(m) ? (
                       <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 text-xs font-bold" title="Zgoda na mailing udzielona (Zgoda na mailing)">
                         ✓
                       </span>
