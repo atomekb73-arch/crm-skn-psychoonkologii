@@ -425,11 +425,23 @@ export default function App() {
         const overridden = applyOverride(m);
         const isBlacklisted = isMemberBlacklisted(overridden, blacklist) || isMemberBlacklisted(m, blacklist);
         const isArchived = isBlacklisted || currentArchivedRowIds.has(m.id) || overridden.isArchived || overridden.status === 'archived';
-        const isResigned = currentResignedKeys.has(m.id) || currentResignedKeys.has(overridden.memberKey) || overridden.status === 'resigned';
+        const isResigned = currentResignedKeys.has(m.id) || currentResignedKeys.has(overridden.memberKey) || overridden.status === 'resigned' || overridden.status === 'inactive';
+        const isGuest = overridden.status === 'guest';
+
+        let effectiveStatus = 'active';
+        if (isArchived) {
+          effectiveStatus = 'archived';
+        } else if (isResigned) {
+          effectiveStatus = 'resigned';
+        } else if (isGuest) {
+          effectiveStatus = 'guest';
+        } else if (overridden.status) {
+          effectiveStatus = overridden.status;
+        }
 
         return {
           ...overridden,
-          status: isArchived ? 'archived' : (isResigned ? 'resigned' : (overridden.status || 'active')),
+          status: effectiveStatus,
           isArchived: !!isArchived,
           isBlacklisted: !!isBlacklisted,
         };
@@ -704,12 +716,26 @@ export default function App() {
       )
     );
 
-    const statusLabelMap = {
-      active: 'Aktywny',
-      guest: 'Gość (Wolny słuchacz)',
-      resigned: 'Nieaktywny (Rezygnacja)',
-    };
-    setToastMessage(`Zmieniono status studenta ${member.fullName || member.firstName} na: ${statusLabelMap[targetStatus] || targetStatus}`);
+    // ── Real-time GAS Sync (Single Source of Truth - Kolumna H w Rejestr_Zgloszen) ──
+    const studentIndex = member.nrIndeksu || member.index || member.cleanIndex || '';
+    if (studentIndex) {
+      let gasStatusMapping = "Zatwierdzony";
+      if (targetStatus === 'guest') {
+        gasStatusMapping = "Gosc";
+      } else if (targetStatus === 'resigned' || targetStatus === 'inactive') {
+        gasStatusMapping = "Nieaktywny";
+      } else if (targetStatus === 'archived') {
+        gasStatusMapping = "Archiwum";
+      }
+
+      changeStudentStatusInGAS({
+        nrIndeksu: String(studentIndex).trim(),
+        nowyStatus: gasStatusMapping,
+        zatwierdzajacy: "Zarząd SKN"
+      }).catch(err => console.warn("[handleToggleStatus] Błąd zapisu do GAS:", err));
+    }
+
+    setToastMessage("Zaktualizowano status w bazie Google Sheets");
     setTimeout(() => setToastMessage(null), 4000);
   }
 
@@ -786,8 +812,17 @@ export default function App() {
 
     setQuarantine(prev => prev.filter(q => q.id !== rowId));
 
-    // Powiadomienie Toast
-    setToastMessage(`Przeniesiono do Archiwum i dodano na czarną listę (${member.fullName || member.firstName}).`);
+    // ── Real-time GAS Sync dla Archiwum ──
+    const studentIndex = member.nrIndeksu || member.index || member.cleanIndex || '';
+    if (studentIndex) {
+      changeStudentStatusInGAS({
+        nrIndeksu: String(studentIndex).trim(),
+        nowyStatus: "Archiwum",
+        zatwierdzajacy: "Zarząd SKN"
+      }).catch(err => console.warn("[handleArchiveMember] Błąd archiwizacji w GAS:", err));
+    }
+
+    setToastMessage("Zaktualizowano status w bazie Google Sheets");
     setTimeout(() => setToastMessage(null), 4000);
   }
 
@@ -804,11 +839,25 @@ export default function App() {
 
     setMembers(prev =>
       prev.map(m =>
-        memberIds.includes(m.id) ? { ...m, status: 'resigned' } : m
+        memberIds.includes(m.id)
+          ? { ...m, status: 'resigned' }
+          : m
       )
     );
 
-    setToastMessage(`Oznaczono ${memberIds.length} absolwentów jako byłych członków koła.`);
+    // Sync each graduate to GAS as Nieaktywny
+    targetMembers.forEach(m => {
+      const studentIndex = m.nrIndeksu || m.index || m.cleanIndex || '';
+      if (studentIndex) {
+        changeStudentStatusInGAS({
+          nrIndeksu: String(studentIndex).trim(),
+          nowyStatus: "Nieaktywny",
+          zatwierdzajacy: "Zarząd SKN"
+        }).catch(err => console.warn("[handleBulkMarkGraduates] Błąd zapisu do GAS:", err));
+      }
+    });
+
+    setToastMessage("Zaktualizowano status w bazie Google Sheets");
     setTimeout(() => setToastMessage(null), 4000);
   }
 
@@ -846,7 +895,19 @@ export default function App() {
       ...prev.filter(a => !memberIds.includes(a.id)),
     ]);
 
-    setToastMessage(`Przeniesiono ${memberIds.length} absolwentów do Archiwum.`);
+    // Sync each archived graduate to GAS as Archiwum
+    targetMembers.forEach(m => {
+      const studentIndex = m.nrIndeksu || m.index || m.cleanIndex || '';
+      if (studentIndex) {
+        changeStudentStatusInGAS({
+          nrIndeksu: String(studentIndex).trim(),
+          nowyStatus: "Archiwum",
+          zatwierdzajacy: "Zarząd SKN"
+        }).catch(err => console.warn("[handleBulkArchiveGraduates] Błąd zapisu do GAS:", err));
+      }
+    });
+
+    setToastMessage("Zaktualizowano status w bazie Google Sheets");
     setTimeout(() => setToastMessage(null), 4000);
   }
 

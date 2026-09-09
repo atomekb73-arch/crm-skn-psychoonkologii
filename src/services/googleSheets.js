@@ -63,7 +63,7 @@ export async function fetchGasData() {
 
 export async function updateVerificationStatus(nrIndeksu, nowyStatus = "Zatwierdzony") {
   return await sendToGAS({
-    action: "zmien_status",
+    action: "zmien_status_czlonka",
     nrIndeksu: String(nrIndeksu).trim(),
     nowyStatus: nowyStatus,
     zatwierdzajacy: "Zarząd SKN"
@@ -71,7 +71,12 @@ export async function updateVerificationStatus(nrIndeksu, nowyStatus = "Zatwierd
 }
 
 export async function changeStudentStatusInGAS({ nrIndeksu, nowyStatus = "Zatwierdzony", zatwierdzajacy = "Zarząd SKN" }) {
-  return updateVerificationStatus(nrIndeksu, nowyStatus);
+  return await sendToGAS({
+    action: "zmien_status_czlonka",
+    nrIndeksu: String(nrIndeksu).trim(),
+    nowyStatus: nowyStatus,
+    zatwierdzajacy: zatwierdzajacy
+  });
 }
 
 /**
@@ -598,6 +603,20 @@ export async function fetchAllData(sheetId = SHEET_ID) {
         ? gasData.czlonkowie
         : ((gasData && Array.isArray(gasData.data) && gasData.data.length > 0) ? gasData.data : null);
 
+function mapVerificationStatus(rawStatus) {
+  const s = String(rawStatus || '').toLowerCase().trim();
+  if (s === 'nieaktywny' || s === 'rezygnacja' || s === 'resigned' || s === 'inactive' || s === 'były' || s === 'byly') {
+    return 'resigned';
+  }
+  if (s === 'gosc' || s === 'gość' || s === 'guest' || s === 'wolny słuchacz') {
+    return 'guest';
+  }
+  if (s === 'archiwum' || s === 'archived' || s === 'odrzucony' || s === 'czarna lista') {
+    return 'archived';
+  }
+  return 'active';
+}
+
       if (gasMembersRaw && gasMembersRaw.length > 0) {
         const mappedGasMembers = gasMembersRaw.map((item, index) => {
           // Obsługa obiektu lub surowego wiersza z GAS
@@ -613,6 +632,8 @@ export async function fetchAllData(sheetId = SHEET_ID) {
             const parts = imieNazwisko.split(' ');
             const firstName = parts[0] || '';
             const lastName = parts.slice(1).join(' ') || '';
+            const memberStatus = mapVerificationStatus(statusWeryfikacji);
+            const isArchived = memberStatus === 'archived';
 
             return {
               id: `psy_m_gas_${index + 1}`,
@@ -628,7 +649,9 @@ export async function fetchAllData(sheetId = SHEET_ID) {
               phone,
               field: kierunekSemestr || 'Psychologia',
               year: kierunekSemestr || '',
-              status: statusWeryfikacji === 'Archiwum' ? 'archived' : (statusWeryfikacji === 'Rezygnacja' ? 'resigned' : 'active'),
+              status: memberStatus,
+              isArchived: isArchived,
+              isBlacklisted: isArchived,
               mailingConsent: zgodaMailing === 'Zgoda na mailing' || zgodaMailing === 'true' || zgodaMailing === true,
               zgodaNaMailing: zgodaMailing || 'Zgoda na mailing',
               consentStatus: (zgodaMailing === 'Zgoda na mailing' || zgodaMailing === 'true' || zgodaMailing === true) ? 'Zgody OK' : 'Brak zgody',
@@ -653,6 +676,8 @@ export async function fetchAllData(sheetId = SHEET_ID) {
           const parts = imieNazwisko.split(' ');
           const firstName = parts[0] || '';
           const lastName = parts.slice(1).join(' ') || '';
+          const memberStatus = mapVerificationStatus(statusWeryfikacji);
+          const isArchived = memberStatus === 'archived';
 
           return {
             id: `psy_m_gas_${index + 1}`,
@@ -668,7 +693,9 @@ export async function fetchAllData(sheetId = SHEET_ID) {
             phone,
             field: kierunekSemestr || 'Psychologia',
             year: kierunekSemestr || '',
-            status: (statusWeryfikacji === 'Archiwum' || statusWeryfikacji === 'archived') ? 'archived' : ((statusWeryfikacji === 'Rezygnacja' || statusWeryfikacji === 'resigned') ? 'resigned' : 'active'),
+            status: memberStatus,
+            isArchived: isArchived,
+            isBlacklisted: isArchived,
             mailingConsent: Boolean(item.mailingConsent || zgodaMailing === 'Zgoda na mailing' || zgodaMailing === 'true' || zgodaMailing === true),
             zgodaNaMailing: (Boolean(item.mailingConsent || zgodaMailing === 'Zgoda na mailing' || zgodaMailing === 'true' || zgodaMailing === true)) ? 'Zgoda na mailing' : 'Brak zgody',
             consentStatus: (Boolean(item.mailingConsent || zgodaMailing === 'Zgoda na mailing' || zgodaMailing === 'true' || zgodaMailing === true)) ? 'Zgody OK' : 'Brak zgody',
