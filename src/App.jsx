@@ -1144,64 +1144,105 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 4000);
   }
 
-  function handleRestoreArchive(id) {
-    const cleanId = String(id || '').trim();
-    const entry = archivedQuarantine.find(a =>
-      String(a.id) === cleanId ||
-      String(a.nrIndeksu || '').trim() === cleanId ||
-      String(a.cleanIndex || '').trim() === cleanId ||
-      String(a.index || '').trim() === cleanId ||
-      String(a.memberKey || '').trim() === cleanId
-    );
-    if (!entry) return;
+  async function handleRestoreArchive(idOrStudent) {
+    const cleanId = typeof idOrStudent === 'object' && idOrStudent !== null
+      ? String(idOrStudent.nrIndeksu || idOrStudent.index || idOrStudent.cleanIndex || idOrStudent.id || '').trim()
+      : String(idOrStudent || '').trim();
 
-    const rowId = entry.id;
-    const newKeys = archivedRowIds.filter(k => k !== rowId && k !== cleanId);
+    const entry = (typeof idOrStudent === 'object' && idOrStudent !== null)
+      ? idOrStudent
+      : archivedQuarantine.find(a =>
+          String(a.id) === cleanId ||
+          String(a.nrIndeksu || '').trim() === cleanId ||
+          String(a.cleanIndex || '').trim() === cleanId ||
+          String(a.index || '').trim() === cleanId ||
+          String(a.memberKey || '').trim() === cleanId
+        ) || members.find(m =>
+          String(m.id) === cleanId ||
+          String(m.nrIndeksu || '').trim() === cleanId ||
+          String(m.cleanIndex || '').trim() === cleanId ||
+          String(m.index || '').trim() === cleanId
+        ) || quarantine.find(q =>
+          String(q.id) === cleanId ||
+          String(q.nrIndeksu || '').trim() === cleanId ||
+          String(q.cleanIndex || '').trim() === cleanId ||
+          String(q.index || '').trim() === cleanId
+        );
+
+    if (!entry) {
+      console.warn("[handleRestoreArchive] Nie znaleziono wpisu:", idOrStudent);
+      return;
+    }
+
+    const indexToRestore = String(entry.nrIndeksu || entry.index || entry.cleanIndex || entry.id || cleanId || '').trim();
+    const rowId = entry.id || cleanId;
+
+    const newKeys = archivedRowIds.filter(k => k !== rowId && k !== cleanId && k !== indexToRestore);
     setArchivedRowIds(newKeys);
     localStorage.setItem(getStorageKey('crm_archived_row_ids'), JSON.stringify(newKeys));
 
     // Remove from blacklist so student is not re-archived
     removeMemberFromBlacklist(currentOrg?.id || 'default', entry.id);
     if (entry.email) removeMemberFromBlacklist(currentOrg?.id || 'default', entry.email);
-    if (entry.cleanIndex || entry.index || entry.nrIndeksu) {
-      removeMemberFromBlacklist(currentOrg?.id || 'default', entry.cleanIndex || entry.index || entry.nrIndeksu);
+    if (indexToRestore) {
+      removeMemberFromBlacklist(currentOrg?.id || 'default', indexToRestore);
     }
-    if (entry.fullName) removeMemberFromBlacklist(currentOrg?.id || 'default', entry.fullName);
+    if (entry.fullName || entry.name) removeMemberFromBlacklist(currentOrg?.id || 'default', entry.fullName || entry.name);
 
     // Clear overrides for isArchived
     const currentOverrides = JSON.parse(localStorage.getItem(getStorageKey('crm_custom_overrides')) || '{}');
     if (currentOverrides[rowId]) {
       delete currentOverrides[rowId].isArchived;
       delete currentOverrides[rowId].isBlacklisted;
-      currentOverrides[rowId].status = 'quarantine';
+      currentOverrides[rowId].status = 'active';
     }
     if (entry.memberKey && currentOverrides[entry.memberKey]) {
       delete currentOverrides[entry.memberKey].isArchived;
       delete currentOverrides[entry.memberKey].isBlacklisted;
-      currentOverrides[entry.memberKey].status = 'quarantine';
+      currentOverrides[entry.memberKey].status = 'active';
     }
     localStorage.setItem(getStorageKey('crm_custom_overrides'), JSON.stringify(currentOverrides));
 
-    const restoredEntry = { ...entry, isArchived: false, isBlacklisted: false, status: 'quarantine' };
-    setQuarantine(prev => [restoredEntry, ...prev.filter(q => q.id !== rowId)]);
-    setArchivedQuarantine(prev => prev.filter(a => a.id !== rowId && a.id !== cleanId));
+    const restoredMember = {
+      ...entry,
+      isArchived: false,
+      isBlacklisted: false,
+      status: 'active',
+      statusWeryfikacji: 'Zatwierdzony'
+    };
 
-    const studentIndex = entry.nrIndeksu || entry.index || entry.cleanIndex || cleanId.replace(/\D/g, '') || '';
-    if (studentIndex) {
-      changeStudentStatusInGAS({
-        nrIndeksu: String(studentIndex).trim(),
-        nowyStatus: "Oczekuje",
-        zatwierdzajacy: "Zarząd SKN"
-      }).catch(err => console.warn("[handleRestoreArchive] Błąd zapisu do GAS:", err));
-    }
+    // Optimistic state updates:
+    setArchivedQuarantine(prev => prev.filter(a => a.id !== rowId && a.id !== cleanId && String(a.nrIndeksu || a.index || a.id).trim() !== indexToRestore));
+    setMembers(prev => {
+      const exists = prev.some(m => m.id === rowId || String(m.nrIndeksu || m.index || m.id).trim() === indexToRestore);
+      if (exists) {
+        return prev.map(m => (m.id === rowId || String(m.nrIndeksu || m.index || m.id).trim() === indexToRestore) ? restoredMember : m);
+      }
+      return [restoredMember, ...prev];
+    });
+    setQuarantine(prev => prev.filter(q => q.id !== rowId && String(q.nrIndeksu || q.index || q.id).trim() !== indexToRestore));
 
-    setToastMessage("Zapisano status w arkuszu Google");
+    setToastMessage("Przywrócono studenta do listy aktywnych");
     setTimeout(() => setToastMessage(null), 4000);
+
+    if (indexToRestore) {
+      setCloudSyncStatus('saving');
+      changeStudentStatusInGAS({
+        nrIndeksu: indexToRestore,
+        nowyStatus: "Aktywny",
+        zatwierdzajacy: "Zarząd SKN"
+      })
+      .then(() => setCloudSyncStatus('synced'))
+      .catch(err => {
+        console.warn("[handleRestoreArchive] Błąd zapisu do GAS:", err);
+        setCloudSyncStatus('error');
+      });
+    }
   }
 
-  function handleBulkRestoreArchive(ids) {
+  async function handleBulkRestoreArchive(ids) {
     if (!ids || ids.length === 0) return;
-    const idSet = new Set(ids.map(i => String(i).trim()));
+    const idSet = new Set(ids.map(i => String(i || '').trim()));
 
     const entriesToRestore = archivedQuarantine.filter(a =>
       idSet.has(String(a.id)) ||
@@ -1213,19 +1254,23 @@ export default function App() {
     if (entriesToRestore.length === 0) return;
 
     const restoredRowIds = new Set(entriesToRestore.map(e => e.id));
-    const newKeys = archivedRowIds.filter(k => !restoredRowIds.has(k) && !idSet.has(k));
+    const restoredIndexSet = new Set(
+      entriesToRestore.map(e => String(e.nrIndeksu || e.index || e.cleanIndex || '').trim()).filter(Boolean)
+    );
+    const newKeys = archivedRowIds.filter(k => !restoredRowIds.has(k) && !idSet.has(k) && !restoredIndexSet.has(k));
     setArchivedRowIds(newKeys);
     localStorage.setItem(getStorageKey('crm_archived_row_ids'), JSON.stringify(newKeys));
 
     const currentOverrides = JSON.parse(localStorage.getItem(getStorageKey('crm_custom_overrides')) || '{}');
 
     entriesToRestore.forEach(e => {
+      const studentIndex = String(e.nrIndeksu || e.index || e.cleanIndex || e.id || '').trim();
       removeMemberFromBlacklist(currentOrg?.id || 'default', e.id);
       if (e.email) removeMemberFromBlacklist(currentOrg?.id || 'default', e.email);
-      if (e.cleanIndex || e.index || e.nrIndeksu) {
-        removeMemberFromBlacklist(currentOrg?.id || 'default', e.cleanIndex || e.index || e.nrIndeksu);
+      if (studentIndex) {
+        removeMemberFromBlacklist(currentOrg?.id || 'default', studentIndex);
       }
-      if (e.fullName) removeMemberFromBlacklist(currentOrg?.id || 'default', e.fullName);
+      if (e.fullName || e.name) removeMemberFromBlacklist(currentOrg?.id || 'default', e.fullName || e.name);
 
       if (currentOverrides[e.id]) {
         delete currentOverrides[e.id].isArchived;
@@ -1237,56 +1282,95 @@ export default function App() {
         delete currentOverrides[e.memberKey].isBlacklisted;
         currentOverrides[e.memberKey].status = 'quarantine';
       }
-
-      const studentIndex = e.nrIndeksu || e.index || e.cleanIndex || '';
-      if (studentIndex) {
-        changeStudentStatusInGAS({
-          nrIndeksu: String(studentIndex).trim(),
-          nowyStatus: "Oczekuje",
-          zatwierdzajacy: "Zarząd SKN"
-        }).catch(err => console.warn("[handleBulkRestoreArchive] Błąd zapisu do GAS:", err));
-      }
     });
 
     localStorage.setItem(getStorageKey('crm_custom_overrides'), JSON.stringify(currentOverrides));
 
-    const restoredList = entriesToRestore.map(e => ({ ...e, isArchived: false, isBlacklisted: false, status: 'quarantine' }));
+    const restoredList = entriesToRestore.map(e => ({
+      ...e,
+      isArchived: false,
+      isBlacklisted: false,
+      status: 'quarantine',
+      statusWeryfikacji: 'Oczekuje'
+    }));
     setQuarantine(prev => [...restoredList, ...prev.filter(q => !restoredRowIds.has(q.id))]);
-    setArchivedQuarantine(prev => prev.filter(a => !restoredRowIds.has(a.id)));
+    setArchivedQuarantine(prev => prev.filter(a => !restoredRowIds.has(a.id) && !restoredIndexSet.has(String(a.nrIndeksu || a.index || a.cleanIndex || '').trim())));
 
-    setToastMessage("Zapisano status w arkuszu Google");
+    setToastMessage(`Przywrócono ${entriesToRestore.length} rekordów do Kwarantanny`);
     setTimeout(() => setToastMessage(null), 4000);
+
+    setCloudSyncStatus('saving');
+    try {
+      await Promise.all(
+        entriesToRestore.map(e => {
+          const studentIndex = String(e.nrIndeksu || e.index || e.cleanIndex || e.id || '').trim();
+          if (!studentIndex) return Promise.resolve();
+          return changeStudentStatusInGAS({
+            nrIndeksu: studentIndex,
+            nowyStatus: "Oczekuje",
+            zatwierdzajacy: "Zarząd SKN"
+          });
+        })
+      );
+      setCloudSyncStatus('synced');
+    } catch (err) {
+      console.warn("[handleBulkRestoreArchive] Błąd zapisu do GAS:", err);
+      setCloudSyncStatus('error');
+    }
   }
 
-  function handlePermanentDeleteArchive(id) {
-    const cleanId = String(id || '').trim();
-    const entry = archivedQuarantine.find(a =>
-      String(a.id) === cleanId ||
-      String(a.nrIndeksu || '').trim() === cleanId ||
-      String(a.cleanIndex || '').trim() === cleanId ||
-      String(a.index || '').trim() === cleanId ||
-      String(a.memberKey || '').trim() === cleanId
-    );
-    if (!entry) return;
+  async function handlePermanentDeleteArchive(idOrStudent) {
+    const cleanId = typeof idOrStudent === 'object' && idOrStudent !== null
+      ? String(idOrStudent.nrIndeksu || idOrStudent.index || idOrStudent.cleanIndex || idOrStudent.id || '').trim()
+      : String(idOrStudent || '').trim();
 
-    const rowId = entry.id;
-    const newKeys = archivedRowIds.filter(k => k !== rowId && k !== cleanId);
+    const entry = (typeof idOrStudent === 'object' && idOrStudent !== null)
+      ? idOrStudent
+      : archivedQuarantine.find(a =>
+          String(a.id) === cleanId ||
+          String(a.nrIndeksu || '').trim() === cleanId ||
+          String(a.cleanIndex || '').trim() === cleanId ||
+          String(a.index || '').trim() === cleanId ||
+          String(a.memberKey || '').trim() === cleanId
+        ) || members.find(m =>
+          String(m.id) === cleanId ||
+          String(m.nrIndeksu || '').trim() === cleanId ||
+          String(m.cleanIndex || '').trim() === cleanId ||
+          String(m.index || '').trim() === cleanId
+        ) || quarantine.find(q =>
+          String(q.id) === cleanId ||
+          String(q.nrIndeksu || '').trim() === cleanId ||
+          String(q.cleanIndex || '').trim() === cleanId ||
+          String(q.index || '').trim() === cleanId
+        );
+
+    const indexToDelete = String(entry?.nrIndeksu || entry?.index || entry?.cleanIndex || cleanId.replace(/\D/g, '') || cleanId || '').trim();
+    const rowId = entry ? entry.id : cleanId;
+
+    const newKeys = archivedRowIds.filter(k => k !== rowId && k !== cleanId && k !== indexToDelete);
     setArchivedRowIds(newKeys);
     localStorage.setItem(getStorageKey('crm_archived_row_ids'), JSON.stringify(newKeys));
 
-    setArchivedQuarantine(prev => prev.filter(a => a.id !== rowId && a.id !== cleanId));
+    setArchivedQuarantine(prev => prev.filter(a => a.id !== rowId && a.id !== cleanId && String(a.nrIndeksu || a.index || a.id).trim() !== indexToDelete));
+    setMembers(prev => prev.filter(m => m.id !== rowId && m.id !== cleanId && String(m.nrIndeksu || m.index || m.id).trim() !== indexToDelete));
+    setQuarantine(prev => prev.filter(q => q.id !== rowId && q.id !== cleanId && String(q.nrIndeksu || q.index || q.id).trim() !== indexToDelete));
 
-    const studentIndex = entry.nrIndeksu || entry.index || entry.cleanIndex || cleanId.replace(/\D/g, '') || '';
-    if (studentIndex) {
+    setToastMessage("Trwale usunięto wpis z rejestru");
+    setTimeout(() => setToastMessage(null), 4000);
+
+    if (indexToDelete) {
+      setCloudSyncStatus('saving');
       changeStudentStatusInGAS({
-        nrIndeksu: String(studentIndex).trim(),
+        nrIndeksu: indexToDelete,
         nowyStatus: "Usuniety",
         zatwierdzajacy: "Zarząd SKN"
-      }).catch(err => console.warn("[handlePermanentDeleteArchive] Błąd zapisu do GAS:", err));
+      })
+      .then(() => setCloudSyncStatus('synced'))
+      .catch(err => {
+        console.warn("[handlePermanentDeleteArchive] Błąd zapisu do GAS:", err);
+        setCloudSyncStatus('error');
+      });
     }
-
-    setToastMessage("Zapisano status w arkuszu Google");
-    setTimeout(() => setToastMessage(null), 4000);
   }
 
   // ── Mark attendance ─────────────────────────────────────────────────────────

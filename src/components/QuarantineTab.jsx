@@ -1371,7 +1371,8 @@ export default function QuarantineTab({
                         <div className="inline-flex items-center justify-end gap-2">
                           <button
                             onClick={() => {
-                              onRestoreArchive(String(a.nrIndeksu || a.index || a.cleanIndex || a.id));
+                              const indexToRestore = String(a.nrIndeksu || a.index || a.cleanIndex || a.id || "").trim();
+                              onRestoreArchive(indexToRestore || a.id);
                               setSelectedArchiveIds(prev => prev.filter(id => id !== a.id));
                             }}
                             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-semibold border border-amber-200 transition-colors cursor-pointer"
@@ -1381,8 +1382,9 @@ export default function QuarantineTab({
                           </button>
                           <button
                             onClick={() => {
-                              if (window.confirm("Czy na pewno chcesz bezpowrotnie usunąć ten wpis z rejestru?")) {
-                                onPermanentDeleteArchive(String(a.nrIndeksu || a.index || a.cleanIndex || a.id));
+                              if (window.confirm("Czy na pewno chcesz trwale usunąć ten wpis?")) {
+                                const indexToDelete = String(a.nrIndeksu || a.index || a.cleanIndex || a.id || "").trim();
+                                onPermanentDeleteArchive(indexToDelete || a.id);
                                 setSelectedArchiveIds(prev => prev.filter(id => id !== a.id));
                               }
                             }}
