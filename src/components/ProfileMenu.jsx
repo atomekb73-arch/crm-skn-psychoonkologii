@@ -385,10 +385,12 @@ export default function ProfileMenu({ onOpenSettings }) {
                 <div className="relative">
                   <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
+                    name="profile_current_code"
                     type={showCurrentPassword ? 'text' : 'password'}
                     required
                     autoFocus
                     autoComplete="current-password"
+                    data-lpignore="true"
                     spellCheck="false"
                     value={currentPassword}
                     onChange={e => setCurrentPassword(e.target.value)}
@@ -414,9 +416,11 @@ export default function ProfileMenu({ onOpenSettings }) {
                 <div className="relative">
                   <KeyRound size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
+                    name="profile_new_code"
                     type={showNewPassword ? 'text' : 'password'}
                     required
                     autoComplete="new-password"
+                    data-lpignore="true"
                     spellCheck="false"
                     value={newPassword}
                     onChange={e => setNewPassword(e.target.value)}
@@ -442,9 +446,11 @@ export default function ProfileMenu({ onOpenSettings }) {
                 <div className="relative">
                   <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
+                    name="profile_confirm_code"
                     type={showConfirmPassword ? 'text' : 'password'}
                     required
                     autoComplete="new-password"
+                    data-lpignore="true"
                     spellCheck="false"
                     value={confirmPassword}
                     onChange={e => setConfirmPassword(e.target.value)}

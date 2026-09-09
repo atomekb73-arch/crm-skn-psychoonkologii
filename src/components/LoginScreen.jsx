@@ -185,9 +185,9 @@ export default function LoginScreen() {
                   {step === 'activate' && 'Pierwsze Logowanie'}
                 </h2>
                 <p className="text-[11px] text-slate-500">
-                  {step === 'email' && 'Wprowadź swój uczelniany adres e-mail'}
-                  {step === 'password' && 'Podaj swoje hasło dostępowe'}
-                  {step === 'activate' && 'Nadaj swoje hasło dostępowe'}
+                  {step === 'email' && 'Wprowadź identyfikator lub uczelniany adres e-mail'}
+                  {step === 'password' && 'Podaj kod dostępu do systemu'}
+                  {step === 'activate' && 'Nadaj swój kod dostępu'}
                 </p>
               </div>
             </div>
@@ -209,28 +209,30 @@ export default function LoginScreen() {
             </div>
           )}
 
-          {/* ──────────────── STEP 1: EMAIL INPUT ──────────────── */}
+          {/* ──────────────── STEP 1: IDENTIFIER / EMAIL INPUT ──────────────── */}
           {step === 'email' && (
             <form onSubmit={handleEmailSubmit} autoComplete="off" className="space-y-4">
               <div className="space-y-1.5">
-                <label htmlFor="auth-email" className="block text-xs font-bold text-slate-700">
-                  Adres e-mail
+                <label htmlFor="skn_user_login" className="block text-xs font-bold text-slate-700">
+                  Identyfikator Zarządu / E-mail
                 </label>
                 <div className="relative">
                   <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
-                    id="auth-email"
-                    type="email"
+                    id="skn_user_login"
+                    name="skn_user_login"
+                    type="text"
                     required
                     autoFocus
                     autoComplete="off"
+                    data-lpignore="true"
                     spellCheck="false"
                     value={email}
                     onChange={(e) => {
                       setEmail(e.target.value);
                       setError(null);
                     }}
-                    placeholder="np. zarzad.psychoonkologia@wskz.pl"
+                    placeholder="np. zarzad.psychoonkologia@wskz.pl lub identyfikator"
                     className="w-full pl-10 pr-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-purple-400 focus:border-purple-400 outline-none transition font-medium text-slate-800"
                   />
                 </div>
@@ -273,21 +275,23 @@ export default function LoginScreen() {
 
               {/* Password field */}
               <div className="space-y-1.5">
-                <label htmlFor="auth-password" className="block text-xs font-bold text-slate-700">
-                  Hasło dostępowe
+                <label htmlFor="app_access_code" className="block text-xs font-bold text-slate-700">
+                  Kod dostępu
                 </label>
                 <div className="relative">
                   <KeyRound size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
-                    id="auth-password"
+                    id="app_access_code"
+                    name="app_access_code"
                     type={showPassword ? 'text' : 'password'}
                     required
                     autoFocus
-                    autoComplete="current-password"
+                    autoComplete="new-password"
+                    data-lpignore="true"
                     spellCheck="false"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Wprowadź swoje hasło..."
+                    placeholder="Wprowadź kod dostępu..."
                     className="w-full pl-10 pr-10 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-purple-400 focus:border-purple-400 outline-none transition font-medium text-slate-800 font-mono"
                   />
                   <button
@@ -323,7 +327,7 @@ export default function LoginScreen() {
                 className="w-full py-1 text-xs text-slate-500 hover:text-slate-800 flex items-center justify-center gap-1 cursor-pointer"
               >
                 <ArrowLeft size={13} />
-                <span>Wróć do wpisywania e-maila</span>
+                <span>Wróć do wyboru konta</span>
               </button>
             </form>
           )}
@@ -350,23 +354,25 @@ export default function LoginScreen() {
                   Witaj, {verifiedUser?.name || 'Użytkowniku'}!
                 </p>
                 <p className="text-[11px] text-amber-800/90 leading-relaxed">
-                  Twoje konto zostało dodane przez Zarząd. Ustaw swoje własne, unikalne hasło dostępowe, aby wejść do CRM.
+                  Twoje konto zostało dodane przez Zarząd. Ustaw swój własny, unikalny kod dostępu, aby wejść do CRM.
                 </p>
               </div>
 
               {/* New Password field */}
               <div className="space-y-1.5">
-                <label htmlFor="activate-password" className="block text-xs font-bold text-slate-700">
-                  Wpisz hasło
+                <label htmlFor="app_access_code_new" className="block text-xs font-bold text-slate-700">
+                  Wpisz kod dostępu
                 </label>
                 <div className="relative">
                   <KeyRound size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
-                    id="activate-password"
+                    id="app_access_code_new"
+                    name="app_access_code_new"
                     type={showNewPassword ? 'text' : 'password'}
                     required
                     autoFocus
                     autoComplete="new-password"
+                    data-lpignore="true"
                     spellCheck="false"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
@@ -386,20 +392,22 @@ export default function LoginScreen() {
 
               {/* Confirm Password field */}
               <div className="space-y-1.5">
-                <label htmlFor="activate-confirm-password" className="block text-xs font-bold text-slate-700">
-                  Powtórz hasło
+                <label htmlFor="app_access_code_confirm" className="block text-xs font-bold text-slate-700">
+                  Powtórz kod dostępu
                 </label>
                 <div className="relative">
                   <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
-                    id="activate-confirm-password"
+                    id="app_access_code_confirm"
+                    name="app_access_code_confirm"
                     type={showConfirmPassword ? 'text' : 'password'}
                     required
                     autoComplete="new-password"
+                    data-lpignore="true"
                     spellCheck="false"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Wpisz ponownie to samo hasło..."
+                    placeholder="Wpisz ponownie ten sam kod dostępu..."
                     className="w-full pl-10 pr-10 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-amber-400 outline-none transition font-medium text-slate-800 font-mono"
                   />
                   <button
@@ -433,7 +441,7 @@ export default function LoginScreen() {
                     <div className="w-3 h-3 rounded-full border border-slate-300" />
                   )}
                   <span className={passwordsMatch ? 'text-emerald-700 font-semibold' : 'text-slate-500'}>
-                    Hasła są identyczne
+                    Kody dostępu są identyczne
                   </span>
                 </div>
               </div>
@@ -445,10 +453,10 @@ export default function LoginScreen() {
                 className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.99]"
               >
                 {loading ? (
-                  <span>Zapisywanie hasła…</span>
+                  <span>Zapisywanie kodu dostępu…</span>
                 ) : (
                   <>
-                    <span>Zapisz hasło i wejdź</span>
+                    <span>Zapisz kod dostępu i wejdź</span>
                     <ArrowRight size={15} />
                   </>
                 )}
@@ -460,7 +468,7 @@ export default function LoginScreen() {
                 className="w-full py-1 text-xs text-slate-500 hover:text-slate-800 flex items-center justify-center gap-1 cursor-pointer"
               >
                 <ArrowLeft size={13} />
-                <span>Wróć do wpisywania e-maila</span>
+                <span>Wróć do wyboru konta</span>
               </button>
             </form>
           )}
@@ -468,9 +476,11 @@ export default function LoginScreen() {
         </div>
 
         {/* Footer info */}
-        <div className="text-center text-[11px] text-purple-200/50 space-y-1">
-          <p>Instytut Psychologii WSKZ • Bezpieczne połączenie szyfrowane</p>
-          <p className="text-[10px]">W razie trudności z logowaniem zgłoś się do administratora koła.</p>
+        <div className="text-center text-[11px] text-purple-200/60 space-y-1">
+          <p className="font-medium">
+            Wewnętrzny system ewidencyjny SKN Psychoonkologii WSKZ • Dostęp autoryzowany wyłącznie dla Członków Zarządu
+          </p>
+          <p className="text-[10px] text-purple-200/40">Instytut Psychologii WSKZ • Bezpieczne połączenie szyfrowane</p>
         </div>
 
       </div>
