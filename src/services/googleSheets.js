@@ -13,8 +13,9 @@ export function extractSheetId(input) {
 const envSheetInput = import.meta.env?.VITE_GOOGLE_SHEET_ID || import.meta.env?.VITE_SHEETS_URL;
 export const SHEET_ID = envSheetInput ? extractSheetId(envSheetInput) : '1HbpVQkKdtKqsg0Ew5d3AigZBq-wvQYmJ-vpSIIWLFpg';
 
-export const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyEDD3RNJQCqLUr_rhDzXhoHQn6UKoFsiyHPOjrGUe4tZhotTsOLcXF5HTez890YgjK/exec";
-export const GAS_ENDPOINT = GAS_WEBAPP_URL;
+export const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzkeoa_zhkBvLJWG9mq7MhECh2KJILk8CLhV7EBFES46VuwIyZz2tG-Pv4RDe2Sj4Y7/exec";
+export const GAS_WEBAPP_URL = APPS_SCRIPT_URL;
+export const GAS_ENDPOINT = APPS_SCRIPT_URL;
 
 
 
@@ -1529,5 +1530,54 @@ export function formatCorrespondenceForSheet(entries = []) {
   const tsv = [headers.join('\t'), ...rows.map(r => r.join('\t'))].join('\n');
   return { headers, rows, tsv };
 }
+
+/**
+ * Rejestruje pismo / korespondencję w centralnej ewidencji Google Apps Script (zakładka Ewidencja_Poczty).
+ * POST action: "zarejestruj_pismo"
+ */
+export async function registerCorrespondenceToGAS(entry, orgId) {
+  return await sendToGAS({
+    action: "zarejestruj_pismo",
+    orgId: orgId || 'skn-psychoonkologia',
+    id: entry.id,
+    direction: entry.direction,
+    date: entry.date,
+    sender: entry.sender,
+    recipient: entry.recipient,
+    subject: entry.subject,
+    summary: entry.summary,
+    status: entry.status || 'W toku',
+    driveLink: entry.driveLink || entry.driveUrl || '',
+    hash: entry.hash || '',
+    pismo: entry,
+  });
+}
+
+/**
+ * Aktualizuje status sprawy w ewidencji pism w Google Apps Script.
+ * POST action: "zmien_status_sprawy"
+ */
+export async function updateCorrespondenceStatusInGAS(id, status, orgId) {
+  return await sendToGAS({
+    action: "zmien_status_sprawy",
+    orgId: orgId || 'skn-psychoonkologia',
+    id: id,
+    status: status,
+    nowyStatus: status,
+  });
+}
+
+/**
+ * Trwale usuwa pismo z ewidencji w Google Apps Script.
+ * POST action: "usun_pismo"
+ */
+export async function deleteCorrespondenceFromGAS(id, orgId) {
+  return await sendToGAS({
+    action: "usun_pismo",
+    orgId: orgId || 'skn-psychoonkologia',
+    id: id,
+  });
+}
+
 
 

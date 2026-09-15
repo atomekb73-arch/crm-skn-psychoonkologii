@@ -48,6 +48,9 @@ import {
   fetchMailRegistryFromSheet,
   formatCorrespondenceForSheet,
   MAIL_REGISTRY_TAB,
+  registerCorrespondenceToGAS,
+  updateCorrespondenceStatusInGAS,
+  deleteCorrespondenceFromGAS,
 } from '../services/googleSheets';
 import { OfficialCorrespondenceProtocolTemplate } from './DocumentTemplates';
 import { getStoredSupervisors } from '../utils/specialRoles';
@@ -337,13 +340,19 @@ export default function DocumentsRepositoryTab() {
     hash: '',
   });
 
-  const handleUpdateMailStatus = (entryId, newStatus) => {
-    const updated = updateCorrespondenceEntry(currentOrg?.id || 'skn-psychoonkologia', entryId, { status: newStatus });
+  const handleUpdateMailStatus = async (entryId, newStatus) => {
+    const orgId = currentOrg?.id || 'skn-psychoonkologia';
+    const updated = updateCorrespondenceEntry(orgId, entryId, { status: newStatus });
     if (updated) {
       setCorrespondenceLog(updated);
       if (viewingMailEntry && viewingMailEntry.id === entryId) {
         setViewingMailEntry(prev => ({ ...prev, status: newStatus }));
       }
+    }
+    try {
+      await updateCorrespondenceStatusInGAS(entryId, newStatus, orgId);
+    } catch (err) {
+      console.warn('[GAS] Błąd synchronizacji zmiany statusu pisma:', err);
     }
   };
 
@@ -499,20 +508,36 @@ export default function DocumentsRepositoryTab() {
     setMailModalTab('form');
   };
 
-  const handleSaveMailEntry = (e) => {
+  const handleSaveMailEntry = async (e) => {
     e.preventDefault();
     if (!mailForm.id.trim() || !mailForm.subject.trim()) return;
 
-    const updated = addCorrespondenceEntry(currentOrg.id, mailForm);
+    const orgId = currentOrg?.id || 'skn-psychoonkologia';
+    const updated = addCorrespondenceEntry(orgId, mailForm);
     if (updated) setCorrespondenceLog(updated);
     setIsMailModalOpen(false);
     setDuplicateWarning(null);
+
+    try {
+      await registerCorrespondenceToGAS(mailForm, orgId);
+    } catch (err) {
+      console.warn('[GAS] Błąd rejestracji pisma w GAS:', err);
+    }
   };
 
-  const handleDeleteMailEntry = (entryId) => {
+  const handleDeleteMailEntry = async (entryId) => {
     if (window.confirm('Czy na pewno chcesz usunąć to pismo z dziennika podawczego?')) {
-      const updated = deleteCorrespondenceEntry(currentOrg.id, entryId);
+      const orgId = currentOrg?.id || 'skn-psychoonkologia';
+      const updated = deleteCorrespondenceEntry(orgId, entryId);
       if (updated) setCorrespondenceLog(updated);
+      if (viewingMailEntry && viewingMailEntry.id === entryId) {
+        setViewingMailEntry(null);
+      }
+      try {
+        await deleteCorrespondenceFromGAS(entryId, orgId);
+      } catch (err) {
+        console.warn('[GAS] Błąd usuwania pisma w GAS:', err);
+      }
     }
   };
 
@@ -1275,22 +1300,66 @@ export default function DocumentsRepositoryTab() {
               )}
 
               {/* Single-Row Compact Toolbar */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-800">
-                    {correspondenceFilter === 'all'
-                      ? 'Wszystkie Pisma'
-                      : correspondenceFilter === 'IN'
-                      ? 'Pisma Przychodzące (IN)'
-                      : 'Pisma Wychodzące (OUT)'}
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-mono font-bold">
-                    {filteredCorrespondence.length} z {correspondenceLog.length}
-                  </span>
+              <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5">
+                {/* Direction Filter Pills */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setCorrespondenceFilter('all')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                      correspondenceFilter === 'all'
+                        ? 'bg-slate-900 text-white shadow-xs'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                    }`}
+                  >
+                    <Mail size={13} />
+                    <span>Wszystkie</span>
+                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                      correspondenceFilter === 'all' ? 'bg-slate-800 text-slate-200' : 'bg-slate-200 text-slate-700'
+                    }`}>
+                      {correspondenceLog.length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCorrespondenceFilter('IN')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                      correspondenceFilter === 'IN'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/60'
+                    }`}
+                  >
+                    <Inbox size={13} />
+                    <span>Wchodzące</span>
+                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                      correspondenceFilter === 'IN' ? 'bg-emerald-700 text-emerald-100' : 'bg-emerald-200/80 text-emerald-900'
+                    }`}>
+                      {correspondenceLog.filter(c => c.direction === 'IN').length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCorrespondenceFilter('OUT')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                      correspondenceFilter === 'OUT'
+                        ? 'bg-sky-600 text-white shadow-xs'
+                        : 'bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200/60'
+                    }`}
+                  >
+                    <Send size={13} />
+                    <span>Wychodzące</span>
+                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                      correspondenceFilter === 'OUT' ? 'bg-sky-700 text-sky-100' : 'bg-sky-200/80 text-sky-900'
+                    }`}>
+                      {correspondenceLog.filter(c => c.direction === 'OUT').length}
+                    </span>
+                  </button>
                 </div>
 
                 {/* Search & Actions */}
-                <div className="flex items-center gap-2 flex-1 sm:max-w-md justify-end">
+                <div className="flex items-center gap-2 flex-1 lg:max-w-md justify-end">
                   <div className="relative flex-1">
                     <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
@@ -1315,9 +1384,10 @@ export default function DocumentsRepositoryTab() {
                     type="button"
                     onClick={() => handleOpenMailModal()}
                     className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-xs hover:shadow-md transition cursor-pointer shrink-0"
+                    title="Zarejestruj nowe pismo lub wklej treść e-maila"
                   >
                     <Plus size={14} />
-                    <span>Zarejestruj</span>
+                    <span>+ Zarejestruj pismo / Wklej e-mail</span>
                   </button>
                 </div>
               </div>
