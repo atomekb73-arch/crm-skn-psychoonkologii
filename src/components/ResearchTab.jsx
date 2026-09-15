@@ -441,7 +441,7 @@ export default function ResearchTab() {
                   </div>
                 </div>
                 <span className={`px-2.5 py-1 rounded-full text-xs font-mono font-bold shrink-0 ml-2 ${
-                  activeSubTab === 'All' ? 'bg-slate-700 text-emerald-300' : 'bg-slate-100 text-slate-700 border border-slate-200'
+                  activeSubTab === 'All' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-slate-100 text-slate-700 border border-slate-200'
                 }`}>
                   {items.length}
                 </span>
@@ -624,46 +624,74 @@ export default function ResearchTab() {
                 <button
                   type="button"
                   onClick={() => setActiveSubTab('All')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center cursor-pointer ${
                     activeSubTab === 'All'
                       ? 'bg-slate-800 text-white shadow-xs'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                      : 'bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                   }`}
                 >
-                  Wszystkie ({items.length})
+                  <span>Wszystkie</span>
+                  <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-semibold ml-2 ${
+                    activeSubTab === 'All'
+                      ? 'bg-emerald-500/20 text-emerald-300 font-bold'
+                      : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    {items.length}
+                  </span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveSubTab('Publication')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center cursor-pointer ${
                     activeSubTab === 'Publication'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-100'
+                      ? 'bg-indigo-100 text-indigo-900 border border-indigo-200 shadow-xs'
+                      : 'bg-transparent text-slate-600 hover:bg-indigo-50/50 hover:text-indigo-900'
                   }`}
                 >
-                  Publikacje ({items.filter((i) => i.type === 'Publication').length})
+                  <span>Publikacje</span>
+                  <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-semibold ml-2 ${
+                    activeSubTab === 'Publication'
+                      ? 'bg-indigo-200/80 text-indigo-700 font-bold'
+                      : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    {items.filter((i) => i.type === 'Publication').length}
+                  </span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveSubTab('Conference')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center cursor-pointer ${
                     activeSubTab === 'Conference'
-                      ? 'bg-amber-600 text-white shadow-xs'
-                      : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-100'
+                      ? 'bg-amber-100 text-amber-900 border border-amber-200 shadow-xs'
+                      : 'bg-transparent text-slate-600 hover:bg-amber-50/50 hover:text-amber-900'
                   }`}
                 >
-                  Konferencje ({metrics.conferencesCount})
+                  <span>Konferencje</span>
+                  <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-semibold ml-2 ${
+                    activeSubTab === 'Conference'
+                      ? 'bg-amber-200/80 text-amber-800 font-bold'
+                      : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    {metrics.conferencesCount}
+                  </span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveSubTab('Project')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center cursor-pointer ${
                     activeSubTab === 'Project'
-                      ? 'bg-sky-600 text-white shadow-xs'
-                      : 'bg-sky-50 hover:bg-sky-100 text-sky-900 border border-sky-100'
+                      ? 'bg-sky-100 text-sky-900 border border-sky-200 shadow-xs'
+                      : 'bg-transparent text-slate-600 hover:bg-sky-50/50 hover:text-sky-900'
                   }`}
                 >
-                  Projekty Badawcze ({metrics.projectsCount})
+                  <span>Projekty Badawcze</span>
+                  <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-semibold ml-2 ${
+                    activeSubTab === 'Project'
+                      ? 'bg-sky-200/80 text-sky-800 font-bold'
+                      : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    {metrics.projectsCount}
+                  </span>
                 </button>
               </div>
 
