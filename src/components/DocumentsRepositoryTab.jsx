@@ -281,9 +281,20 @@ export default function DocumentsRepositoryTab() {
     recipient: '',
     subject: '',
     summary: '',
-    status: 'Zarejestrowane / Zrealizowane',
+    status: 'W toku',
+    driveLink: '',
     hash: '',
   });
+
+  const handleUpdateMailStatus = (entryId, newStatus) => {
+    const updated = updateCorrespondenceEntry(currentOrg?.id || 'skn-psychoonkologia', entryId, { status: newStatus });
+    if (updated) {
+      setCorrespondenceLog(updated);
+      if (viewingMailEntry && viewingMailEntry.id === entryId) {
+        setViewingMailEntry(prev => ({ ...prev, status: newStatus }));
+      }
+    }
+  };
 
   useEffect(() => {
     if (currentOrg?.id) {
@@ -375,9 +386,12 @@ export default function DocumentsRepositoryTab() {
 
   const handleOpenMailModal = (entryToEdit = null) => {
     const orgTag = currentOrg?.id === 'sknu' ? 'SKNU' : (currentOrg?.id?.includes('psycho') ? 'PSY' : (currentOrg?.tag || 'PSY'));
-    const year = '2026';
+    const year = new Date().getFullYear().toString();
     if (entryToEdit) {
-      setMailForm({ ...entryToEdit });
+      setMailForm({
+        ...entryToEdit,
+        driveLink: entryToEdit.driveLink || entryToEdit.driveUrl || '',
+      });
       setMailModalTab('form');
       setDuplicateWarning(null);
     } else {
@@ -392,7 +406,8 @@ export default function DocumentsRepositoryTab() {
         recipient: recipientDefault,
         subject: '',
         summary: '',
-        status: 'Zarejestrowane / Zrealizowane',
+        status: 'W toku',
+        driveLink: '',
         hash: '',
       });
       setRawMailText('');
@@ -406,9 +421,9 @@ export default function DocumentsRepositoryTab() {
     if (!rawMailText.trim()) return;
     const orgTag = currentOrg?.id === 'sknu' ? 'SKNU' : (currentOrg?.id?.includes('psycho') ? 'PSY' : (currentOrg?.tag || 'PSY'));
     const parsed = parseRawEmailText(rawMailText, orgTag);
-    const year = parsed.date ? parsed.date.slice(0, 4) : '2026';
+    const year = parsed.date ? parsed.date.slice(0, 4) : new Date().getFullYear().toString();
     const nextNum = String(correspondenceLog.length + 1).padStart(2, '0');
-    const suggestedId = `KANC/${orgTag}/${parsed.direction}/${nextNum}/${year}`;
+    const suggestedId = `KANC/${orgTag}/${parsed.direction || 'IN'}/${nextNum}/${year}`;
 
     const dupCheck = checkDuplicateCorrespondence(parsed, correspondenceLog);
     if (dupCheck.isDuplicate) {
@@ -419,14 +434,15 @@ export default function DocumentsRepositoryTab() {
 
     setMailForm({
       id: suggestedId,
-      direction: parsed.direction,
-      date: parsed.date,
-      sender: parsed.sender,
-      recipient: parsed.recipient,
-      subject: parsed.subject,
-      summary: parsed.summary,
-      status: 'Zarejestrowane / Zrealizowane',
-      hash: `${parsed.subject.slice(0, 20)}_${parsed.date}`,
+      direction: parsed.direction || 'IN',
+      date: parsed.date || new Date().toISOString().slice(0, 10),
+      sender: parsed.sender || '',
+      recipient: parsed.recipient || '',
+      subject: parsed.subject || '',
+      summary: parsed.summary || '',
+      status: 'W toku',
+      driveLink: '',
+      hash: `${(parsed.subject || '').slice(0, 20)}_${parsed.date || ''}`,
     });
 
     setMailModalTab('form');
@@ -986,232 +1002,154 @@ export default function DocumentsRepositoryTab() {
       {/* ══════════════════════════════════════════════════════════════════════════ */}
       {activeModuleTab === 'correspondence' && (
         <>
-          {/* Quick Stats Cards for Correspondence */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Card 1: Wszystkie pisma */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3 flex flex-col justify-between">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2.5 rounded-xl bg-slate-900 text-white">
-                    <Mail size={20} />
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                      Dziennik Podawczy
-                    </h3>
-                    <span className="text-[11px] text-slate-500">Wszystkie zarejestrowane sprawy</span>
-                  </div>
-                </div>
-                <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 border border-slate-200">
-                  {correspondenceLog.length} pism
-                </span>
-              </div>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                Centralny rejestr pism wpływających z Dziekanatu i pism wychodzących Zarządu Koła.
-              </p>
-            </div>
-
-            {/* Card 2: Przychodzące (IN) */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3 flex flex-col justify-between">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-100">
-                    <Inbox size={20} />
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold text-emerald-950 uppercase tracking-wider">
-                      Przychodzące (IN)
-                    </h3>
-                    <span className="text-[11px] text-emerald-700 font-semibold">Decyzje i pisma Dziekanatu</span>
-                  </div>
-                </div>
-                <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200">
-                  {correspondenceLog.filter(c => c.direction === 'IN').length} pism
-                </span>
-              </div>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                Korespondencja od Władz WSKZ, Dziekanatu WNS, Opiekuna i jednostek uczelnianych.
-              </p>
-            </div>
-
-            {/* Card 3: Wychodzące (OUT) */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3 flex flex-col justify-between">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2.5 rounded-xl bg-sky-50 text-sky-700 border border-sky-100">
-                    <Send size={20} />
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold text-sky-950 uppercase tracking-wider">
-                      Wychodzące (OUT)
-                    </h3>
-                    <span className="text-[11px] text-sky-700 font-semibold">Wnioski i sprawozdania</span>
-                  </div>
-                </div>
-                <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-sky-100 text-sky-800 border border-sky-200">
-                  {correspondenceLog.filter(c => c.direction === 'OUT').length} pism
-                </span>
-              </div>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                Oficjalne wnioski grantowe, harmonogramy i sprawozdania roczne kierowane do Władz WSKZ.
-              </p>
-            </div>
-          </div>
-
-          {/* ── Google Sheets Ewidencja_Poczty Integration Banner & Actions ── */}
-          <div className="bg-gradient-to-r from-emerald-900/90 via-slate-900 to-indigo-950 text-white p-4 rounded-2xl border border-emerald-500/30 shadow-md flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
-                <FileSpreadsheet size={22} />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-300">
-                    Dedykowana Karta Arkusza:
-                  </h4>
-                  <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-emerald-400/20 text-emerald-200 border border-emerald-400/30">
-                    Ewidencja_Poczty
-                  </span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
-                    {currentOrg?.name || 'SKN Psychoonkologii'}
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-300 mt-0.5">
-                  Wszystkie operacje odczytu i synchronizacji korespondencji powiązane są wyłącznie z tą zakładką.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0 flex-wrap">
-              <button
-                type="button"
-                onClick={handleSyncMailSheet}
-                disabled={isSyncingMailSheet}
-                className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition cursor-pointer shadow-sm"
-                title="Pobierz i zsynchronizuj wpisy z zakładki Ewidencja_Poczty w arkuszu Google"
-              >
-                <RefreshCw size={13} className={isSyncingMailSheet ? 'animate-spin' : ''} />
-                <span>{isSyncingMailSheet ? 'Synchronizacja...' : 'Pobierz z Arkusza'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleCopySheetFormat}
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl flex items-center gap-1.5 border border-slate-700 transition cursor-pointer"
-                title="Skopiuj sformatowane wiersze do wklejenia w zakładce Ewidencja_Poczty"
-              >
-                {copiedSheetData ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
-                <span>{copiedSheetData ? 'Skopiowano!' : 'Kopiuj format arkusza'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handlePrintCorrespondence}
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl flex items-center gap-1.5 border border-slate-700 transition cursor-pointer"
-                title="Drukuj oficjalny Rejestr i Dziennik Podawczy do PDF"
-              >
-                <Printer size={13} />
-                <span>Drukuj Dziennik</span>
-              </button>
-            </div>
-          </div>
-
           {/* Sync Status Alert */}
           {mailSyncStatus && (
             <div
-              className={`p-3 rounded-xl border text-xs flex items-center gap-2 animate-in fade-in duration-200 ${
+              className={`p-3 rounded-xl border text-xs flex items-center justify-between gap-2 animate-in fade-in duration-200 ${
                 mailSyncStatus.success
                   ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
                   : 'bg-rose-50 text-rose-900 border-rose-200'
               }`}
             >
-              {mailSyncStatus.success ? (
-                <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
-              ) : (
-                <AlertTriangle size={16} className="text-rose-600 shrink-0" />
-              )}
-              <span>{mailSyncStatus.message}</span>
+              <div className="flex items-center gap-2">
+                {mailSyncStatus.success ? (
+                  <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                ) : (
+                  <AlertTriangle size={16} className="text-rose-600 shrink-0" />
+                )}
+                <span>{mailSyncStatus.message}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMailSyncStatus(null)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X size={14} />
+              </button>
             </div>
           )}
 
-          {/* Filter & Search Bar for Correspondence */}
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-              {/* Direction Filter Tabs */}
-              <div className="flex items-center gap-1.5">
+          {/* Compact Single-Row Toolbar (Filters, Search & Actions) */}
+          <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+            <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5">
+              {/* Left: Direction Filter Buttons with live counts */}
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <button
                   type="button"
                   onClick={() => setCorrespondenceFilter('all')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
                     correspondenceFilter === 'all'
-                      ? 'bg-indigo-600 text-white shadow-xs'
+                      ? 'bg-slate-900 text-white shadow-xs'
                       : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                   }`}
                 >
-                  Wszystkie ({correspondenceLog.length})
+                  <Mail size={13} />
+                  <span>Wszystkie</span>
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                    correspondenceFilter === 'all' ? 'bg-slate-800 text-slate-200' : 'bg-slate-200 text-slate-700'
+                  }`}>
+                    {correspondenceLog.length}
+                  </span>
                 </button>
+
                 <button
                   type="button"
                   onClick={() => setCorrespondenceFilter('IN')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
                     correspondenceFilter === 'IN'
                       ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/60'
                   }`}
                 >
-                  📥 Przychodzące ({correspondenceLog.filter(c => c.direction === 'IN').length})
+                  <Inbox size={13} />
+                  <span>Przychodzące</span>
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                    correspondenceFilter === 'IN' ? 'bg-emerald-700 text-emerald-100' : 'bg-emerald-200/80 text-emerald-900'
+                  }`}>
+                    {correspondenceLog.filter(c => c.direction === 'IN').length}
+                  </span>
                 </button>
+
                 <button
                   type="button"
                   onClick={() => setCorrespondenceFilter('OUT')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
                     correspondenceFilter === 'OUT'
                       ? 'bg-sky-600 text-white shadow-xs'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                      : 'bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200/60'
                   }`}
                 >
-                  📤 Wychodzące ({correspondenceLog.filter(c => c.direction === 'OUT').length})
+                  <Send size={13} />
+                  <span>Wychodzące</span>
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                    correspondenceFilter === 'OUT' ? 'bg-sky-700 text-sky-100' : 'bg-sky-200/80 text-sky-900'
+                  }`}>
+                    {correspondenceLog.filter(c => c.direction === 'OUT').length}
+                  </span>
                 </button>
               </div>
 
-              {/* Search Box & Quick Ingest */}
-              <div className="flex items-center gap-2">
-                <div className="relative w-full sm:w-64">
-                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              {/* Right: Search, Integrations & New Entry Button */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="relative flex-1 sm:w-60">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
                     value={correspondenceSearch}
                     onChange={(e) => setCorrespondenceSearch(e.target.value)}
-                    placeholder="Szukaj po sygnaturze, nadawcy, temacie..."
-                    className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-indigo-500"
+                    placeholder="Szukaj po sygnaturze, temacie..."
+                    className="w-full pl-8 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white transition"
                   />
                   {correspondenceSearch && (
                     <button
+                      type="button"
                       onClick={() => setCorrespondenceSearch('')}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                     >
-                      <X size={13} />
+                      <X size={12} />
                     </button>
                   )}
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => setIsWelcomeMailModalOpen(true)}
-                  className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition cursor-pointer shrink-0"
-                  title="Przygotuj i wyślij powitanie lub powiadomienie do studenta"
+                  onClick={handleSyncMailSheet}
+                  disabled={isSyncingMailSheet}
+                  className="px-2.5 py-1.5 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold flex items-center gap-1 transition cursor-pointer shrink-0"
+                  title="Pobierz i zsynchronizuj z zakładką Ewidencja_Poczty w arkuszu Google"
                 >
-                  <Mail size={14} />
-                  <span>✉️ Nowe powiadomienie / powitanie</span>
+                  <RefreshCw size={12} className={isSyncingMailSheet ? 'animate-spin' : ''} />
+                  <span className="hidden sm:inline">{isSyncingMailSheet ? 'Pobieranie...' : 'Arkusze'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handlePrintCorrespondence}
+                  className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1 transition cursor-pointer shrink-0"
+                  title="Drukuj oficjalny Rejestr i Dziennik Podawczy do PDF"
+                >
+                  <Printer size={12} />
+                  <span className="hidden sm:inline">Drukuj</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsWelcomeMailModalOpen(true)}
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition cursor-pointer shrink-0"
+                  title="Przygotuj i wyślij powiadomienie do studenta"
+                >
+                  <Mail size={13} />
+                  <span className="hidden sm:inline">Powiadomienie</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleOpenMailModal()}
-                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition cursor-pointer shrink-0"
+                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-xs hover:shadow-md transition cursor-pointer shrink-0"
+                  title="Zarejestruj pismo lub wklej e-mail"
                 >
                   <Plus size={14} />
-                  <span>Wklej e-mail</span>
+                  <span>+ Zarejestruj pismo</span>
                 </button>
               </div>
             </div>
@@ -1236,81 +1174,98 @@ export default function DocumentsRepositoryTab() {
                     {filteredCorrespondence.length === 0 ? (
                       <tr>
                         <td colSpan={8} className="py-10 text-center text-slate-400 italic">
-                          Brak zarejestrowanych pism w wybranym filtrze. Użyj przycisku „Wklej e-mail”, aby dodać pismo.
+                          Brak zarejestrowanych pism w wybranym filtrze. Użyj przycisku „+ Zarejestruj pismo”, aby dodać pismo.
                         </td>
                       </tr>
                     ) : (
-                      filteredCorrespondence.map((item, idx) => (
-                        <tr key={item.id || idx} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="py-3 px-3 text-center font-mono text-slate-400 font-bold">
-                            {idx + 1}
-                          </td>
-                          <td className="py-3 px-3 font-mono font-bold text-indigo-950">
-                            {item.id}
-                          </td>
-                          <td className="py-3 px-3 text-center font-mono text-slate-600">
-                            {item.date}
-                          </td>
-                          <td className="py-3 px-3 text-center">
-                            <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                              item.direction === 'IN'
-                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                                : 'bg-sky-50 text-sky-800 border-sky-200'
-                            }`}>
-                              {item.direction === 'IN' ? '📥 PRZYCHODZĄCE' : '📤 WYCHODZĄCE'}
-                            </span>
-                          </td>
-                          <td className="py-3 px-3 text-slate-700">
-                            <div className="font-semibold text-slate-900 truncate max-w-[190px]" title={item.sender}>
-                              {item.sender}
-                            </div>
-                            <div className="text-[10.5px] text-slate-500 truncate max-w-[190px]" title={item.recipient}>
-                              → {item.recipient}
-                            </div>
-                          </td>
-                          <td className="py-3 px-3 text-slate-800">
-                            <div className="font-bold text-slate-900">{item.subject}</div>
-                            {item.summary && (
-                              <div className="text-[11px] text-slate-500 line-clamp-1 mt-0.5 font-sans" title={item.summary}>
-                                {item.summary}
+                      filteredCorrespondence.map((item, idx) => {
+                        const statusStr = String(item.status || 'W toku').toLowerCase();
+                        let statusColor = 'bg-indigo-50 text-indigo-800 border-indigo-200';
+                        if (statusStr.includes('zatwierdz') || statusStr.includes('zrealizowan') || statusStr.includes('zakończ')) {
+                          statusColor = 'bg-emerald-50 text-emerald-800 border-emerald-200';
+                        } else if (statusStr.includes('weryfik')) {
+                          statusColor = 'bg-amber-50 text-amber-800 border-amber-200';
+                        } else if (statusStr.includes('odrzuc') || statusStr.includes('anulow')) {
+                          statusColor = 'bg-rose-50 text-rose-800 border-rose-200';
+                        }
+
+                        return (
+                          <tr
+                            key={item.id || idx}
+                            onClick={() => setViewingMailEntry(item)}
+                            className="hover:bg-indigo-50/40 cursor-pointer transition-colors group"
+                            title="Kliknij, aby otworzyć panel boczny ze szczegółami sprawy"
+                          >
+                            <td className="py-3 px-3 text-center font-mono text-slate-400 font-bold">
+                              {idx + 1}
+                            </td>
+                            <td className="py-3 px-3 font-mono font-bold text-indigo-950 group-hover:text-indigo-600 transition-colors">
+                              {item.id}
+                            </td>
+                            <td className="py-3 px-3 text-center font-mono text-slate-600">
+                              {item.date}
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                item.direction === 'IN'
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                  : 'bg-sky-50 text-sky-800 border-sky-200'
+                              }`}>
+                                {item.direction === 'IN' ? '📥 PRZYCHODZĄCE' : '📤 WYCHODZĄCE'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-slate-700">
+                              <div className="font-semibold text-slate-900 truncate max-w-[190px]" title={item.sender}>
+                                {item.sender}
                               </div>
-                            )}
-                          </td>
-                          <td className="py-3 px-3 text-center">
-                            <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                              {item.status || 'Zarejestrowane'}
-                            </span>
-                          </td>
-                          <td className="py-3 px-3 text-center">
-                            <div className="flex items-center justify-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() => setViewingMailEntry(item)}
-                                className="p-1 rounded text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition cursor-pointer"
-                                title="Podgląd szczegółów pisma"
-                              >
-                                <Eye size={14} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenMailModal(item)}
-                                className="p-1 rounded text-slate-400 hover:text-amber-600 hover:bg-slate-100 transition cursor-pointer"
-                                title="Edytuj pismo"
-                              >
-                                <Edit3 size={14} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteMailEntry(item.id)}
-                                className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-slate-100 transition cursor-pointer"
-                                title="Usuń pismo z dziennika"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
+                              <div className="text-[10.5px] text-slate-500 truncate max-w-[190px]" title={item.recipient}>
+                                → {item.recipient}
+                              </div>
+                            </td>
+                            <td className="py-3 px-3 text-slate-800">
+                              <div className="font-bold text-slate-900 group-hover:text-indigo-900 transition-colors">{item.subject}</div>
+                              {item.summary && (
+                                <div className="text-[11px] text-slate-500 line-clamp-1 mt-0.5 font-sans" title={item.summary}>
+                                  {item.summary}
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border ${statusColor}`}>
+                                {item.status || 'W toku'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setViewingMailEntry(item)}
+                                  className="p-1 rounded text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition cursor-pointer"
+                                  title="Podgląd w panelu bocznym"
+                                >
+                                  <Eye size={14} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenMailModal(item)}
+                                  className="p-1 rounded text-slate-400 hover:text-amber-600 hover:bg-slate-100 transition cursor-pointer"
+                                  title="Edytuj pismo"
+                                >
+                                  <Edit3 size={14} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteMailEntry(item.id)}
+                                  className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-slate-100 transition cursor-pointer"
+                                  title="Usuń pismo z dziennika"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
@@ -1442,19 +1397,10 @@ export default function DocumentsRepositoryTab() {
                     </div>
                   )}
 
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="col-span-2">
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Sygnatura Kancelaryjna:</label>
-                      <input
-                        type="text"
-                        required
-                        value={mailForm.id}
-                        onChange={(e) => setMailForm({ ...mailForm, id: e.target.value })}
-                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-indigo-950 focus:outline-none focus:border-indigo-500"
-                      />
-                    </div>
+                  {/* Row 1: Direction, Status, Date */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Kierunek:</label>
+                      <label className="text-xs font-bold text-slate-700 block mb-1">Kierunek pisma:</label>
                       <select
                         value={mailForm.direction}
                         onChange={(e) => setMailForm({ ...mailForm, direction: e.target.value })}
@@ -1464,9 +1410,45 @@ export default function DocumentsRepositoryTab() {
                         <option value="OUT">📤 OUT (Wychodzące)</option>
                       </select>
                     </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 block mb-1">Status sprawy:</label>
+                      <select
+                        value={mailForm.status || 'W toku'}
+                        onChange={(e) => setMailForm({ ...mailForm, status: e.target.value })}
+                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-500"
+                      >
+                        <option value="W toku">⏳ W toku</option>
+                        <option value="Zatwierdzone">✅ Zatwierdzone</option>
+                        <option value="Weryfikacja">🔍 Weryfikacja</option>
+                        <option value="Zakończone">📦 Zakończone</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 block mb-1">Data wpływu/wysłania:</label>
+                      <input
+                        type="date"
+                        required
+                        value={mailForm.date}
+                        onChange={(e) => setMailForm({ ...mailForm, date: e.target.value })}
+                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-900 focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  {/* Row 2: Sygnatura */}
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">Sygnatura Kancelaryjna:</label>
+                    <input
+                      type="text"
+                      required
+                      value={mailForm.id}
+                      onChange={(e) => setMailForm({ ...mailForm, id: e.target.value })}
+                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-indigo-950 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  {/* Row 3: Nadawca i Odbiorca */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs font-bold text-slate-700 block mb-1">Nadawca:</label>
                       <input
@@ -1491,46 +1473,53 @@ export default function DocumentsRepositoryTab() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="col-span-2">
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Temat / Przedmiot Sprawy:</label>
-                      <input
-                        type="text"
-                        required
-                        value={mailForm.subject}
-                        onChange={(e) => setMailForm({ ...mailForm, subject: e.target.value })}
-                        placeholder="np. Zatwierdzenie wniosku o dofinansowanie"
-                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:outline-none focus:border-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Data:</label>
-                      <input
-                        type="date"
-                        required
-                        value={mailForm.date}
-                        onChange={(e) => setMailForm({ ...mailForm, date: e.target.value })}
-                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-900 focus:outline-none focus:border-indigo-500"
-                      />
-                    </div>
+                  {/* Row 4: Temat */}
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">Temat / Przedmiot Sprawy:</label>
+                    <input
+                      type="text"
+                      required
+                      value={mailForm.subject}
+                      onChange={(e) => setMailForm({ ...mailForm, subject: e.target.value })}
+                      placeholder="np. Zatwierdzenie wniosku o dofinansowanie"
+                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:outline-none focus:border-indigo-500"
+                    />
                   </div>
 
+                  {/* Row 5: Treść */}
                   <div>
                     <label className="text-xs font-bold text-slate-700 block mb-1">Treść / Streszczenie Pisma:</label>
                     <textarea
                       rows={3}
                       value={mailForm.summary}
                       onChange={(e) => setMailForm({ ...mailForm, summary: e.target.value })}
-                      placeholder="Podsumowanie treści wiadomości..."
+                      placeholder="Podsumowanie treści wiadomości lub postanowienia..."
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 resize-none focus:outline-none focus:border-indigo-500 font-sans"
                     />
+                  </div>
+
+                  {/* Row 6: Link do skanu Google Drive */}
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">
+                      Link do skanu / załącznika w Google Drive (opcjonalnie):
+                    </label>
+                    <div className="relative">
+                      <Link size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="url"
+                        value={mailForm.driveLink || ''}
+                        onChange={(e) => setMailForm({ ...mailForm, driveLink: e.target.value })}
+                        placeholder="https://drive.google.com/file/d/..."
+                        className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-mono focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
                   </div>
 
                   <div className="flex items-center justify-between pt-3 border-t border-slate-100">
                     <button
                       type="button"
                       onClick={() => setMailModalTab('parser')}
-                      className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+                      className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 cursor-pointer"
                     >
                       ← Wróć do wklejania maila
                     </button>
@@ -1560,84 +1549,204 @@ export default function DocumentsRepositoryTab() {
         </div>
       )}
 
-      {/* ── MODAL: CORRESPONDENCE PREVIEW ────────────────────────────────────── */}
+      {/* ── SLIDE-OVER DRAWER: PODGLĄD PISMA (SZUFLADA BOCZNA) ─────────────── */}
       {viewingMailEntry && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden font-sans">
-            <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
-                  <Mail size={18} />
+        <div className="fixed inset-0 z-50 flex justify-end">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+            onClick={() => setViewingMailEntry(null)}
+          />
+
+          {/* Drawer Panel */}
+          <div className="relative w-full max-w-xl sm:max-w-2xl bg-white h-full shadow-2xl border-l border-slate-200 flex flex-col z-50 animate-in slide-in-from-right duration-200 font-sans">
+            {/* Drawer Header */}
+            <div className="px-6 py-5 bg-gradient-to-r from-slate-900 to-indigo-950 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="p-2.5 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shrink-0">
+                  <Mail size={20} />
                 </div>
-                <div>
-                  <h3 className="text-sm font-bold tracking-tight">Karta Korespondencji</h3>
-                  <p className="text-[11px] font-mono text-indigo-300">{viewingMailEntry.id}</p>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-base font-bold font-mono text-indigo-200 tracking-tight">
+                      {viewingMailEntry.id}
+                    </span>
+                    <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                      viewingMailEntry.direction === 'IN'
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                        : 'bg-sky-500/20 text-sky-300 border-sky-500/40'
+                    }`}>
+                      {viewingMailEntry.direction === 'IN' ? '📥 PRZYCHODZĄCE (IN)' : '📤 WYCHODZĄCE (OUT)'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5 truncate">
+                    Karta sprawy • {currentOrg?.name || 'Kancelaria Koła'}
+                  </p>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setViewingMailEntry(null)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+                className="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-white/10 transition-colors cursor-pointer shrink-0"
+                title="Zamknij panel podglądu"
               >
-                <X size={18} />
+                <X size={20} />
               </button>
             </div>
 
-            <div className="p-6 space-y-4 text-xs">
-              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                    viewingMailEntry.direction === 'IN'
-                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                      : 'bg-sky-50 text-sky-800 border-sky-200'
-                  }`}>
-                    {viewingMailEntry.direction === 'IN' ? '📥 PISMO PRZYCHODZĄCE' : '📤 PISMO WYCHODZĄCE'}
+            {/* Drawer Content (Scrollable) */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-5 text-xs text-slate-800">
+              {/* Quick Status Bar & Date */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  {/* Status selection */}
+                  <div className="flex items-center gap-2 flex-1">
+                    <label className="text-[11px] font-bold uppercase text-slate-500 shrink-0">
+                      Status sprawy:
+                    </label>
+                    <select
+                      value={viewingMailEntry.status || 'W toku'}
+                      onChange={(e) => handleUpdateMailStatus(viewingMailEntry.id, e.target.value)}
+                      className="bg-white border border-slate-300 rounded-xl px-3 py-1.5 font-bold text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer shadow-2xs"
+                    >
+                      <option value="W toku">⏳ W toku</option>
+                      <option value="Zatwierdzone">✅ Zatwierdzone</option>
+                      <option value="Weryfikacja">🔍 Weryfikacja</option>
+                      <option value="Zakończone">📦 Zakończone</option>
+                    </select>
+                  </div>
+
+                  {/* Date */}
+                  <div className="flex items-center gap-1.5 text-slate-600 font-mono shrink-0">
+                    <Calendar size={13} className="text-slate-400" />
+                    <span className="font-bold">Data wpływu/wysłania: {viewingMailEntry.date}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sender & Recipient Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 flex items-center gap-1">
+                    <Inbox size={11} className="text-emerald-600" /> Nadawca:
                   </span>
-                  <span className="font-mono text-slate-500 font-bold">{viewingMailEntry.date}</span>
+                  <p className="font-semibold text-slate-900 text-xs break-words">{viewingMailEntry.sender}</p>
                 </div>
-                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200/60">
-                  <div>
-                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Nadawca:</span>
-                    <span className="font-medium text-slate-900">{viewingMailEntry.sender}</span>
+                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 flex items-center gap-1">
+                    <Send size={11} className="text-sky-600" /> Odbiorca / Adresat:
+                  </span>
+                  <p className="font-semibold text-slate-900 text-xs break-words">{viewingMailEntry.recipient}</p>
+                </div>
+              </div>
+
+              {/* Subject */}
+              <div className="space-y-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                  Temat / Przedmiot sprawy:
+                </span>
+                <div className="p-3.5 bg-indigo-50/50 rounded-xl border border-indigo-100">
+                  <h4 className="font-bold text-sm text-slate-900 leading-snug">{viewingMailEntry.subject}</h4>
+                </div>
+              </div>
+
+              {/* Summary / Full Content */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    Treść / Streszczenie pisma:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`[${viewingMailEntry.id}] ${viewingMailEntry.subject}\nNadawca: ${viewingMailEntry.sender}\nOdbiorca: ${viewingMailEntry.recipient}\nData: ${viewingMailEntry.date}\nStatus: ${viewingMailEntry.status}\n\n${viewingMailEntry.summary || ''}`);
+                      alert('Skopiowano treść pisma do schowka!');
+                    }}
+                    className="inline-flex items-center gap-1 text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer"
+                  >
+                    <Copy size={12} />
+                    <span>Kopiuj</span>
+                  </button>
+                </div>
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-slate-700 leading-relaxed font-sans whitespace-pre-wrap min-h-[140px] shadow-inner text-xs">
+                  {viewingMailEntry.summary || 'Brak dodatkowej treści lub streszczenia pisma.'}
+                </div>
+              </div>
+
+              {/* Scan / Attachment Link */}
+              {(viewingMailEntry.driveLink || viewingMailEntry.driveUrl) && (
+                <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-2xl flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileCheck size={16} className="text-emerald-700 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="font-bold text-emerald-950 text-xs">Dołączony skan / dokument elektroniczny</p>
+                      <p className="text-[11px] text-emerald-700 truncate font-mono">{viewingMailEntry.driveLink || viewingMailEntry.driveUrl}</p>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Odbiorca:</span>
-                    <span className="font-medium text-slate-900">{viewingMailEntry.recipient}</span>
-                  </div>
+                  <a
+                    href={viewingMailEntry.driveLink || viewingMailEntry.driveUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1 shrink-0 transition"
+                  >
+                    <span>Otwórz</span>
+                    <ExternalLink size={12} />
+                  </a>
                 </div>
-              </div>
+              )}
+            </div>
 
-              <div>
-                <span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Temat / Przedmiot Sprawy:</span>
-                <p className="font-bold text-sm text-slate-900">{viewingMailEntry.subject}</p>
-              </div>
-
-              <div>
-                <span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Treść Pisma:</span>
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-700 leading-relaxed max-h-48 overflow-y-auto whitespace-pre-wrap font-sans">
-                  {viewingMailEntry.summary || 'Brak treści pisma.'}
-                </div>
-              </div>
-
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+            {/* Drawer Footer Actions */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2 flex-wrap shrink-0">
+              <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => {
-                    navigator.clipboard.writeText(`[${viewingMailEntry.id}] ${viewingMailEntry.subject}\nNadawca: ${viewingMailEntry.sender}\nData: ${viewingMailEntry.date}\n\n${viewingMailEntry.summary}`);
-                    alert('Skopiowano treść pisma do schowka!');
+                    const item = viewingMailEntry;
+                    setViewingMailEntry(null);
+                    handleOpenMailModal(item);
                   }}
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                  className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 hover:border-indigo-300 text-slate-700 hover:text-indigo-600 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                  title="Edytuj dane pisma"
                 >
-                  <Copy size={13} />
-                  <span>Kopiuj treść</span>
+                  <Edit3 size={13} />
+                  <span>Edytuj</span>
                 </button>
+
                 <button
                   type="button"
-                  onClick={() => setViewingMailEntry(null)}
-                  className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold cursor-pointer"
+                  onClick={() => {
+                    const idToDelete = viewingMailEntry.id;
+                    if (window.confirm('Czy na pewno chcesz usunąć to pismo z dziennika podawczego?')) {
+                      setViewingMailEntry(null);
+                      handleDeleteMailEntry(idToDelete);
+                    }
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 hover:border-rose-300 text-slate-700 hover:text-rose-600 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                  title="Usuń pismo z rejestru"
                 >
-                  Zamknij
+                  <Trash2 size={13} />
+                  <span>Usuń</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handlePrintCorrespondence}
+                  className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 hover:border-slate-300 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                  title="Eksportuj lub drukuj oficjalny dziennik do PDF"
+                >
+                  <Printer size={13} />
+                  <span>Drukuj PDF</span>
                 </button>
               </div>
+
+              <button
+                type="button"
+                onClick={() => setViewingMailEntry(null)}
+                className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition cursor-pointer shadow-xs"
+              >
+                Zamknij
+              </button>
             </div>
           </div>
         </div>
