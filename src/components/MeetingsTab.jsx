@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   CalendarDays,
   ClipboardList,
@@ -94,6 +94,57 @@ export default function MeetingsTab({
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [isSavingAttendance, setIsSavingAttendance] = useState(false);
   const [isClearingAttendance, setIsClearingAttendance] = useState(false);
+
+  // ── Resizable Sidebar state (12.5% to 25% of window width, default: 18vw) ──
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('crm_sidebar_width');
+      if (saved) return saved;
+    }
+    return '18vw'; // domyślna wartość startowa
+  });
+  const [isResizing, setIsResizing] = useState(false);
+  const sidebarContainerRef = useRef(null);
+
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isResizing) return;
+      const screenWidth = window.innerWidth;
+      const containerLeft = sidebarContainerRef.current ? sidebarContainerRef.current.getBoundingClientRect().left : 0;
+      const newWidthPx = containerLeft > 0 ? (e.clientX - containerLeft) : e.clientX;
+
+      const minAllowed = screenWidth * 0.125; // 1/8 (12.5%)
+      const maxAllowed = screenWidth * 0.25;  // 1/4 (25%)
+
+      if (newWidthPx >= minAllowed && newWidthPx <= maxAllowed) {
+        setSidebarWidth(`${newWidthPx}px`);
+      } else if (newWidthPx < minAllowed) {
+        setSidebarWidth(`${minAllowed}px`);
+      } else if (newWidthPx > maxAllowed) {
+        setSidebarWidth(`${maxAllowed}px`);
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (isResizing) {
+        setIsResizing(false);
+        document.body.style.cursor = 'default';
+        document.body.style.removeProperty('user-select');
+        localStorage.setItem('crm_sidebar_width', sidebarWidth);
+      }
+    };
+
+    if (isResizing) {
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    }
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing, sidebarWidth]);
 
   // Protocol / Meeting Minutes state
   const [isProtocolModalOpen, setIsProtocolModalOpen] = useState(false);
@@ -1248,10 +1299,23 @@ export default function MeetingsTab({
         )}
       </div>
 
-      {/* Main Three-Column Master-Detail Layout */}
-      <div className="flex flex-col lg:flex-row gap-4 items-start w-full">
-        {/* ── Left Column: Narrow Navigation List of Meetings (220px - 260px) ── */}
-        <div className="w-full lg:w-[240px] xl:w-[260px] shrink-0 space-y-2.5">
+      {/* Main Three-Column Master-Detail Layout with Resizable Sidebar */}
+      <div
+        ref={sidebarContainerRef}
+        className="flex flex-col lg:flex-row items-start w-full h-full overflow-hidden"
+        style={{ display: 'flex', width: '100%', height: '100%', overflow: 'hidden' }}
+      >
+        {/* ── Left Column: Resizable Navigation Sidebar (12.5vw - 25vw) ── */}
+        <div
+          style={{
+            width: typeof window !== 'undefined' && window.innerWidth >= 1024 ? sidebarWidth : '100%',
+            minWidth: typeof window !== 'undefined' && window.innerWidth >= 1024 ? '12.5vw' : '100%',
+            maxWidth: typeof window !== 'undefined' && window.innerWidth >= 1024 ? '25vw' : '100%',
+            flexShrink: 0,
+            overflowY: 'auto',
+          }}
+          className="w-full shrink-0 space-y-2.5 pr-1.5 scrollbar-thin scrollbar-thumb-indigo-200"
+        >
           {/* Header with View Switcher (Active vs Trash) */}
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-semibold">
             <button
@@ -1443,8 +1507,37 @@ export default function MeetingsTab({
           </div>
         </div>
 
-        {/* ── Middle Column: Main Details & Editing Panel (flex-1) ── */}
-        <div className="flex-1 min-w-0 w-full space-y-4">
+        {/* ── Resizer: Interactive divider between sidebar and main content ── */}
+        <div
+          onMouseDown={(e) => {
+            e.preventDefault();
+            setIsResizing(true);
+          }}
+          className={`hidden lg:flex items-center justify-center w-[5px] shrink-0 cursor-col-resize select-none z-10 transition-colors duration-150 self-stretch my-0.5 rounded-full group ${
+            isResizing
+              ? 'bg-indigo-500 shadow-xs'
+              : 'hover:bg-indigo-400 bg-transparent hover:shadow-xs'
+          }`}
+          style={{
+            width: '5px',
+            cursor: 'col-resize',
+            backgroundColor: isResizing ? '#6366f1' : 'transparent',
+            transition: 'background-color 0.15s ease',
+            flexShrink: 0,
+            userSelect: 'none',
+            zIndex: 10,
+          }}
+          title="Przeciągnij krawędź, aby dostosować szerokość panelu (12.5% - 25%)"
+        >
+          <div className={`w-[1px] h-8 rounded-full transition-colors ${
+            isResizing ? 'bg-white' : 'bg-slate-300 group-hover:bg-indigo-200'
+          }`} />
+        </div>
+
+        {/* ── Main Content Area: Middle Column + Right Column ── */}
+        <div className="flex-1 min-w-0 w-full flex flex-col xl:flex-row gap-4 items-start pl-0 lg:pl-3 pt-4 lg:pt-0">
+          {/* ── Middle Column: Main Details & Editing Panel (flex-1) ── */}
+          <div className="flex-1 min-w-0 w-full space-y-4">
           {!selectedMeeting ? (
             <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400 text-sm shadow-sm">
               <ClipboardList size={36} className="mx-auto mb-2 text-slate-300" />
@@ -1931,6 +2024,7 @@ export default function MeetingsTab({
               )}
             </div>
           )}
+        </div>
         </div>
       </div>
 
