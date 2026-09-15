@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   FolderKanban,
   FileText,
@@ -260,6 +260,57 @@ export default function DocumentsRepositoryTab() {
 
   // ── Module View Switch (Repozytorium vs Dziennik Podawczy) ────────────────
   const [activeModuleTab, setActiveModuleTab] = useState('repository'); // 'repository' | 'correspondence'
+
+  // ── Resizable Sidebar State (clamped min/max, persistent in localStorage) ──
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('crm_docs_sidebar_width');
+      if (saved) return saved;
+    }
+    return '270px';
+  });
+  const [isResizing, setIsResizing] = useState(false);
+  const sidebarContainerRef = useRef(null);
+
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isResizing) return;
+      const screenWidth = window.innerWidth;
+      const containerLeft = sidebarContainerRef.current ? sidebarContainerRef.current.getBoundingClientRect().left : 0;
+      const newWidthPx = containerLeft > 0 ? (e.clientX - containerLeft) : e.clientX;
+
+      const minAllowed = Math.max(210, screenWidth * 0.12);
+      const maxAllowed = Math.min(420, screenWidth * 0.35);
+
+      if (newWidthPx >= minAllowed && newWidthPx <= maxAllowed) {
+        setSidebarWidth(`${newWidthPx}px`);
+      } else if (newWidthPx < minAllowed) {
+        setSidebarWidth(`${minAllowed}px`);
+      } else if (newWidthPx > maxAllowed) {
+        setSidebarWidth(`${maxAllowed}px`);
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (isResizing) {
+        setIsResizing(false);
+        document.body.style.cursor = 'default';
+        document.body.style.removeProperty('user-select');
+        localStorage.setItem('crm_docs_sidebar_width', sidebarWidth);
+      }
+    };
+
+    if (isResizing) {
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    }
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing, sidebarWidth]);
 
   // ── Correspondence Log State ──────────────────────────────────────────────
   const [correspondenceLog, setCorrespondenceLog] = useState(() => getCorrespondenceLog(currentOrg?.id || 'skn-psychoonkologia'));
@@ -624,26 +675,26 @@ export default function DocumentsRepositoryTab() {
   };
 
   return (
-    <div className="space-y-6 pb-12 font-sans animate-in fade-in duration-200">
+    <div className="space-y-4 pb-12 font-sans animate-in fade-in duration-200">
       
       {/* ── HEADER BAR ────────────────────────────────────────────────────────── */}
-      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="p-3 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-2xl text-white shadow-md shadow-indigo-200">
-            {activeModuleTab === 'repository' ? <FolderKanban size={26} /> : <Mail size={26} />}
+      <div className="bg-white px-5 py-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-xl text-white shadow-xs">
+            {activeModuleTab === 'repository' ? <FolderKanban size={22} /> : <Mail size={22} />}
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
+              <h1 className="text-lg font-extrabold text-slate-900 tracking-tight">
                 {activeModuleTab === 'repository'
                   ? 'Repozytorium Dokumentów & Rejestr Uchwał'
                   : 'Elektroniczny Dziennik Podawczy & Kancelaria'}
               </h1>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
                 {currentOrg.shortName || currentOrg.name}
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-[11px] text-slate-500 mt-0.5">
               {activeModuleTab === 'repository'
                 ? 'Oficjalna ewidencja aktów prawnych, statutów, uchwał i protokołów naukowych WSKZ.'
                 : 'Ewidencja pism przychodzących i wychodzących z inteligentnym parserem e-maili i detekcją spraw.'}
@@ -651,629 +702,747 @@ export default function DocumentsRepositoryTab() {
           </div>
         </div>
 
-        {/* Action Buttons */}
+        {/* Global Quick Action Buttons */}
         <div className="flex flex-wrap items-center gap-2 shrink-0">
           {activeModuleTab === 'repository' ? (
             <button
               onClick={handleOpenAddModal}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-all cursor-pointer"
+              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
             >
-              <Plus size={16} />
-              <span>Dodaj Dokument / Uchwałę</span>
+              <Plus size={15} />
+              <span>+ Dodaj Dokument / Uchwałę</span>
             </button>
           ) : (
             <>
               <button
                 type="button"
-                onClick={() => handleOpenMailModal()}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-all cursor-pointer"
+                onClick={() => setIsWelcomeMailModalOpen(true)}
+                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                title="Przygotuj i wyślij powiadomienie do studenta"
               >
-                <Mail size={16} />
-                <span>📨 Zarejestruj Pismo / Wklej E-mail</span>
+                <Mail size={14} />
+                <span>Powiadomienie</span>
               </button>
 
               <button
                 type="button"
                 onClick={handlePrintCorrespondence}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
                 title="Drukuj oficjalny Dziennik Podawczy do PDF dla Dziekanatu i PKA"
               >
-                <Printer size={15} />
-                <span>🖨️ Drukuj Dziennik (PDF)</span>
+                <Printer size={14} />
+                <span>Drukuj Dziennik (PDF)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleOpenMailModal()}
+                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+              >
+                <Plus size={15} />
+                <span>+ Zarejestruj Pismo</span>
               </button>
             </>
           )}
         </div>
       </div>
 
-      {/* ── MODULE SWITCHER TABS ──────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
-        <button
-          type="button"
-          onClick={() => setActiveModuleTab('repository')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer ${
-            activeModuleTab === 'repository'
-              ? 'bg-slate-900 text-white shadow-md shadow-slate-900/20'
-              : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
-          }`}
+      {/* ── TWO-COLUMN MASTER-DETAIL LAYOUT WITH RESIZABLE SIDEBAR ──────────── */}
+      <div className="flex flex-col lg:flex-row items-stretch gap-0 w-full min-h-[calc(100vh-230px)]">
+        
+        {/* ── LEFT SIDEBAR (Navigation, Views & Micro-Tools) ──────────────────── */}
+        <div
+          ref={sidebarContainerRef}
+          className="w-full lg:shrink-0 flex flex-col space-y-3 pr-0 lg:pr-3 pb-4 lg:pb-0"
+          style={{ width: typeof window !== 'undefined' && window.innerWidth >= 1024 ? sidebarWidth : '100%' }}
         >
-          <FolderKanban size={15} />
-          <span>📁 Repozytorium Aktów & Statut</span>
-          <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
-            activeModuleTab === 'repository' ? 'bg-slate-800 text-indigo-200' : 'bg-slate-100 text-slate-700'
-          }`}>
-            {documents.length}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveModuleTab('correspondence')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer ${
-            activeModuleTab === 'correspondence'
-              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-900/20'
-              : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
-          }`}
-        >
-          <Mail size={15} />
-          <span>📨 Dziennik Podawczy & Kancelaria</span>
-          <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
-            activeModuleTab === 'correspondence' ? 'bg-indigo-700 text-white' : 'bg-indigo-50 text-indigo-700'
-          }`}>
-            {correspondenceLog.length}
-          </span>
-        </button>
-      </div>
-
-      {/* ══════════════════════════════════════════════════════════════════════════ */}
-      {/* ── TAB 1: REPOZYTORIUM AKTÓW & STATUT ─────────────────────────────────── */}
-      {/* ══════════════════════════════════════════════════════════════════════════ */}
-      {activeModuleTab === 'repository' && (
-        <>
-          {/* ── QUICK CARDS AT TOP ── */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Card 1: Statut Koła */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3 flex flex-col justify-between">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100">
-                    <ShieldCheck size={20} />
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                      Aktualny Statut Koła
-                    </h3>
-                    <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1 mt-0.5">
-                      <CheckCircle2 size={12} /> {statutConfig.status || 'Zatwierdzony przez Władze WSKZ'}
-                    </span>
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    setTempStatutConfig({
-                      url: statutConfig.url || '',
-                      status: statutConfig.status || 'Zatwierdzony przez Władze WSKZ',
-                      description: statutConfig.description || '',
-                    });
-                    setIsEditingStatutModal(true);
-                  }}
-                  className="text-slate-400 hover:text-emerald-600 transition-colors p-1 rounded-lg hover:bg-slate-100 cursor-pointer"
-                  title="Edytuj link i status Statutu Koła"
-                >
-                  <Edit3 className="w-4 h-4 text-slate-400 hover:text-emerald-600 transition-colors" />
-                </button>
-              </div>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                {statutConfig.description || `Oficjalny regulamin określający strukturę, cele naukowe oraz prawa członków ${currentOrg.shortName}.`}
-              </p>
-              <div className="pt-2 flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    if (statutConfig.url && statutConfig.url.trim()) {
-                      window.open(statutConfig.url.trim(), '_blank');
-                    } else {
-                      setTempStatutConfig({
-                        url: statutConfig.url || '',
-                        status: statutConfig.status || 'Zatwierdzony przez Władze WSKZ',
-                        description: statutConfig.description || '',
-                      });
-                      setIsEditingStatutModal(true);
-                    }
-                  }}
-                  className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
-                >
-                  <ExternalLink size={14} />
-                  <span>Otwórz Statut (Drive)</span>
-                </button>
-              </div>
+          {/* Main Module Switchers */}
+          <div className="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-xs space-y-1.5">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2 py-1">
+              Moduł Dokumentacji
             </div>
-
-            {/* Card 2: Dysk Google Koła */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3 flex flex-col justify-between">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600 border border-blue-100">
-                    <HardDrive size={20} />
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                      Oficjalny Dysk Google
-                    </h3>
-                    <span className="text-[11px] text-slate-500">Kopia chmurowa plików</span>
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    setTempDriveUrl(gdriveUrl);
-                    setIsEditingDriveModal(true);
-                  }}
-                  className="text-slate-400 hover:text-blue-600 text-xs font-medium"
-                  title="Edytuj link Dysku Google"
-                >
-                  <Edit3 size={14} />
-                </button>
-              </div>
-              <p className="text-xs text-slate-600 leading-relaxed truncate">
-                {gdriveUrl}
-              </p>
-              <div className="pt-2 flex items-center gap-2">
-                <a
-                  href={gdriveUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 shadow-xs transition-colors"
-                >
-                  <FolderOpen size={14} />
-                  <span>Przejdź do Dysku Google</span>
-                </a>
-              </div>
-            </div>
-
-            {/* Card 3: Licznik Rejestru */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3 flex flex-col justify-between">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2.5 rounded-xl bg-purple-50 text-purple-600 border border-purple-100">
-                    <FileCheck size={20} />
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                      Rejestr Aktów i Uchwał
-                    </h3>
-                    <span className="text-[11px] text-slate-500">Stan ewidencyjny</span>
-                  </div>
-                </div>
-                <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-purple-100 text-purple-800">
-                  {documents.length} aktów
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-center text-xs pt-1">
-                <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
-                  <span className="text-[10px] text-slate-500 block uppercase font-bold">Obowiązujące</span>
-                  <span className="text-sm font-extrabold text-emerald-700 font-mono">
-                    {documents.filter((d) => d.status === 'Obowiązujący').length}
-                  </span>
-                </div>
-                <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
-                  <span className="text-[10px] text-slate-500 block uppercase font-bold">Uchwały Zarządu</span>
-                  <span className="text-sm font-extrabold text-purple-700 font-mono">
-                    {documents.filter((d) => d.category === 'Uchwały Zarządu').length}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* ── SEARCH & CATEGORY FILTER TABS ── */}
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-              {/* Category Tabs */}
-              <div className="flex flex-wrap items-center gap-1.5">
-                {CATEGORIES.map((cat) => (
-                  <button
-                    key={cat}
-                    onClick={() => setSelectedCategory(cat)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                      selectedCategory === cat
-                        ? 'bg-indigo-600 text-white shadow-xs'
-                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-
-              {/* Search Box */}
-              <div className="relative w-full sm:w-64">
-                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Szukaj po sygnaturze lub tytule..."
-                  className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-            </div>
-
-            {/* ── DOCUMENTS TABLE ── */}
-            <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-100/80 text-slate-700 font-bold uppercase tracking-wider text-[10.5px] border-b border-slate-200">
-                    <tr>
-                      <th className="py-3 px-4 w-44">Sygnatura / Nr Aktu</th>
-                      <th className="py-3 px-4">Tytuł / Przedmiot Dokumentu</th>
-                      <th className="py-3 px-4 w-36">Kategoria</th>
-                      <th className="py-3 px-4 w-28 text-center">Data</th>
-                      <th className="py-3 px-4 w-28 text-center">Plik Źródłowy</th>
-                      <th className="py-3 px-4 w-32 text-center">Status</th>
-                      <th className="py-3 px-4 w-20 text-center">Akcje</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 bg-white">
-                    {filteredDocuments.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="py-8 text-center text-slate-400 italic">
-                          Brak dokumentów w wybranej kategorii.
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredDocuments.map((doc) => (
-                        <tr key={doc.id} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="py-3 px-4 font-mono font-bold text-slate-900">{doc.code}</td>
-                          <td className="py-3 px-4">
-                            <div className="font-bold text-slate-900">{doc.title}</div>
-                            {doc.description && (
-                              <div className="text-[11px] text-slate-500 line-clamp-1 mt-0.5 font-sans">
-                                {doc.description}
-                              </div>
-                            )}
-                          </td>
-                          <td className="py-3 px-4">
-                            <span
-                              className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${getCategoryBadgeClass(
-                                doc.category
-                              )}`}
-                            >
-                              {doc.category}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-center font-mono text-slate-600 font-semibold">{doc.date}</td>
-                          <td className="py-3 px-4 text-center">
-                            {doc.driveUrl ? (
-                              <a
-                                href={doc.driveUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-[11px] border border-indigo-200 transition-colors"
-                              >
-                                <ExternalLink size={12} />
-                                <span>Drive</span>
-                              </a>
-                            ) : (
-                              <span className="text-slate-400 font-mono text-[11px]">—</span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 text-center">
-                            <span
-                              className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border inline-flex items-center gap-1 ${getStatusBadgeClass(
-                                doc.status
-                              )}`}
-                            >
-                              {doc.status === 'Obowiązujący' && <CheckCircle2 size={11} />}
-                              {doc.status === 'W toku' && <Clock size={11} />}
-                              {doc.status === 'Zastąpiony' && <Archive size={11} />}
-                              {doc.status}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-center">
-                            <div className="flex items-center justify-center gap-1">
-                              <button
-                                onClick={() => handleOpenEditModal(doc)}
-                                className="p-1 rounded text-slate-400 hover:text-indigo-600 hover:bg-slate-100"
-                                title="Edytuj dokument"
-                              >
-                                <Edit3 size={14} />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteDocument(doc.id)}
-                                className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-slate-100"
-                                title="Usuń dokument"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* ══════════════════════════════════════════════════════════════════════════ */}
-      {/* ── TAB 2: DZIENNIK PODAWCZY & KANCELARIA ──────────────────────────────── */}
-      {/* ══════════════════════════════════════════════════════════════════════════ */}
-      {activeModuleTab === 'correspondence' && (
-        <>
-          {/* Sync Status Alert */}
-          {mailSyncStatus && (
-            <div
-              className={`p-3 rounded-xl border text-xs flex items-center justify-between gap-2 animate-in fade-in duration-200 ${
-                mailSyncStatus.success
-                  ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
-                  : 'bg-rose-50 text-rose-900 border-rose-200'
+            
+            <button
+              type="button"
+              onClick={() => setActiveModuleTab('repository')}
+              className={`w-full p-2.5 rounded-xl text-xs font-bold flex items-center justify-between transition cursor-pointer ${
+                activeModuleTab === 'repository'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'bg-slate-50 hover:bg-slate-100 text-slate-700'
               }`}
             >
               <div className="flex items-center gap-2">
-                {mailSyncStatus.success ? (
-                  <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
-                ) : (
-                  <AlertTriangle size={16} className="text-rose-600 shrink-0" />
-                )}
-                <span>{mailSyncStatus.message}</span>
+                <FolderKanban size={15} className={activeModuleTab === 'repository' ? 'text-indigo-400' : 'text-slate-500'} />
+                <span>Repozytorium Aktów</span>
               </div>
-              <button
-                type="button"
-                onClick={() => setMailSyncStatus(null)}
-                className="text-slate-400 hover:text-slate-600 cursor-pointer"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          )}
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                activeModuleTab === 'repository' ? 'bg-slate-800 text-indigo-200' : 'bg-white text-slate-700 border border-slate-200'
+              }`}>
+                {documents.length}
+              </span>
+            </button>
 
-          {/* Compact Single-Row Toolbar (Filters, Search & Actions) */}
-          <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs space-y-3">
-            <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5">
-              {/* Left: Direction Filter Buttons with live counts */}
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => setCorrespondenceFilter('all')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                    correspondenceFilter === 'all'
-                      ? 'bg-slate-900 text-white shadow-xs'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                  }`}
-                >
-                  <Mail size={13} />
-                  <span>Wszystkie</span>
-                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
-                    correspondenceFilter === 'all' ? 'bg-slate-800 text-slate-200' : 'bg-slate-200 text-slate-700'
-                  }`}>
-                    {correspondenceLog.length}
-                  </span>
-                </button>
+            <button
+              type="button"
+              onClick={() => setActiveModuleTab('correspondence')}
+              className={`w-full p-2.5 rounded-xl text-xs font-bold flex items-center justify-between transition cursor-pointer ${
+                activeModuleTab === 'correspondence'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'bg-slate-50 hover:bg-slate-100 text-slate-700'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Mail size={15} className={activeModuleTab === 'correspondence' ? 'text-white' : 'text-indigo-600'} />
+                <span>Dziennik Podawczy</span>
+              </div>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                activeModuleTab === 'correspondence' ? 'bg-indigo-700 text-white' : 'bg-indigo-50 text-indigo-700 border border-indigo-100'
+              }`}>
+                {correspondenceLog.length}
+              </span>
+            </button>
+          </div>
 
-                <button
-                  type="button"
-                  onClick={() => setCorrespondenceFilter('IN')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                    correspondenceFilter === 'IN'
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/60'
-                  }`}
-                >
-                  <Inbox size={13} />
-                  <span>Przychodzące</span>
-                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
-                    correspondenceFilter === 'IN' ? 'bg-emerald-700 text-emerald-100' : 'bg-emerald-200/80 text-emerald-900'
-                  }`}>
-                    {correspondenceLog.filter(c => c.direction === 'IN').length}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setCorrespondenceFilter('OUT')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                    correspondenceFilter === 'OUT'
-                      ? 'bg-sky-600 text-white shadow-xs'
-                      : 'bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200/60'
-                  }`}
-                >
-                  <Send size={13} />
-                  <span>Wychodzące</span>
-                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
-                    correspondenceFilter === 'OUT' ? 'bg-sky-700 text-sky-100' : 'bg-sky-200/80 text-sky-900'
-                  }`}>
-                    {correspondenceLog.filter(c => c.direction === 'OUT').length}
-                  </span>
-                </button>
+          {/* Contextual Filters / Tools based on active tab */}
+          {activeModuleTab === 'repository' ? (
+            <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs space-y-4 flex-1">
+              {/* Category Filter Pills */}
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 px-1">
+                  Kategorie Dokumentów
+                </div>
+                <div className="space-y-1">
+                  {CATEGORIES.map((cat) => {
+                    const count = cat === 'Wszystkie'
+                      ? documents.length
+                      : documents.filter((d) => d.category === cat).length;
+                    const isActive = selectedCategory === cat;
+                    return (
+                      <button
+                        key={cat}
+                        onClick={() => setSelectedCategory(cat)}
+                        className={`w-full px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
+                          isActive
+                            ? 'bg-indigo-50 text-indigo-900 font-bold border border-indigo-200/80 shadow-2xs'
+                            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                        }`}
+                      >
+                        <span className="truncate">{cat}</span>
+                        <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono font-bold ${
+                          isActive ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              {/* Right: Search, Integrations & New Entry Button */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="relative flex-1 sm:w-60">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    value={correspondenceSearch}
-                    onChange={(e) => setCorrespondenceSearch(e.target.value)}
-                    placeholder="Szukaj po sygnaturze, temacie..."
-                    className="w-full pl-8 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white transition"
-                  />
-                  {correspondenceSearch && (
+              {/* Status Breakdown */}
+              <div className="pt-2 border-t border-slate-100">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 px-1">
+                  Status Obowiązywania
+                </div>
+                <div className="grid grid-cols-2 gap-1.5 text-center">
+                  <div className="p-2 rounded-xl bg-emerald-50/60 border border-emerald-100">
+                    <span className="text-[9.5px] text-emerald-700 block font-bold uppercase">Obowiązujące</span>
+                    <span className="text-xs font-extrabold text-emerald-800 font-mono">
+                      {documents.filter((d) => d.status === 'Obowiązujący').length}
+                    </span>
+                  </div>
+                  <div className="p-2 rounded-xl bg-amber-50/60 border border-amber-100">
+                    <span className="text-[9.5px] text-amber-700 block font-bold uppercase">W toku</span>
+                    <span className="text-xs font-extrabold text-amber-800 font-mono">
+                      {documents.filter((d) => d.status === 'W toku').length}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Links / Micro-Cards */}
+              <div className="pt-2 border-t border-slate-100 space-y-2">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 px-1">
+                  Zasoby Zewnętrzne
+                </div>
+
+                {/* Statut Micro-Card */}
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-emerald-800 font-bold text-xs">
+                      <ShieldCheck size={14} className="text-emerald-600" />
+                      <span>Statut Koła</span>
+                    </div>
                     <button
-                      type="button"
-                      onClick={() => setCorrespondenceSearch('')}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      onClick={() => {
+                        setTempStatutConfig({
+                          url: statutConfig.url || '',
+                          status: statutConfig.status || 'Zatwierdzony przez Władze WSKZ',
+                          description: statutConfig.description || '',
+                        });
+                        setIsEditingStatutModal(true);
+                      }}
+                      className="text-slate-400 hover:text-emerald-600 p-0.5 rounded cursor-pointer"
+                      title="Edytuj konfigurację Statutu"
                     >
-                      <X size={12} />
+                      <Edit3 size={12} />
                     </button>
-                  )}
+                  </div>
+                  <div className="text-[10px] text-slate-500 truncate" title={statutConfig.status}>
+                    {statutConfig.status || 'Zatwierdzony przez Władze WSKZ'}
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (statutConfig.url && statutConfig.url.trim()) {
+                        window.open(statutConfig.url.trim(), '_blank');
+                      } else {
+                        setTempStatutConfig({
+                          url: statutConfig.url || '',
+                          status: statutConfig.status || 'Zatwierdzony przez Władze WSKZ',
+                          description: statutConfig.description || '',
+                        });
+                        setIsEditingStatutModal(true);
+                      }
+                    }}
+                    className="w-full py-1 px-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1 transition cursor-pointer"
+                  >
+                    <ExternalLink size={11} />
+                    <span>Otwórz Statut (Drive)</span>
+                  </button>
+                </div>
+
+                {/* Google Drive Micro-Card */}
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-blue-800 font-bold text-xs">
+                      <HardDrive size={14} className="text-blue-600" />
+                      <span>Dysk Google</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setTempDriveUrl(gdriveUrl);
+                        setIsEditingDriveModal(true);
+                      }}
+                      className="text-slate-400 hover:text-blue-600 p-0.5 rounded cursor-pointer"
+                      title="Edytuj link Dysku Google"
+                    >
+                      <Edit3 size={12} />
+                    </button>
+                  </div>
+                  <a
+                    href={gdriveUrl || '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-1 px-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1 transition text-center"
+                  >
+                    <FolderOpen size={11} />
+                    <span>Przejdź do Dysku</span>
+                  </a>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs space-y-4 flex-1">
+              {/* Direction Filter Buttons */}
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 px-1">
+                  Kierunek Korespondencji
+                </div>
+                <div className="space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => setCorrespondenceFilter('all')}
+                    className={`w-full px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
+                      correspondenceFilter === 'all'
+                        ? 'bg-slate-900 text-white font-bold shadow-2xs'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <Mail size={13} />
+                      <span>Wszystkie pisma</span>
+                    </div>
+                    <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono font-bold ${
+                      correspondenceFilter === 'all' ? 'bg-slate-800 text-slate-200' : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {correspondenceLog.length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCorrespondenceFilter('IN')}
+                    className={`w-full px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
+                      correspondenceFilter === 'IN'
+                        ? 'bg-emerald-600 text-white font-bold shadow-2xs'
+                        : 'text-emerald-800 hover:bg-emerald-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <Inbox size={13} />
+                      <span>Przychodzące (IN)</span>
+                    </div>
+                    <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono font-bold ${
+                      correspondenceFilter === 'IN' ? 'bg-emerald-700 text-white' : 'bg-emerald-100 text-emerald-800'
+                    }`}>
+                      {correspondenceLog.filter((c) => c.direction === 'IN').length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCorrespondenceFilter('OUT')}
+                    className={`w-full px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
+                      correspondenceFilter === 'OUT'
+                        ? 'bg-sky-600 text-white font-bold shadow-2xs'
+                        : 'text-sky-800 hover:bg-sky-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <Send size={13} />
+                      <span>Wychodzące (OUT)</span>
+                    </div>
+                    <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono font-bold ${
+                      correspondenceFilter === 'OUT' ? 'bg-sky-700 text-white' : 'bg-sky-100 text-sky-800'
+                    }`}>
+                      {correspondenceLog.filter((c) => c.direction === 'OUT').length}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Quick Status Stats */}
+              <div className="pt-2 border-t border-slate-100">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 px-1">
+                  Statusy Pism
+                </div>
+                <div className="grid grid-cols-2 gap-1.5 text-center">
+                  <div className="p-2 rounded-xl bg-indigo-50/60 border border-indigo-100">
+                    <span className="text-[9.5px] text-indigo-700 block font-bold uppercase">W toku</span>
+                    <span className="text-xs font-extrabold text-indigo-900 font-mono">
+                      {correspondenceLog.filter((c) => (c.status || 'W toku').toLowerCase().includes('toku')).length}
+                    </span>
+                  </div>
+                  <div className="p-2 rounded-xl bg-emerald-50/60 border border-emerald-100">
+                    <span className="text-[9.5px] text-emerald-700 block font-bold uppercase">Zatwierdzone</span>
+                    <span className="text-xs font-extrabold text-emerald-900 font-mono">
+                      {correspondenceLog.filter((c) => (c.status || '').toLowerCase().includes('zatwierdz') || (c.status || '').toLowerCase().includes('zrealizowan') || (c.status || '').toLowerCase().includes('zakończ')).length}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Integrations & Shortcuts */}
+              <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 px-1">
+                  Integracje i Eksport
                 </div>
 
                 <button
                   type="button"
                   onClick={handleSyncMailSheet}
                   disabled={isSyncingMailSheet}
-                  className="px-2.5 py-1.5 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold flex items-center gap-1 transition cursor-pointer shrink-0"
-                  title="Pobierz i zsynchronizuj z zakładką Ewidencja_Poczty w arkuszu Google"
+                  className="w-full py-1.5 px-2.5 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold flex items-center justify-between transition cursor-pointer"
                 >
-                  <RefreshCw size={12} className={isSyncingMailSheet ? 'animate-spin' : ''} />
-                  <span className="hidden sm:inline">{isSyncingMailSheet ? 'Pobieranie...' : 'Arkusze'}</span>
+                  <div className="flex items-center gap-1.5">
+                    <RefreshCw size={13} className={isSyncingMailSheet ? 'animate-spin' : ''} />
+                    <span>Synchronizuj z Arkuszem</span>
+                  </div>
+                  <FileSpreadsheet size={13} className="text-emerald-600" />
                 </button>
 
                 <button
                   type="button"
-                  onClick={handlePrintCorrespondence}
-                  className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1 transition cursor-pointer shrink-0"
-                  title="Drukuj oficjalny Rejestr i Dziennik Podawczy do PDF"
+                  onClick={handleCopySheetFormat}
+                  className="w-full py-1.5 px-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold flex items-center justify-between transition cursor-pointer"
                 >
-                  <Printer size={12} />
-                  <span className="hidden sm:inline">Drukuj</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setIsWelcomeMailModalOpen(true)}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition cursor-pointer shrink-0"
-                  title="Przygotuj i wyślij powiadomienie do studenta"
-                >
-                  <Mail size={13} />
-                  <span className="hidden sm:inline">Powiadomienie</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleOpenMailModal()}
-                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-xs hover:shadow-md transition cursor-pointer shrink-0"
-                  title="Zarejestruj pismo lub wklej e-mail"
-                >
-                  <Plus size={14} />
-                  <span>+ Zarejestruj pismo</span>
+                  <div className="flex items-center gap-1.5">
+                    <Copy size={13} />
+                    <span>{copiedSheetData ? 'Skopiowano TSV!' : 'Kopiuj format arkusza'}</span>
+                  </div>
+                  {copiedSheetData ? <Check size={13} className="text-emerald-600" /> : null}
                 </button>
               </div>
             </div>
+          )}
+        </div>
 
-            {/* ── CORRESPONDENCE LOG TABLE ── */}
-            <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead className="bg-slate-100/80 text-slate-700 font-bold uppercase tracking-wider text-[10.5px] border-b border-slate-200">
-                    <tr>
-                      <th className="py-3 px-3 text-center w-10">Lp.</th>
-                      <th className="py-3 px-3 w-44">Sygnatura Kancelaryjna</th>
-                      <th className="py-3 px-3 text-center w-24">Data</th>
-                      <th className="py-3 px-3 text-center w-24">Kierunek</th>
-                      <th className="py-3 px-3 w-48">Nadawca / Odbiorca</th>
-                      <th className="py-3 px-3">Temat & Przedmiot Sprawy</th>
-                      <th className="py-3 px-3 text-center w-28">Status</th>
-                      <th className="py-3 px-3 text-center w-20">Akcje</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 bg-white">
-                    {filteredCorrespondence.length === 0 ? (
+        {/* ── RESIZER HANDLE ──────────────────────────────────────────────────── */}
+        <div
+          onMouseDown={(e) => {
+            e.preventDefault();
+            setIsResizing(true);
+          }}
+          className={`hidden lg:flex items-center justify-center w-[5px] shrink-0 cursor-col-resize select-none z-10 transition-colors duration-150 self-stretch my-0.5 rounded-full group ${
+            isResizing
+              ? 'bg-indigo-500 shadow-xs'
+              : 'hover:bg-indigo-400 bg-transparent hover:shadow-xs'
+          }`}
+          style={{
+            width: '5px',
+            cursor: 'col-resize',
+            backgroundColor: isResizing ? '#6366f1' : 'transparent',
+            transition: 'background-color 0.15s ease',
+            flexShrink: 0,
+            userSelect: 'none',
+            zIndex: 10,
+          }}
+          title="Przeciągnij krawędź, aby dostosować szerokość panelu nawigacyjnego"
+        >
+          <div className={`w-[1px] h-8 rounded-full transition-colors ${
+            isResizing ? 'bg-white' : 'bg-slate-300 group-hover:bg-indigo-200'
+          }`} />
+        </div>
+
+        {/* ── RIGHT MAIN CONTENT COLUMN (flex-1) ──────────────────────────────── */}
+        <div className="flex-1 min-w-0 w-full pl-0 lg:pl-3 space-y-3">
+          
+          {/* TAB 1: REPOSITORY MAIN CONTENT */}
+          {activeModuleTab === 'repository' && (
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+              
+              {/* Single-Row Compact Toolbar */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-800">
+                    {selectedCategory === 'Wszystkie' ? 'Wszystkie Dokumenty' : selectedCategory}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-mono font-bold">
+                    {filteredDocuments.length} z {documents.length}
+                  </span>
+                </div>
+
+                {/* Search Box & Quick Add Button */}
+                <div className="flex items-center gap-2 flex-1 sm:max-w-md justify-end">
+                  <div className="relative flex-1">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Szukaj po sygnaturze, tytule..."
+                      className="w-full pl-8 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white transition"
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={handleOpenAddModal}
+                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer shrink-0"
+                  >
+                    <Plus size={14} />
+                    <span>Dodaj</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Massive Documents Table */}
+              <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-100/80 text-slate-700 font-bold uppercase tracking-wider text-[10.5px] border-b border-slate-200">
                       <tr>
-                        <td colSpan={8} className="py-10 text-center text-slate-400 italic">
-                          Brak zarejestrowanych pism w wybranym filtrze. Użyj przycisku „+ Zarejestruj pismo”, aby dodać pismo.
-                        </td>
+                        <th className="py-2.5 px-3 w-40">Sygnatura / Nr</th>
+                        <th className="py-2.5 px-3">Tytuł / Przedmiot Dokumentu</th>
+                        <th className="py-2.5 px-3 w-36">Kategoria</th>
+                        <th className="py-2.5 px-3 w-24 text-center">Data</th>
+                        <th className="py-2.5 px-3 w-24 text-center">Plik</th>
+                        <th className="py-2.5 px-3 w-28 text-center">Status</th>
+                        <th className="py-2.5 px-3 w-20 text-center">Akcje</th>
                       </tr>
-                    ) : (
-                      filteredCorrespondence.map((item, idx) => {
-                        const statusStr = String(item.status || 'W toku').toLowerCase();
-                        let statusColor = 'bg-indigo-50 text-indigo-800 border-indigo-200';
-                        if (statusStr.includes('zatwierdz') || statusStr.includes('zrealizowan') || statusStr.includes('zakończ')) {
-                          statusColor = 'bg-emerald-50 text-emerald-800 border-emerald-200';
-                        } else if (statusStr.includes('weryfik')) {
-                          statusColor = 'bg-amber-50 text-amber-800 border-amber-200';
-                        } else if (statusStr.includes('odrzuc') || statusStr.includes('anulow')) {
-                          statusColor = 'bg-rose-50 text-rose-800 border-rose-200';
-                        }
-
-                        return (
-                          <tr
-                            key={item.id || idx}
-                            onClick={() => setViewingMailEntry(item)}
-                            className="hover:bg-indigo-50/40 cursor-pointer transition-colors group"
-                            title="Kliknij, aby otworzyć panel boczny ze szczegółami sprawy"
-                          >
-                            <td className="py-3 px-3 text-center font-mono text-slate-400 font-bold">
-                              {idx + 1}
-                            </td>
-                            <td className="py-3 px-3 font-mono font-bold text-indigo-950 group-hover:text-indigo-600 transition-colors">
-                              {item.id}
-                            </td>
-                            <td className="py-3 px-3 text-center font-mono text-slate-600">
-                              {item.date}
-                            </td>
-                            <td className="py-3 px-3 text-center">
-                              <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                                item.direction === 'IN'
-                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                                  : 'bg-sky-50 text-sky-800 border-sky-200'
-                              }`}>
-                                {item.direction === 'IN' ? '📥 PRZYCHODZĄCE' : '📤 WYCHODZĄCE'}
-                              </span>
-                            </td>
-                            <td className="py-3 px-3 text-slate-700">
-                              <div className="font-semibold text-slate-900 truncate max-w-[190px]" title={item.sender}>
-                                {item.sender}
-                              </div>
-                              <div className="text-[10.5px] text-slate-500 truncate max-w-[190px]" title={item.recipient}>
-                                → {item.recipient}
-                              </div>
-                            </td>
-                            <td className="py-3 px-3 text-slate-800">
-                              <div className="font-bold text-slate-900 group-hover:text-indigo-900 transition-colors">{item.subject}</div>
-                              {item.summary && (
-                                <div className="text-[11px] text-slate-500 line-clamp-1 mt-0.5 font-sans" title={item.summary}>
-                                  {item.summary}
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {filteredDocuments.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="py-12 text-center text-slate-400 italic">
+                            Brak dokumentów w wybranej kategorii lub filtrze wyszukiwania.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredDocuments.map((doc) => (
+                          <tr key={doc.id} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="py-2.5 px-3 font-mono font-bold text-slate-900">{doc.code}</td>
+                            <td className="py-2.5 px-3">
+                              <div className="font-bold text-slate-900">{doc.title}</div>
+                              {doc.description && (
+                                <div className="text-[11px] text-slate-500 line-clamp-1 mt-0.5 font-sans">
+                                  {doc.description}
                                 </div>
                               )}
                             </td>
-                            <td className="py-3 px-3 text-center">
-                              <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border ${statusColor}`}>
-                                {item.status || 'W toku'}
+                            <td className="py-2.5 px-3">
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10.5px] font-semibold border ${getCategoryBadgeClass(
+                                  doc.category
+                                )}`}
+                              >
+                                {doc.category}
                               </span>
                             </td>
-                            <td className="py-3 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                            <td className="py-2.5 px-3 text-center font-mono text-slate-600 font-semibold">{doc.date}</td>
+                            <td className="py-2.5 px-3 text-center">
+                              {doc.driveUrl ? (
+                                <a
+                                  href={doc.driveUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-[10.5px] border border-indigo-200 transition-colors"
+                                >
+                                  <ExternalLink size={11} />
+                                  <span>Drive</span>
+                                </a>
+                              ) : (
+                                <span className="text-slate-400 font-mono text-[11px]">—</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 text-center">
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10.5px] font-bold border inline-flex items-center gap-1 ${getStatusBadgeClass(
+                                  doc.status
+                                )}`}
+                              >
+                                {doc.status === 'Obowiązujący' && <CheckCircle2 size={11} />}
+                                {doc.status === 'W toku' && <Clock size={11} />}
+                                {doc.status === 'Zastąpiony' && <Archive size={11} />}
+                                {doc.status}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-center">
                               <div className="flex items-center justify-center gap-1">
                                 <button
-                                  type="button"
-                                  onClick={() => setViewingMailEntry(item)}
-                                  className="p-1 rounded text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition cursor-pointer"
-                                  title="Podgląd w panelu bocznym"
+                                  onClick={() => handleOpenEditModal(doc)}
+                                  className="p-1 rounded text-slate-400 hover:text-indigo-600 hover:bg-slate-100 cursor-pointer"
+                                  title="Edytuj dokument"
                                 >
-                                  <Eye size={14} />
+                                  <Edit3 size={13} />
                                 </button>
                                 <button
-                                  type="button"
-                                  onClick={() => handleOpenMailModal(item)}
-                                  className="p-1 rounded text-slate-400 hover:text-amber-600 hover:bg-slate-100 transition cursor-pointer"
-                                  title="Edytuj pismo"
+                                  onClick={() => handleDeleteDocument(doc.id)}
+                                  className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-slate-100 cursor-pointer"
+                                  title="Usuń dokument"
                                 >
-                                  <Edit3 size={14} />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteMailEntry(item.id)}
-                                  className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-slate-100 transition cursor-pointer"
-                                  title="Usuń pismo z dziennika"
-                                >
-                                  <Trash2 size={14} />
+                                  <Trash2 size={13} />
                                 </button>
                               </div>
                             </td>
                           </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
-          </div>
-        </>
-      )}
+          )}
+
+          {/* TAB 2: CORRESPONDENCE MAIN CONTENT */}
+          {activeModuleTab === 'correspondence' && (
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+              
+              {/* Sync Status Alert */}
+              {mailSyncStatus && (
+                <div
+                  className={`p-3 rounded-xl border text-xs flex items-center justify-between gap-2 animate-in fade-in duration-200 ${
+                    mailSyncStatus.success
+                      ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                      : 'bg-rose-50 text-rose-900 border-rose-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    {mailSyncStatus.success ? (
+                      <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                    ) : (
+                      <AlertTriangle size={16} className="text-rose-600 shrink-0" />
+                    )}
+                    <span>{mailSyncStatus.message}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMailSyncStatus(null)}
+                    className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+
+              {/* Single-Row Compact Toolbar */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-800">
+                    {correspondenceFilter === 'all'
+                      ? 'Wszystkie Pisma'
+                      : correspondenceFilter === 'IN'
+                      ? 'Pisma Przychodzące (IN)'
+                      : 'Pisma Wychodzące (OUT)'}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-mono font-bold">
+                    {filteredCorrespondence.length} z {correspondenceLog.length}
+                  </span>
+                </div>
+
+                {/* Search & Actions */}
+                <div className="flex items-center gap-2 flex-1 sm:max-w-md justify-end">
+                  <div className="relative flex-1">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={correspondenceSearch}
+                      onChange={(e) => setCorrespondenceSearch(e.target.value)}
+                      placeholder="Szukaj po sygnaturze, temacie..."
+                      className="w-full pl-8 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white transition"
+                    />
+                    {correspondenceSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setCorrespondenceSearch('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenMailModal()}
+                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-xs hover:shadow-md transition cursor-pointer shrink-0"
+                  >
+                    <Plus size={14} />
+                    <span>Zarejestruj</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Massive Correspondence Table */}
+              <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="bg-slate-100/80 text-slate-700 font-bold uppercase tracking-wider text-[10.5px] border-b border-slate-200">
+                      <tr>
+                        <th className="py-2.5 px-3 text-center w-10">Lp.</th>
+                        <th className="py-2.5 px-3 w-40">Sygnatura Kanc.</th>
+                        <th className="py-2.5 px-3 text-center w-24">Data</th>
+                        <th className="py-2.5 px-3 text-center w-20">Kierunek</th>
+                        <th className="py-2.5 px-3 w-48">Nadawca / Odbiorca</th>
+                        <th className="py-2.5 px-3">Temat & Przedmiot Sprawy</th>
+                        <th className="py-2.5 px-3 text-center w-24">Status</th>
+                        <th className="py-2.5 px-3 text-center w-20">Akcje</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {filteredCorrespondence.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="py-12 text-center text-slate-400 italic">
+                            Brak zarejestrowanych pism w wybranym filtrze. Kliknij „+ Zarejestruj”, aby dodać pismo.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredCorrespondence.map((item, idx) => {
+                          const statusStr = String(item.status || 'W toku').toLowerCase();
+                          let statusColor = 'bg-indigo-50 text-indigo-800 border-indigo-200';
+                          if (statusStr.includes('zatwierdz') || statusStr.includes('zrealizowan') || statusStr.includes('zakończ')) {
+                            statusColor = 'bg-emerald-50 text-emerald-800 border-emerald-200';
+                          } else if (statusStr.includes('weryfik')) {
+                            statusColor = 'bg-amber-50 text-amber-800 border-amber-200';
+                          } else if (statusStr.includes('odrzuc') || statusStr.includes('anulow')) {
+                            statusColor = 'bg-rose-50 text-rose-800 border-rose-200';
+                          }
+
+                          return (
+                            <tr
+                              key={item.id || idx}
+                              onClick={() => setViewingMailEntry(item)}
+                              className="hover:bg-indigo-50/40 cursor-pointer transition-colors group"
+                              title="Kliknij wiersz, aby otworzyć panel boczny ze szczegółami sprawy"
+                            >
+                              <td className="py-2.5 px-3 text-center font-mono text-slate-400 font-bold">
+                                {idx + 1}
+                              </td>
+                              <td className="py-2.5 px-3 font-mono font-bold text-indigo-950 group-hover:text-indigo-600 transition-colors">
+                                {item.id}
+                              </td>
+                              <td className="py-2.5 px-3 text-center font-mono text-slate-600">
+                                {item.date}
+                              </td>
+                              <td className="py-2.5 px-3 text-center">
+                                <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                  item.direction === 'IN'
+                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                    : 'bg-sky-50 text-sky-800 border-sky-200'
+                                }`}>
+                                  {item.direction === 'IN' ? '📥 IN' : '📤 OUT'}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 text-slate-700">
+                                <div className="font-semibold text-slate-900 truncate max-w-[190px]" title={item.sender}>
+                                  {item.sender}
+                                </div>
+                                <div className="text-[10.5px] text-slate-500 truncate max-w-[190px]" title={item.recipient}>
+                                  → {item.recipient}
+                                </div>
+                              </td>
+                              <td className="py-2.5 px-3 text-slate-800">
+                                <div className="font-bold text-slate-900 group-hover:text-indigo-900 transition-colors">{item.subject}</div>
+                                {item.summary && (
+                                  <div className="text-[11px] text-slate-500 line-clamp-1 mt-0.5 font-sans" title={item.summary}>
+                                    {item.summary}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-3 text-center">
+                                <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusColor}`}>
+                                  {item.status || 'W toku'}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex items-center justify-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setViewingMailEntry(item)}
+                                    className="p-1 rounded text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition cursor-pointer"
+                                    title="Podgląd w panelu bocznym"
+                                  >
+                                    <Eye size={13} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenMailModal(item)}
+                                    className="p-1 rounded text-slate-400 hover:text-amber-600 hover:bg-slate-100 transition cursor-pointer"
+                                    title="Edytuj pismo"
+                                  >
+                                    <Edit3 size={13} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteMailEntry(item.id)}
+                                    className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-slate-100 transition cursor-pointer"
+                                    title="Usuń pismo z dziennika"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* ── MODAL: SMART MAIL INGESTION & PARSER ──────────────────────────────── */}
       {isMailModalOpen && (
