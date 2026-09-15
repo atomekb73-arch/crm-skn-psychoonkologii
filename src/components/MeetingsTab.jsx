@@ -32,6 +32,7 @@ import {
   Loader2,
   Search,
   Users,
+  Maximize2,
 } from 'lucide-react';
 import { MEETING_TYPES, getMeetingType } from '../utils/meetingTypes';
 import { parseAttendanceLine, parseDurationToMinutes, fetchMeetingSheetAttendance, saveMeetingAttendanceToGAS, deleteMeetingAttendanceFromGAS, sendToGAS } from '../services/googleSheets';
@@ -1885,26 +1886,48 @@ export default function MeetingsTab({
                   ));
 
                   return (
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <button
-                        type="button"
-                        onClick={handleProcessAttendance}
-                        className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-sm cursor-pointer"
-                      >
-                        <Play size={13} />
-                        <span>▶ Przetwórz i zweryfikuj listę</span>
-                      </button>
-
-                      {isCurrentVerified && rawList.trim() && (
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {/* Przycisk 1: Przetwórz i zweryfikuj listę */}
                         <button
                           type="button"
-                          onClick={() => setShowResetConfirm(true)}
-                          className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 hover:border-rose-300 bg-white hover:bg-rose-50 text-slate-500 hover:text-rose-600 text-[11px] font-semibold transition cursor-pointer shrink-0"
-                          title="Przetwórz surowy tekst od nowa (Reset korekt)"
+                          onClick={handleProcessAttendance}
+                          className="w-full inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-xs hover:shadow-md cursor-pointer text-center"
                         >
-                          <RotateCcw size={12} />
-                          <span>Reset</span>
+                          <Play size={13} className="fill-current shrink-0" />
+                          <span className="truncate">Przetwórz i zweryfikuj listę</span>
                         </button>
+
+                        {/* Przycisk 2: Powiększ do dużego ekranu */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (rawList.trim() && parsedParticipants.length === 0) {
+                              handleProcessAttendance();
+                            } else {
+                              setIsModalOpen(true);
+                            }
+                          }}
+                          className="w-full inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 hover:text-indigo-600 border border-slate-200 hover:border-indigo-200 text-xs font-bold transition shadow-2xs hover:shadow-xs cursor-pointer text-center"
+                          title="Otwórz pełnoekranowy edytor i weryfikator obecności"
+                        >
+                          <Maximize2 size={13} className="text-indigo-600 shrink-0" />
+                          <span className="truncate">Powiększ do dużego ekranu</span>
+                        </button>
+                      </div>
+
+                      {isCurrentVerified && rawList.trim() && (
+                        <div className="flex justify-end pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setShowResetConfirm(true)}
+                            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 hover:border-rose-300 bg-white hover:bg-rose-50 text-slate-500 hover:text-rose-600 text-[11px] font-semibold transition cursor-pointer"
+                            title="Przetwórz surowy tekst od nowa (Reset korekt)"
+                          >
+                            <RotateCcw size={12} />
+                            <span>Resetuj korekty i przetwórz od nowa</span>
+                          </button>
+                        </div>
                       )}
                     </div>
                   );
@@ -2097,6 +2120,8 @@ export default function MeetingsTab({
         meeting={selectedMeeting || currentSelectedMeeting || activeMeetings[0] || { id: 'M01', code: 'M01', title: 'Spotkanie', date: new Date().toISOString().slice(0, 10) }}
         members={members}
         participants={parsedParticipants}
+        initialRawText={rawList}
+        onRawTextChange={setRawList}
         minDurationThreshold={minDurationThreshold}
         onThresholdChange={handleThresholdChange}
         onSaveAttendance={(meetingId, confirmedIndexes, updatedParticipants, payload) => {

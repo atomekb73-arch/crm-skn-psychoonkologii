@@ -28,6 +28,8 @@ import {
   Tag,
   Award,
   Loader2,
+  ClipboardList,
+  Play,
 } from 'lucide-react';
 import {
   PARTICIPANT_ROLES,
@@ -43,7 +45,7 @@ import {
 import { useSettings } from '../context/SettingsContext';
 import { useOrg } from '../context/OrgContext';
 import { ACTIVITY_OPTIONS } from '../utils/activityRegistry';
-import { saveMeetingAttendanceToGAS } from '../services/googleSheets';
+import { saveMeetingAttendanceToGAS, parseAttendanceLine } from '../services/googleSheets';
 import { getAliasesFromStorage, saveAliasesToStorage } from '../utils/storage';
 
 function findMemberMatch(nameOrIndex, members = [], aliasesMap = {}) {
@@ -431,6 +433,8 @@ export default function AttendanceModal({
   meeting,
   members = [],
   participants = [],
+  initialRawText = '',
+  onRawTextChange,
   minDurationThreshold = 15,
   onThresholdChange,
   onSaveAttendance,
@@ -449,6 +453,49 @@ export default function AttendanceModal({
   const [selectedAssignee, setSelectedAssignee] = useState({});
   const [openActivityPopoverId, setOpenActivityPopoverId] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Paste drawer inside modal
+  const [isPasteDrawerOpen, setIsPasteDrawerOpen] = useState(false);
+  const [pasteRawText, setPasteRawText] = useState(initialRawText || '');
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setPasteRawText(initialRawText || '');
+    }
+  }, [isOpen, initialRawText]);
+
+  const handleProcessPastedText = () => {
+    if (!pasteRawText.trim()) return;
+    if (onRawTextChange) onRawTextChange(pasteRawText);
+
+    const lines = pasteRawText.split(/\r?\n/);
+    const parsedList = [];
+    const seenNames = new Set();
+
+    for (let i = 0; i < lines.length; i++) {
+      const p = parseAttendanceLine(lines[i]);
+      if (p && p.rawName && !seenNames.has(p.rawName.toLowerCase())) {
+        seenNames.add(p.rawName.toLowerCase());
+        parsedList.push({
+          id: `att_${Date.now()}_${i}`,
+          rawName: p.rawName,
+          name: p.rawName,
+          durationMinutes: p.durationMinutes || 60,
+          durationStr: p.durationStr || `${p.durationMinutes || 60} min`,
+          joinTime: p.joinTime || '18:00',
+          role: p.isExplicitGuest ? 'guest' : undefined,
+          isGuest: p.isExplicitGuest,
+        });
+      }
+    }
+
+    if (parsedList.length > 0) {
+      const currentAliases = getAliasesFromStorage();
+      const resolved = resolveInitialParticipants(meeting, members, parsedList, localThreshold, supervisors, getStorageKey, currentAliases);
+      setLocalParticipants(resolved);
+      setIsPasteDrawerOpen(false);
+    }
+  };
 
   const handleToggleActivity = (participantId, actId) => {
     setLocalParticipants(prev =>
@@ -967,10 +1014,27 @@ export default function AttendanceModal({
 
           {/* Action buttons in header */}
           <div className="flex items-center gap-2.5 self-end md:self-auto flex-wrap shrink-0">
+            {/* 📋 Wklej z Meet button */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsPasteDrawerOpen(prev => !prev);
+                if (isAddFormOpen) setIsAddFormOpen(false);
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+              title="Wklej lub edytuj surową listę obecności z Google Meet"
+            >
+              <ClipboardList size={13} />
+              <span>📋 Wklej z Meet</span>
+            </button>
+
             {/* ➕ Dodaj osobę ręcznie button */}
             <button
               type="button"
-              onClick={() => setIsAddFormOpen(prev => !prev)}
+              onClick={() => {
+                setIsAddFormOpen(prev => !prev);
+                if (isPasteDrawerOpen) setIsPasteDrawerOpen(false);
+              }}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
               title="Ręcznie dopisz osobę do listy"
             >
@@ -1008,6 +1072,57 @@ export default function AttendanceModal({
             </button>
           </div>
         </div>
+
+        {/* ── Paste Raw Meet Text Drawer ─────────────────────────────────── */}
+        {isPasteDrawerOpen && (
+          <div className="p-4 bg-indigo-50/95 border-b border-indigo-200 flex flex-col gap-3 animate-in slide-in-from-top-2 duration-150 shrink-0">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-indigo-950 font-bold text-xs">
+                <ClipboardList size={16} className="text-indigo-700 shrink-0" />
+                <span>Wklej lub edytuj surową listę obecności z Google Meet (CSV / TSV / Tekst):</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPasteDrawerOpen(false)}
+                className="text-slate-400 hover:text-slate-600 text-xs font-semibold cursor-pointer"
+              >
+                ✕ Zamknij pole
+              </button>
+            </div>
+
+            <textarea
+              value={pasteRawText}
+              onChange={e => setPasteRawText(e.target.value)}
+              rows={5}
+              placeholder="Wklej logi z Google Meet (np. 'Imię Nazwisko', '18:00', '45 min' lub format CSV)..."
+              className="w-full text-xs font-mono border border-indigo-200 rounded-xl p-3 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-y shadow-inner"
+            />
+
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <span className="text-[11px] text-slate-500 font-medium">
+                Wykryto linii: {pasteRawText.split(/\r?\n/).filter(l => l.trim()).length}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPasteRawText('')}
+                  className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 font-semibold text-xs transition cursor-pointer"
+                >
+                  Wyczyść
+                </button>
+                <button
+                  type="button"
+                  onClick={handleProcessPastedText}
+                  disabled={!pasteRawText.trim()}
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-xs shadow-2xs transition cursor-pointer"
+                >
+                  <Play size={13} className="fill-current" />
+                  <span>Przetwórz i zastosuj listę</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── Add Participant Modal Drawer ─────────────────────────────────── */}
         {isAddFormOpen && (
