@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Microscope,
   BookOpen,
@@ -142,6 +142,57 @@ export default function ResearchTab() {
 
   // UI States
   const [activeSubTab, setActiveSubTab] = useState('All'); // 'All' | 'Publication' | 'Conference' | 'Project'
+
+  // ── Resizable Sidebar State (clamped min/max, persistent in localStorage) ──
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('crm_research_sidebar_width');
+      if (saved) return saved;
+    }
+    return '260px';
+  });
+  const [isResizing, setIsResizing] = useState(false);
+  const sidebarContainerRef = useRef(null);
+
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isResizing) return;
+      const screenWidth = window.innerWidth;
+      const containerLeft = sidebarContainerRef.current ? sidebarContainerRef.current.getBoundingClientRect().left : 0;
+      const newWidthPx = containerLeft > 0 ? (e.clientX - containerLeft) : e.clientX;
+
+      const minAllowed = Math.max(200, screenWidth * 0.12);
+      const maxAllowed = Math.min(420, screenWidth * 0.35);
+
+      if (newWidthPx >= minAllowed && newWidthPx <= maxAllowed) {
+        setSidebarWidth(`${newWidthPx}px`);
+      } else if (newWidthPx < minAllowed) {
+        setSidebarWidth(`${minAllowed}px`);
+      } else if (newWidthPx > maxAllowed) {
+        setSidebarWidth(`${maxAllowed}px`);
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (isResizing) {
+        setIsResizing(false);
+        document.body.style.cursor = 'default';
+        document.body.style.removeProperty('user-select');
+        localStorage.setItem('crm_research_sidebar_width', sidebarWidth);
+      }
+    };
+
+    if (isResizing) {
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    }
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing, sidebarWidth]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
@@ -278,24 +329,24 @@ export default function ResearchTab() {
   };
 
   return (
-    <div className="space-y-6 pb-12 font-sans animate-in fade-in duration-200 print:p-0 print:space-y-4">
+    <div className="space-y-4 pb-12 font-sans animate-in fade-in duration-200 print:p-0 print:space-y-4">
       {/* ── HEADER BAR ────────────────────────────────────────────────────────── */}
-      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
-        <div className="flex items-center gap-3.5">
-          <div className="p-3 bg-gradient-to-br from-emerald-500 to-teal-700 rounded-2xl text-white shadow-md shadow-emerald-200">
-            <Microscope size={26} />
+      <div className="bg-white px-5 py-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3 print:hidden">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-gradient-to-br from-emerald-500 to-teal-700 rounded-xl text-white shadow-xs">
+            <Microscope size={22} />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
+              <h1 className="text-lg font-extrabold text-slate-900 tracking-tight">
                 Dorobek Naukowy & Projekty Badawcze
               </h1>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                 {currentOrg.shortName || currentOrg.name}
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Rejestracja publikacji, referatów konferencyjnych i projektów ankietowych dla Dziekanatu i PKA.
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Rejestracja publikacji, referatów konferencyjnych i projektów badawczych dla Dziekanatu i PKA.
             </p>
           </div>
         </div>
@@ -308,87 +359,36 @@ export default function ResearchTab() {
                   saveItems([]);
                 }
               }}
-              className="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
               title="Wyczyść wszystkie wpisy dorobku"
             >
-              <Trash2 size={14} />
-              <span>Wyczyść listę</span>
+              <Trash2 size={13} />
+              <span className="hidden sm:inline">Wyczyść listę</span>
             </button>
           )}
 
           <button
             onClick={handlePrint}
-            className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
+            className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
           >
-            <Printer size={15} />
+            <Printer size={14} />
             <span>Drukuj Wykaz (PDF)</span>
           </button>
 
           <button
             onClick={() => handleOpenAddModal('Publication')}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all cursor-pointer"
+            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
           >
-            <Plus size={16} />
-            <span>Dodaj Osiągnięcie</span>
+            <Plus size={15} />
+            <span>+ Dodaj Osiągnięcie</span>
           </button>
-        </div>
-      </div>
-
-      {/* ── KPI METRICS CARDS ────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 print:hidden">
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
-          <div className="p-3 bg-purple-50 rounded-xl text-purple-600 border border-purple-100">
-            <BookOpen size={22} />
-          </div>
-          <div>
-            <span className="text-[10px] uppercase font-bold text-slate-500 block">Publikacje Naukowe</span>
-            <span className="text-lg font-extrabold text-slate-900 font-mono">
-              {items.filter((i) => i.type === 'Publication').length} pozycji
-            </span>
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
-          <div className="p-3 bg-amber-50 rounded-xl text-amber-600 border border-amber-100">
-            <Award size={22} />
-          </div>
-          <div>
-            <span className="text-[10px] uppercase font-bold text-slate-500 block">Wystąpienia & Referaty</span>
-            <span className="text-lg font-extrabold text-slate-900 font-mono">
-              {metrics.conferencesCount} konferencji
-            </span>
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
-          <div className="p-3 bg-blue-50 rounded-xl text-blue-600 border border-blue-100">
-            <BarChart2 size={22} />
-          </div>
-          <div>
-            <span className="text-[10px] uppercase font-bold text-slate-500 block">Projekty Badawcze</span>
-            <span className="text-lg font-extrabold text-slate-900 font-mono">
-              {metrics.projectsCount} projektów
-            </span>
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
-          <div className="p-3 bg-emerald-50 rounded-xl text-emerald-600 border border-emerald-100">
-            <GraduationCap size={22} />
-          </div>
-          <div>
-            <span className="text-[10px] uppercase font-bold text-slate-500 block">Łączne Punkty MEiN</span>
-            <span className="text-lg font-extrabold text-emerald-700 font-mono">
-              {metrics.totalPoints} pkt
-            </span>
-          </div>
         </div>
       </div>
 
       {/* ── PRINT-ONLY REPORT HEADER ──────────────────────────────────────────── */}
       <div className="hidden print:block bg-white p-6 border-b-2 border-slate-900 mb-4 text-center font-sans">
         <h1 className="text-lg font-bold uppercase tracking-tight text-slate-950">
-          WYŻSZA SZKOŁA KSZTAŁCENIA ZAWODOWEGO • {currentOrg.unit.toUpperCase()}
+          WYŻSZA SZKOŁA KSZTAŁCENIA ZAWODOWEGO • {currentOrg.unit?.toUpperCase()}
         </h1>
         <h2 className="text-xl font-extrabold text-indigo-950 uppercase mt-1">
           OFICJALNY REJESTR DOROBKU NAUKOWEGO I PROJEKTÓW BADAWCZYCH
@@ -398,171 +398,370 @@ export default function ResearchTab() {
         </p>
       </div>
 
-      {/* ── TABS & SEARCH ────────────────────────────────────────────────────── */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-4 print:border-none print:shadow-none print:p-0">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 print:hidden">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <button
-              onClick={() => setActiveSubTab('All')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer ${
-                activeSubTab === 'All'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-              }`}
-            >
-              Wszystkie ({items.length})
-            </button>
-            <button
-              onClick={() => setActiveSubTab('Publication')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer ${
-                activeSubTab === 'Publication'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-              }`}
-            >
-              Publikacje ({items.filter((i) => i.type === 'Publication').length})
-            </button>
-            <button
-              onClick={() => setActiveSubTab('Conference')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer ${
-                activeSubTab === 'Conference'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-              }`}
-            >
-              Konferencje ({metrics.conferencesCount})
-            </button>
-            <button
-              onClick={() => setActiveSubTab('Project')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer ${
-                activeSubTab === 'Project'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-              }`}
-            >
-              Projekty Badawcze ({metrics.projectsCount})
-            </button>
-          </div>
+      {/* ── TWO-COLUMN MASTER-DETAIL LAYOUT WITH RESIZABLE SIDEBAR ──────────── */}
+      <div className="flex flex-col lg:flex-row items-stretch gap-0 w-full min-h-[calc(100vh-230px)]">
+        
+        {/* ── LEFT SIDEBAR: PIONOWY PANEL PODSUMOWAŃ I NAWIGACJI ─────────────── */}
+        <div
+          ref={sidebarContainerRef}
+          className="w-full lg:shrink-0 flex flex-col space-y-3 pr-0 lg:pr-3 pb-4 lg:pb-0 print:hidden"
+          style={{ width: typeof window !== 'undefined' && window.innerWidth >= 1024 ? sidebarWidth : '100%' }}
+        >
+          {/* Section Header */}
+          <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs space-y-2">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
+              Dorobek Naukowy & Badania SKN
+            </div>
 
-          <div className="relative w-full sm:w-64">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Szukaj po tytule lub autorze..."
-              className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-emerald-500"
-            />
+            {/* Vertical Stats / Quick Filters */}
+            <div className="space-y-1.5">
+              {/* All Items Pill */}
+              <button
+                type="button"
+                onClick={() => setActiveSubTab('All')}
+                className={`w-full p-2.5 rounded-xl text-xs font-bold flex items-center justify-between transition cursor-pointer ${
+                  activeSubTab === 'All'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-100'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Layers size={15} className={activeSubTab === 'All' ? 'text-emerald-400' : 'text-slate-500'} />
+                  <span>Wszystkie osiągnięcia</span>
+                </div>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                  activeSubTab === 'All' ? 'bg-slate-800 text-emerald-200' : 'bg-white text-slate-700 border border-slate-200'
+                }`}>
+                  {items.length}
+                </span>
+              </button>
+
+              {/* 1. Publikacje naukowe */}
+              <button
+                type="button"
+                onClick={() => setActiveSubTab('Publication')}
+                className={`w-full p-2.5 rounded-xl text-xs font-semibold flex items-center justify-between transition cursor-pointer text-left ${
+                  activeSubTab === 'Publication'
+                    ? 'bg-purple-600 text-white shadow-xs font-bold'
+                    : 'bg-purple-50/50 hover:bg-purple-100/60 text-purple-900 border border-purple-100'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className={`p-1.5 rounded-lg ${activeSubTab === 'Publication' ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-700'}`}>
+                    <BookOpen size={16} />
+                  </div>
+                  <div>
+                    <span className="block text-xs font-bold leading-tight">Publikacje naukowe</span>
+                    <span className={`text-[10.5px] ${activeSubTab === 'Publication' ? 'text-purple-100' : 'text-purple-600'}`}>
+                      Artykuły i monografie
+                    </span>
+                  </div>
+                </div>
+                <span className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-extrabold ${
+                  activeSubTab === 'Publication' ? 'bg-purple-800 text-white' : 'bg-purple-100 text-purple-800'
+                }`}>
+                  {items.filter((i) => i.type === 'Publication').length}
+                </span>
+              </button>
+
+              {/* 2. Wystąpienia & Referaty */}
+              <button
+                type="button"
+                onClick={() => setActiveSubTab('Conference')}
+                className={`w-full p-2.5 rounded-xl text-xs font-semibold flex items-center justify-between transition cursor-pointer text-left ${
+                  activeSubTab === 'Conference'
+                    ? 'bg-amber-600 text-white shadow-xs font-bold'
+                    : 'bg-amber-50/50 hover:bg-amber-100/60 text-amber-900 border border-amber-100'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className={`p-1.5 rounded-lg ${activeSubTab === 'Conference' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'}`}>
+                    <Award size={16} />
+                  </div>
+                  <div>
+                    <span className="block text-xs font-bold leading-tight">Wystąpienia & Referaty</span>
+                    <span className={`text-[10.5px] ${activeSubTab === 'Conference' ? 'text-amber-100' : 'text-amber-600'}`}>
+                      Konferencje i sympozja
+                    </span>
+                  </div>
+                </div>
+                <span className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-extrabold ${
+                  activeSubTab === 'Conference' ? 'bg-amber-800 text-white' : 'bg-amber-100 text-amber-800'
+                }`}>
+                  {metrics.conferencesCount}
+                </span>
+              </button>
+
+              {/* 3. Projekty badawcze */}
+              <button
+                type="button"
+                onClick={() => setActiveSubTab('Project')}
+                className={`w-full p-2.5 rounded-xl text-xs font-semibold flex items-center justify-between transition cursor-pointer text-left ${
+                  activeSubTab === 'Project'
+                    ? 'bg-blue-600 text-white shadow-xs font-bold'
+                    : 'bg-blue-50/50 hover:bg-blue-100/60 text-blue-900 border border-blue-100'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className={`p-1.5 rounded-lg ${activeSubTab === 'Project' ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-700'}`}>
+                    <BarChart2 size={16} />
+                  </div>
+                  <div>
+                    <span className="block text-xs font-bold leading-tight">Projekty badawcze</span>
+                    <span className={`text-[10.5px] ${activeSubTab === 'Project' ? 'text-blue-100' : 'text-blue-600'}`}>
+                      Badania empiryczne
+                    </span>
+                  </div>
+                </div>
+                <span className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-extrabold ${
+                  activeSubTab === 'Project' ? 'bg-blue-800 text-white' : 'bg-blue-100 text-blue-800'
+                }`}>
+                  {metrics.projectsCount}
+                </span>
+              </button>
+
+              {/* 4. Łączne punkty MEiN / MNiSW */}
+              <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 rounded-lg bg-emerald-100 text-emerald-700">
+                    <GraduationCap size={16} />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase text-emerald-800 block">Łączne Punkty MEiN</span>
+                    <span className="text-xs text-emerald-600 font-semibold">Ewaluacja dorobku</span>
+                  </div>
+                </div>
+                <span className="text-sm font-extrabold text-emerald-800 font-mono">
+                  {metrics.totalPoints} pkt
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* ── RESEARCH ITEMS CARDS / TABLE LIST ──────────────────────────────── */}
-        <div className="space-y-3">
-          {filteredItems.length === 0 ? (
-            <div className="py-12 text-center text-slate-400 italic bg-slate-50 rounded-xl border border-slate-200">
-              Brak pozycji dorobku naukowego w wybranej kategorii.
-            </div>
-          ) : (
-            filteredItems.map((item, idx) => (
-              <div
-                key={item.id}
-                className="p-4 sm:p-5 bg-white rounded-2xl border border-slate-200 shadow-xs hover:border-slate-300 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 print:border-slate-300 print:shadow-none print:py-3"
-              >
-                <div className="space-y-1.5 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[10px] font-mono font-bold text-slate-400">#{idx + 1}</span>
+        {/* ── RESIZER HANDLE ──────────────────────────────────────────────────── */}
+        <div
+          onMouseDown={(e) => {
+            e.preventDefault();
+            setIsResizing(true);
+          }}
+          className={`hidden lg:flex items-center justify-center w-[5px] shrink-0 cursor-col-resize select-none z-10 transition-colors duration-150 self-stretch my-0.5 rounded-full group print:hidden ${
+            isResizing
+              ? 'bg-emerald-500 shadow-xs'
+              : 'hover:bg-emerald-400 bg-transparent hover:shadow-xs'
+          }`}
+          style={{
+            width: '5px',
+            cursor: 'col-resize',
+            backgroundColor: isResizing ? '#10b981' : 'transparent',
+            transition: 'background-color 0.15s ease',
+            flexShrink: 0,
+            userSelect: 'none',
+            zIndex: 10,
+          }}
+          title="Przeciągnij krawędź, aby dostosować szerokość panelu bocznego"
+        >
+          <div className={`w-[1px] h-8 rounded-full transition-colors ${
+            isResizing ? 'bg-white' : 'bg-slate-300 group-hover:bg-emerald-200'
+          }`} />
+        </div>
 
-                    {item.type === 'Publication' && (
-                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
-                        📚 Publikacja Naukowo-Dydaktyczna
-                      </span>
-                    )}
-
-                    {item.type === 'Conference' && (
-                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                        🎤 Referat Konferencyjny
-                      </span>
-                    )}
-
-                    {item.type === 'Project' && (
-                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                        🔬 Projekt Badawczo-Ankietowy
-                      </span>
-                    )}
-
-                    <span className="px-2 py-0.5 rounded text-[10.5px] font-bold bg-slate-100 text-slate-700 font-mono">
-                      {item.status}
-                    </span>
-                  </div>
-
-                  <h3 className="text-sm font-bold text-slate-900 tracking-tight leading-snug">
-                    {item.title}
-                  </h3>
-
-                  {/* Context Details */}
-                  <div className="text-xs text-slate-600 space-y-0.5">
-                    {item.type === 'Publication' && (
-                      <p>
-                        <strong>Autorzy:</strong> {item.authors} • <strong>Wydawnictwo/Czasopismo:</strong>{' '}
-                        {item.venue} ({item.year}) •{' '}
-                        <strong className="text-purple-700">{item.points} pkt MEiN</strong>
-                      </p>
-                    )}
-
-                    {item.type === 'Conference' && (
-                      <p>
-                        <strong>Prelegenci:</strong> {item.speakers || item.authors} •{' '}
-                        <strong>Konferencja:</strong> {item.conferenceName} ({item.date}) •{' '}
-                        <span className="font-semibold text-amber-800">{item.form}</span>
-                      </p>
-                    )}
-
-                    {item.type === 'Project' && (
-                      <p>
-                        <strong>Kierownik / Zespół:</strong> {item.leadResearcher || item.authors} •{' '}
-                        <strong>Metodologia:</strong> {item.methodology} •{' '}
-                        <strong className="text-blue-700">Próba N = {item.sampleSize}</strong>
-                      </p>
-                    )}
-
-                    {item.description && (
-                      <p className="text-[11px] text-slate-500 italic mt-1">{item.description}</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0 border-t md:border-t-0 pt-2 md:pt-0 border-slate-100 print:hidden">
-                  {item.link && (
-                    <a
-                      href={item.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs flex items-center gap-1.5 transition-colors"
-                    >
-                      <ExternalLink size={13} />
-                      <span>DOI / Link</span>
-                    </a>
-                  )}
-
-                  <button
-                    onClick={() => handleOpenEditModal(item)}
-                    className="p-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-500 hover:text-indigo-600 transition-colors"
-                    title="Edytuj pozycję"
-                  >
-                    <Edit3 size={15} />
-                  </button>
-
-                  <button
-                    onClick={() => handleDeleteItem(item.id)}
-                    className="p-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-500 hover:text-rose-600 transition-colors"
-                    title="Usuń pozycję"
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                </div>
+        {/* ── RIGHT MAIN WORKSPACE: REJESTR DOROBKU ────────────────────────────── */}
+        <div className="flex-1 min-w-0 w-full pl-0 lg:pl-3 space-y-3 print:pl-0">
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3 print:border-none print:shadow-none print:p-0">
+            
+            {/* Top Toolbar (Filters, Search, Actions) */}
+            <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5 print:hidden">
+              {/* Category Pills */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setActiveSubTab('All')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    activeSubTab === 'All'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  Wszystkie ({items.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSubTab('Publication')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    activeSubTab === 'Publication'
+                      ? 'bg-purple-600 text-white shadow-xs'
+                      : 'bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-100'
+                  }`}
+                >
+                  Publikacje ({items.filter((i) => i.type === 'Publication').length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSubTab('Conference')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    activeSubTab === 'Conference'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-100'
+                  }`}
+                >
+                  Konferencje ({metrics.conferencesCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSubTab('Project')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    activeSubTab === 'Project'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-100'
+                  }`}
+                >
+                  Projekty Badawcze ({metrics.projectsCount})
+                </button>
               </div>
-            ))
-          )}
+
+              {/* Search & Actions */}
+              <div className="flex items-center gap-2 flex-1 lg:max-w-md justify-end">
+                <div className="relative flex-1">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Szukaj po tytule, autorze..."
+                    className="w-full pl-8 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white transition"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleOpenAddModal('Publication')}
+                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-xs hover:shadow-md transition cursor-pointer shrink-0"
+                >
+                  <Plus size={14} />
+                  <span>+ Dodaj</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Full Items List / Table */}
+            <div className="space-y-2.5 pt-1">
+              {filteredItems.length === 0 ? (
+                <div className="py-12 text-center text-slate-400 italic bg-slate-50 rounded-xl border border-slate-200">
+                  Brak pozycji dorobku naukowego w wybranym filtrze.
+                </div>
+              ) : (
+                filteredItems.map((item, idx) => (
+                  <div
+                    key={item.id}
+                    className="p-3.5 sm:p-4 bg-white rounded-xl border border-slate-200 hover:border-emerald-300 hover:shadow-xs transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 print:border-slate-300 print:shadow-none print:py-2"
+                  >
+                    <div className="space-y-1 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-[10px] font-mono font-bold text-slate-400">#{idx + 1}</span>
+
+                        {item.type === 'Publication' && (
+                          <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                            📚 Publikacja
+                          </span>
+                        )}
+
+                        {item.type === 'Conference' && (
+                          <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                            🎤 Referat / Konferencja
+                          </span>
+                        )}
+
+                        {item.type === 'Project' && (
+                          <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                            🔬 Projekt Badawczy
+                          </span>
+                        )}
+
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 font-mono">
+                          {item.status}
+                        </span>
+                      </div>
+
+                      <h3 className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight leading-snug">
+                        {item.title}
+                      </h3>
+
+                      {/* Context Details */}
+                      <div className="text-[11.5px] text-slate-600 space-y-0.5">
+                        {item.type === 'Publication' && (
+                          <p>
+                            <strong>Autorzy:</strong> {item.authors} • <strong>Wydawnictwo/Czasopismo:</strong>{' '}
+                            {item.venue} ({item.year}) •{' '}
+                            <strong className="text-purple-700">{item.points} pkt MEiN</strong>
+                          </p>
+                        )}
+
+                        {item.type === 'Conference' && (
+                          <p>
+                            <strong>Prelegenci:</strong> {item.speakers || item.authors} •{' '}
+                            <strong>Konferencja:</strong> {item.conferenceName} ({item.date}) •{' '}
+                            <span className="font-semibold text-amber-800">{item.form}</span>
+                          </p>
+                        )}
+
+                        {item.type === 'Project' && (
+                          <p>
+                            <strong>Kierownik / Zespół:</strong> {item.leadResearcher || item.authors} •{' '}
+                            <strong>Metodologia:</strong> {item.methodology} •{' '}
+                            <strong className="text-blue-700">Próba N = {item.sampleSize}</strong>
+                          </p>
+                        )}
+
+                        {item.description && (
+                          <p className="text-[11px] text-slate-500 italic mt-0.5">{item.description}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0 border-t md:border-t-0 pt-2 md:pt-0 border-slate-100 print:hidden">
+                      {item.link && (
+                        <a
+                          href={item.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] flex items-center gap-1 transition-colors"
+                        >
+                          <ExternalLink size={12} />
+                          <span>DOI / Link</span>
+                        </a>
+                      )}
+
+                      <button
+                        onClick={() => handleOpenEditModal(item)}
+                        className="p-1 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-500 hover:text-emerald-600 transition-colors cursor-pointer"
+                        title="Edytuj pozycję"
+                      >
+                        <Edit3 size={13} />
+                      </button>
+
+                      <button
+                        onClick={() => handleDeleteItem(item.id)}
+                        className="p-1 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-500 hover:text-rose-600 transition-colors cursor-pointer"
+                        title="Usuń pozycję"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
