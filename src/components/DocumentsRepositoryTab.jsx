@@ -705,7 +705,7 @@ export default function DocumentsRepositoryTab() {
       {/* ── HEADER BAR ────────────────────────────────────────────────────────── */}
       <div className="bg-white px-5 py-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-xl text-white shadow-xs">
+          <div className="p-2.5 bg-gradient-to-br from-slate-800 to-slate-950 rounded-xl text-white shadow-xs">
             {activeModuleTab === 'repository' ? <FolderKanban size={22} /> : <Mail size={22} />}
           </div>
           <div>
@@ -715,7 +715,7 @@ export default function DocumentsRepositoryTab() {
                   ? 'Repozytorium Dokumentów & Rejestr Uchwał'
                   : 'Elektroniczny Dziennik Podawczy & Kancelaria'}
               </h1>
-              <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                 {currentOrg.shortName || currentOrg.name}
               </span>
             </div>
@@ -732,9 +732,9 @@ export default function DocumentsRepositoryTab() {
           {activeModuleTab === 'repository' ? (
             <button
               onClick={handleOpenAddModal}
-              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+              className="h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 shadow-sm transition cursor-pointer"
             >
-              <Plus size={15} />
+              <Plus size={14} />
               <span>+ Dodaj Dokument / Uchwałę</span>
             </button>
           ) : (
@@ -742,7 +742,7 @@ export default function DocumentsRepositoryTab() {
               <button
                 type="button"
                 onClick={() => setIsWelcomeMailModalOpen(true)}
-                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                className="h-9 px-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
                 title="Przygotuj i wyślij powiadomienie do studenta"
               >
                 <Mail size={14} />
@@ -752,7 +752,7 @@ export default function DocumentsRepositoryTab() {
               <button
                 type="button"
                 onClick={handlePrintCorrespondence}
-                className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                className="h-9 px-3.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 shadow-sm transition cursor-pointer"
                 title="Drukuj oficjalny Dziennik Podawczy do PDF dla Dziekanatu i PKA"
               >
                 <Printer size={14} />
@@ -762,9 +762,9 @@ export default function DocumentsRepositoryTab() {
               <button
                 type="button"
                 onClick={() => handleOpenMailModal()}
-                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                className="h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 shadow-sm transition cursor-pointer"
               >
-                <Plus size={15} />
+                <Plus size={14} />
                 <span>+ Zarejestruj Pismo</span>
               </button>
             </>
@@ -781,142 +781,267 @@ export default function DocumentsRepositoryTab() {
           className="w-full lg:shrink-0 flex flex-col space-y-3 pr-0 lg:pr-3 pb-4 lg:pb-0"
           style={{ width: typeof window !== 'undefined' && window.innerWidth >= 1024 ? sidebarWidth : '100%' }}
         >
-          {/* Main Module Switchers */}
-          <div className="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-xs space-y-1.5">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2 py-1">
-              Moduł Dokumentacji
-            </div>
-            
-            <button
-              type="button"
-              onClick={() => setActiveModuleTab('repository')}
-              className={`w-full p-2.5 rounded-xl text-xs font-bold flex items-center justify-between transition cursor-pointer ${
-                activeModuleTab === 'repository'
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'bg-slate-50 hover:bg-slate-100 text-slate-700'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <FolderKanban size={15} className={activeModuleTab === 'repository' ? 'text-indigo-400' : 'text-slate-500'} />
-                <span>Repozytorium Aktów</span>
-              </div>
-              <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
-                activeModuleTab === 'repository' ? 'bg-slate-800 text-indigo-200' : 'bg-white text-slate-700 border border-slate-200'
-              }`}>
-                {documents.length}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveModuleTab('correspondence')}
-              className={`w-full p-2.5 rounded-xl text-xs font-bold flex items-center justify-between transition cursor-pointer ${
-                activeModuleTab === 'correspondence'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'bg-slate-50 hover:bg-slate-100 text-slate-700'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <Mail size={15} className={activeModuleTab === 'correspondence' ? 'text-white' : 'text-indigo-600'} />
-                <span>Dziennik Podawczy</span>
-              </div>
-              <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
-                activeModuleTab === 'correspondence' ? 'bg-indigo-700 text-white' : 'bg-indigo-50 text-indigo-700 border border-indigo-100'
-              }`}>
-                {correspondenceLog.length}
-              </span>
-            </button>
-          </div>
-
-          {/* Contextual Filters / Tools based on active tab */}
-          {activeModuleTab === 'repository' ? (
-            <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs space-y-4 flex-1">
-              {/* Category Filter Pills */}
+          {/* Main Module Switchers & Category Filters */}
+          <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs space-y-3 flex-1 flex flex-col justify-between">
+            <div className="space-y-3">
+              {/* Module Switcher Header */}
               <div>
-                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 px-1">
-                  Kategorie Dokumentów
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1 mb-1.5">
+                  Moduł Dokumentacji
                 </div>
-                <div className="space-y-1">
-                  {CATEGORIES.map((cat) => {
-                    const count = cat === 'Wszystkie'
-                      ? documents.length
-                      : documents.filter((d) => d.category === cat).length;
-                    const isActive = selectedCategory === cat;
-                    return (
-                      <button
-                        key={cat}
-                        onClick={() => setSelectedCategory(cat)}
-                        className={`w-full px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
-                          isActive
-                            ? 'bg-indigo-50 text-indigo-900 font-bold border border-indigo-200/80 shadow-2xs'
-                            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                        }`}
-                      >
-                        <span className="truncate">{cat}</span>
-                        <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono font-bold ${
-                          isActive ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'
+                <div className="space-y-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setActiveModuleTab('repository')}
+                    className={`h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 rounded-xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
+                      activeModuleTab === 'repository'
+                        ? 'bg-slate-900 text-white border border-slate-900 shadow-sm'
+                        : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/80 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0 pr-2">
+                      <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center ${
+                        activeModuleTab === 'repository' ? 'bg-slate-800 text-emerald-300' : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        <FolderKanban className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="block text-xs font-semibold leading-tight truncate">Repozytorium Aktów</span>
+                        <span className={`text-[11px] font-normal truncate block mt-0.5 ${
+                          activeModuleTab === 'repository' ? 'text-slate-400' : 'text-slate-400'
                         }`}>
-                          {count}
+                          Rejestr uchwał i statut
                         </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Status Breakdown */}
-              <div className="pt-2 border-t border-slate-100">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 px-1">
-                  Status Obowiązywania
-                </div>
-                <div className="grid grid-cols-2 gap-1.5 text-center">
-                  <div className="p-2 rounded-xl bg-emerald-50/60 border border-emerald-100">
-                    <span className="text-[9.5px] text-emerald-700 block font-bold uppercase">Obowiązujące</span>
-                    <span className="text-xs font-extrabold text-emerald-800 font-mono">
-                      {documents.filter((d) => d.status === 'Obowiązujący').length}
-                    </span>
-                  </div>
-                  <div className="p-2 rounded-xl bg-amber-50/60 border border-amber-100">
-                    <span className="text-[9.5px] text-amber-700 block font-bold uppercase">W toku</span>
-                    <span className="text-xs font-extrabold text-amber-800 font-mono">
-                      {documents.filter((d) => d.status === 'W toku').length}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Quick Links / Micro-Cards */}
-              <div className="pt-2 border-t border-slate-100 space-y-2">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 px-1">
-                  Zasoby Zewnętrzne
-                </div>
-
-                {/* Statut Micro-Card */}
-                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-emerald-800 font-bold text-xs">
-                      <ShieldCheck size={14} className="text-emerald-600" />
-                      <span>Statut Koła</span>
+                      </div>
                     </div>
+                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ml-2 ${
+                      activeModuleTab === 'repository' ? 'bg-emerald-500/20 text-emerald-300 font-bold' : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {documents.length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveModuleTab('correspondence')}
+                    className={`h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 rounded-xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
+                      activeModuleTab === 'correspondence'
+                        ? 'bg-slate-900 text-white border border-slate-900 shadow-sm'
+                        : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/80 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0 pr-2">
+                      <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center ${
+                        activeModuleTab === 'correspondence' ? 'bg-slate-800 text-emerald-300' : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        <Mail className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="block text-xs font-semibold leading-tight truncate">Dziennik Podawczy</span>
+                        <span className={`text-[11px] font-normal truncate block mt-0.5 ${
+                          activeModuleTab === 'correspondence' ? 'text-slate-400' : 'text-slate-400'
+                        }`}>
+                          Kancelaria & korespondencja
+                        </span>
+                      </div>
+                    </div>
+                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ml-2 ${
+                      activeModuleTab === 'correspondence' ? 'bg-emerald-500/20 text-emerald-300 font-bold' : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {correspondenceLog.length}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Contextual Filters */}
+              {activeModuleTab === 'repository' ? (
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1 mb-1.5 pt-1 border-t border-slate-100">
+                    Kategorie Dokumentów
+                  </div>
+                  <div className="space-y-1.5">
+                    {CATEGORIES.map((cat) => {
+                      const count = cat === 'Wszystkie'
+                        ? documents.length
+                        : documents.filter((d) => d.category === cat).length;
+                      const isActive = selectedCategory === cat;
+
+                      let icon = <Layers className="w-4 h-4" />;
+                      let subtitle = 'Wszystkie zarejestrowane akty';
+                      if (cat === 'Uchwały Zarządu') {
+                        icon = <FileText className="w-4 h-4" />;
+                        subtitle = 'Decyzje i regulacje wewnętrzne';
+                      } else if (cat === 'Protokoły Zebrań') {
+                        icon = <FileCheck className="w-4 h-4" />;
+                        subtitle = 'Seminaria i posiedzenia koła';
+                      } else if (cat === 'Regulaminy i Statut') {
+                        icon = <ShieldCheck className="w-4 h-4" />;
+                        subtitle = 'Akty ustrojowe i statut WSKZ';
+                      } else if (cat === 'Wnioski i Granty') {
+                        icon = <Sparkles className="w-4 h-4" />;
+                        subtitle = 'Dofinansowania i projekty';
+                      }
+
+                      return (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => setSelectedCategory(cat)}
+                          className={`h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 rounded-xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
+                            isActive
+                              ? 'bg-slate-900 text-white border border-slate-900 shadow-sm'
+                              : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/80 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0 pr-2">
+                            <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center ${
+                              isActive ? 'bg-slate-800 text-emerald-300' : 'bg-slate-100 text-slate-600'
+                            }`}>
+                              {icon}
+                            </div>
+                            <div className="min-w-0">
+                              <span className="block text-xs font-semibold leading-tight truncate">{cat}</span>
+                              <span className={`text-[11px] font-normal truncate block mt-0.5 ${
+                                isActive ? 'text-slate-400' : 'text-slate-400'
+                              }`}>
+                                {subtitle}
+                              </span>
+                            </div>
+                          </div>
+                          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ml-2 ${
+                            isActive ? 'bg-emerald-500/20 text-emerald-300 font-bold' : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1 mb-1.5 pt-1 border-t border-slate-100">
+                    Kierunek Korespondencji
+                  </div>
+                  <div className="space-y-1.5">
+                    {/* Wszystkie pisma */}
                     <button
-                      onClick={() => {
-                        setTempStatutConfig({
-                          url: statutConfig.url || '',
-                          status: statutConfig.status || 'Zatwierdzony przez Władze WSKZ',
-                          description: statutConfig.description || '',
-                        });
-                        setIsEditingStatutModal(true);
-                      }}
-                      className="text-slate-400 hover:text-emerald-600 p-0.5 rounded cursor-pointer"
-                      title="Edytuj konfigurację Statutu"
+                      type="button"
+                      onClick={() => setCorrespondenceFilter('all')}
+                      className={`h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 rounded-xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
+                        correspondenceFilter === 'all'
+                          ? 'bg-slate-900 text-white border border-slate-900 shadow-sm'
+                          : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/80 hover:border-slate-300'
+                      }`}
                     >
-                      <Edit3 size={12} />
+                      <div className="flex items-center gap-3 min-w-0 pr-2">
+                        <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center ${
+                          correspondenceFilter === 'all' ? 'bg-slate-800 text-emerald-300' : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          <Mail className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="block text-xs font-semibold leading-tight truncate">Wszystkie pisma</span>
+                          <span className={`text-[11px] font-normal truncate block mt-0.5 ${
+                            correspondenceFilter === 'all' ? 'text-slate-400' : 'text-slate-400'
+                          }`}>
+                            Cała korespondencja SKN
+                          </span>
+                        </div>
+                      </div>
+                      <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ml-2 ${
+                        correspondenceFilter === 'all' ? 'bg-emerald-500/20 text-emerald-300 font-bold' : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        {correspondenceLog.length}
+                      </span>
+                    </button>
+
+                    {/* Przychodzące (IN) */}
+                    <button
+                      type="button"
+                      onClick={() => setCorrespondenceFilter('IN')}
+                      className={`h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 rounded-xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
+                        correspondenceFilter === 'IN'
+                          ? 'bg-emerald-50/90 border-2 border-emerald-400 text-emerald-950 shadow-xs'
+                          : 'bg-white hover:bg-emerald-50/40 text-slate-700 border border-slate-200/80 hover:border-emerald-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0 pr-2">
+                        <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center ${
+                          correspondenceFilter === 'IN' ? 'bg-emerald-200/80 text-emerald-800' : 'bg-emerald-50 text-emerald-600'
+                        }`}>
+                          <Inbox className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className={`block text-xs font-semibold leading-tight truncate ${
+                            correspondenceFilter === 'IN' ? 'text-emerald-950' : 'text-slate-800'
+                          }`}>
+                            Przychodzące (IN)
+                          </span>
+                          <span className={`text-[11px] font-normal truncate block mt-0.5 ${
+                            correspondenceFilter === 'IN' ? 'text-emerald-700' : 'text-slate-400'
+                          }`}>
+                            Pisma wpływające i maile
+                          </span>
+                        </div>
+                      </div>
+                      <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ml-2 ${
+                        correspondenceFilter === 'IN' ? 'bg-emerald-200 text-emerald-900 font-bold border border-emerald-300/80' : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        {correspondenceLog.filter((c) => c.direction === 'IN').length}
+                      </span>
+                    </button>
+
+                    {/* Wychodzące (OUT) */}
+                    <button
+                      type="button"
+                      onClick={() => setCorrespondenceFilter('OUT')}
+                      className={`h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 rounded-xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
+                        correspondenceFilter === 'OUT'
+                          ? 'bg-sky-50/90 border-2 border-sky-400 text-sky-950 shadow-xs'
+                          : 'bg-white hover:bg-sky-50/40 text-slate-700 border border-slate-200/80 hover:border-sky-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0 pr-2">
+                        <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center ${
+                          correspondenceFilter === 'OUT' ? 'bg-sky-200/80 text-sky-800' : 'bg-sky-50 text-sky-600'
+                        }`}>
+                          <Send className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className={`block text-xs font-semibold leading-tight truncate ${
+                            correspondenceFilter === 'OUT' ? 'text-sky-950' : 'text-slate-800'
+                          }`}>
+                            Wychodzące (OUT)
+                          </span>
+                          <span className={`text-[11px] font-normal truncate block mt-0.5 ${
+                            correspondenceFilter === 'OUT' ? 'text-sky-700' : 'text-slate-400'
+                          }`}>
+                            Pisma wysłane i wnioski
+                          </span>
+                        </div>
+                      </div>
+                      <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ml-2 ${
+                        correspondenceFilter === 'OUT' ? 'bg-sky-200 text-sky-900 font-bold border border-sky-300/80' : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        {correspondenceLog.filter((c) => c.direction === 'OUT').length}
+                      </span>
                     </button>
                   </div>
-                  <div className="text-[10px] text-slate-500 truncate" title={statutConfig.status}>
-                    {statutConfig.status || 'Zatwierdzony przez Władze WSKZ'}
-                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Utilities */}
+            {activeModuleTab === 'repository' ? (
+              <div className="border-t border-slate-200/80 pt-2.5 mt-2 space-y-1.5">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
+                  Zasoby Zewnętrzne
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
                   <button
+                    type="button"
                     onClick={() => {
                       if (statutConfig.url && statutConfig.url.trim()) {
                         window.open(statutConfig.url.trim(), '_blank');
@@ -929,167 +1054,57 @@ export default function DocumentsRepositoryTab() {
                         setIsEditingStatutModal(true);
                       }
                     }}
-                    className="w-full py-1 px-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1 transition cursor-pointer"
+                    className="h-8 px-2.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-800 text-slate-700 text-[11px] font-medium flex items-center justify-center gap-1.5 transition cursor-pointer"
+                    title="Otwórz Statut Koła w Google Docs/Drive"
                   >
-                    <ExternalLink size={11} />
-                    <span>Otwórz Statut (Drive)</span>
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span className="truncate">Statut Koła</span>
                   </button>
-                </div>
-
-                {/* Google Drive Micro-Card */}
-                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-blue-800 font-bold text-xs">
-                      <HardDrive size={14} className="text-blue-600" />
-                      <span>Dysk Google</span>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setTempDriveUrl(gdriveUrl);
-                        setIsEditingDriveModal(true);
-                      }}
-                      className="text-slate-400 hover:text-blue-600 p-0.5 rounded cursor-pointer"
-                      title="Edytuj link Dysku Google"
-                    >
-                      <Edit3 size={12} />
-                    </button>
-                  </div>
                   <a
                     href={gdriveUrl || '#'}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-full py-1 px-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1 transition text-center"
+                    className="h-8 px-2.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-800 text-slate-700 text-[11px] font-medium flex items-center justify-center gap-1.5 transition"
+                    title="Otwórz folder Dysku Google"
                   >
-                    <FolderOpen size={11} />
-                    <span>Przejdź do Dysku</span>
+                    <HardDrive className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    <span className="truncate">Dysk Google</span>
                   </a>
                 </div>
               </div>
-            </div>
-          ) : (
-            <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs space-y-4 flex-1">
-              {/* Direction Filter Buttons */}
-              <div>
-                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 px-1">
-                  Kierunek Korespondencji
+            ) : (
+              <div className="border-t border-slate-200/80 pt-2.5 mt-2 space-y-1.5">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
+                  Integracje & Arkusz
                 </div>
-                <div className="space-y-1">
+                <div className="grid grid-cols-2 gap-1.5">
                   <button
                     type="button"
-                    onClick={() => setCorrespondenceFilter('all')}
-                    className={`w-full px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
-                      correspondenceFilter === 'all'
-                        ? 'bg-slate-900 text-white font-bold shadow-2xs'
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                    }`}
+                    onClick={handleSyncMailSheet}
+                    disabled={isSyncingMailSheet}
+                    className="h-8 px-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-800 text-slate-700 text-[11px] font-medium flex items-center justify-center gap-1.5 transition cursor-pointer"
+                    title="Synchronizuj z dedykowaną zakładką arkusza Google"
                   >
-                    <div className="flex items-center gap-1.5">
-                      <Mail size={13} />
-                      <span>Wszystkie pisma</span>
-                    </div>
-                    <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono font-bold ${
-                      correspondenceFilter === 'all' ? 'bg-slate-800 text-slate-200' : 'bg-slate-100 text-slate-600'
-                    }`}>
-                      {correspondenceLog.length}
-                    </span>
+                    <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 shrink-0 ${isSyncingMailSheet ? 'animate-spin' : ''}`} />
+                    <span className="truncate">Synchronizuj</span>
                   </button>
-
                   <button
                     type="button"
-                    onClick={() => setCorrespondenceFilter('IN')}
-                    className={`w-full px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
-                      correspondenceFilter === 'IN'
-                        ? 'bg-emerald-600 text-white font-bold shadow-2xs'
-                        : 'text-emerald-800 hover:bg-emerald-50'
-                    }`}
+                    onClick={handleCopySheetFormat}
+                    className="h-8 px-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-[11px] font-medium flex items-center justify-center gap-1.5 transition cursor-pointer"
+                    title="Kopiuj dane korespondencji w formacie TSV do wklejenia w arkusz"
                   >
-                    <div className="flex items-center gap-1.5">
-                      <Inbox size={13} />
-                      <span>Przychodzące (IN)</span>
-                    </div>
-                    <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono font-bold ${
-                      correspondenceFilter === 'IN' ? 'bg-emerald-700 text-white' : 'bg-emerald-100 text-emerald-800'
-                    }`}>
-                      {correspondenceLog.filter((c) => c.direction === 'IN').length}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setCorrespondenceFilter('OUT')}
-                    className={`w-full px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
-                      correspondenceFilter === 'OUT'
-                        ? 'bg-sky-600 text-white font-bold shadow-2xs'
-                        : 'text-sky-800 hover:bg-sky-50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <Send size={13} />
-                      <span>Wychodzące (OUT)</span>
-                    </div>
-                    <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono font-bold ${
-                      correspondenceFilter === 'OUT' ? 'bg-sky-700 text-white' : 'bg-sky-100 text-sky-800'
-                    }`}>
-                      {correspondenceLog.filter((c) => c.direction === 'OUT').length}
-                    </span>
+                    {copiedSheetData ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                    )}
+                    <span className="truncate">{copiedSheetData ? 'Skopiowano!' : 'Kopiuj TSV'}</span>
                   </button>
                 </div>
               </div>
-
-              {/* Quick Status Stats */}
-              <div className="pt-2 border-t border-slate-100">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 px-1">
-                  Statusy Pism
-                </div>
-                <div className="grid grid-cols-2 gap-1.5 text-center">
-                  <div className="p-2 rounded-xl bg-indigo-50/60 border border-indigo-100">
-                    <span className="text-[9.5px] text-indigo-700 block font-bold uppercase">W toku</span>
-                    <span className="text-xs font-extrabold text-indigo-900 font-mono">
-                      {correspondenceLog.filter((c) => (c.status || 'W toku').toLowerCase().includes('toku')).length}
-                    </span>
-                  </div>
-                  <div className="p-2 rounded-xl bg-emerald-50/60 border border-emerald-100">
-                    <span className="text-[9.5px] text-emerald-700 block font-bold uppercase">Zatwierdzone</span>
-                    <span className="text-xs font-extrabold text-emerald-900 font-mono">
-                      {correspondenceLog.filter((c) => (c.status || '').toLowerCase().includes('zatwierdz') || (c.status || '').toLowerCase().includes('zrealizowan') || (c.status || '').toLowerCase().includes('zakończ')).length}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Integrations & Shortcuts */}
-              <div className="pt-2 border-t border-slate-100 space-y-1.5">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 px-1">
-                  Integracje i Eksport
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleSyncMailSheet}
-                  disabled={isSyncingMailSheet}
-                  className="w-full py-1.5 px-2.5 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold flex items-center justify-between transition cursor-pointer"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <RefreshCw size={13} className={isSyncingMailSheet ? 'animate-spin' : ''} />
-                    <span>Synchronizuj z Arkuszem</span>
-                  </div>
-                  <FileSpreadsheet size={13} className="text-emerald-600" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleCopySheetFormat}
-                  className="w-full py-1.5 px-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold flex items-center justify-between transition cursor-pointer"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <Copy size={13} />
-                    <span>{copiedSheetData ? 'Skopiowano TSV!' : 'Kopiuj format arkusza'}</span>
-                  </div>
-                  {copiedSheetData ? <Check size={13} className="text-emerald-600" /> : null}
-                </button>
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* ── RESIZER HANDLE ──────────────────────────────────────────────────── */}
@@ -1100,13 +1115,13 @@ export default function DocumentsRepositoryTab() {
           }}
           className={`hidden lg:flex items-center justify-center w-[5px] shrink-0 cursor-col-resize select-none z-10 transition-colors duration-150 self-stretch my-0.5 rounded-full group ${
             isResizing
-              ? 'bg-indigo-500 shadow-xs'
-              : 'hover:bg-indigo-400 bg-transparent hover:shadow-xs'
+              ? 'bg-emerald-500 shadow-xs'
+              : 'hover:bg-emerald-400 bg-transparent hover:shadow-xs'
           }`}
           style={{
             width: '5px',
             cursor: 'col-resize',
-            backgroundColor: isResizing ? '#6366f1' : 'transparent',
+            backgroundColor: isResizing ? '#10b981' : 'transparent',
             transition: 'background-color 0.15s ease',
             flexShrink: 0,
             userSelect: 'none',
@@ -1115,7 +1130,7 @@ export default function DocumentsRepositoryTab() {
           title="Przeciągnij krawędź, aby dostosować szerokość panelu nawigacyjnego"
         >
           <div className={`w-[1px] h-8 rounded-full transition-colors ${
-            isResizing ? 'bg-white' : 'bg-slate-300 group-hover:bg-indigo-200'
+            isResizing ? 'bg-white' : 'bg-slate-300 group-hover:bg-emerald-200'
           }`} />
         </div>
 
@@ -1126,19 +1141,41 @@ export default function DocumentsRepositoryTab() {
           {activeModuleTab === 'repository' && (
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
               
-              {/* Single-Row Compact Toolbar */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-800">
-                    {selectedCategory === 'Wszystkie' ? 'Wszystkie Dokumenty' : selectedCategory}
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-mono font-bold">
-                    {filteredDocuments.length} z {documents.length}
-                  </span>
+              {/* Top Toolbar (Filters, Search, Actions) */}
+              <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5">
+                {/* Category Tabs */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {CATEGORIES.map((cat) => {
+                    const count = cat === 'Wszystkie'
+                      ? documents.length
+                      : documents.filter((d) => d.category === cat).length;
+                    const isActive = selectedCategory === cat;
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setSelectedCategory(cat)}
+                        className={`h-9 px-3.5 rounded-lg text-xs font-medium transition-all flex items-center cursor-pointer ${
+                          isActive
+                            ? 'bg-slate-900 text-white shadow-sm'
+                            : 'bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                        }`}
+                      >
+                        <span>{cat}</span>
+                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] ml-2 ${
+                          isActive
+                            ? 'bg-emerald-500/20 text-emerald-300 font-bold'
+                            : 'bg-slate-100 text-slate-500'
+                        }`}>
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {/* Search Box & Quick Add Button */}
-                <div className="flex items-center gap-2 flex-1 sm:max-w-md justify-end">
+                <div className="flex items-center gap-2 flex-1 lg:max-w-md justify-end">
                   <div className="relative flex-1">
                     <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
@@ -1146,7 +1183,7 @@ export default function DocumentsRepositoryTab() {
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Szukaj po sygnaturze, tytule..."
-                      className="w-full pl-8 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white transition"
+                      className="w-full h-9 pl-8 pr-7 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white transition"
                     />
                     {searchQuery && (
                       <button
@@ -1161,10 +1198,10 @@ export default function DocumentsRepositoryTab() {
 
                   <button
                     onClick={handleOpenAddModal}
-                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer shrink-0"
+                    className="h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 shadow-sm transition cursor-pointer shrink-0"
                   >
                     <Plus size={14} />
-                    <span>Dodaj</span>
+                    <span>+ Dodaj Dokument</span>
                   </button>
                 </div>
               </div>
@@ -1306,16 +1343,17 @@ export default function DocumentsRepositoryTab() {
                   <button
                     type="button"
                     onClick={() => setCorrespondenceFilter('all')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                    className={`h-9 px-3.5 rounded-lg text-xs font-medium transition-all flex items-center cursor-pointer ${
                       correspondenceFilter === 'all'
-                        ? 'bg-slate-900 text-white shadow-xs'
-                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        ? 'bg-slate-900 text-white shadow-sm'
+                        : 'bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                     }`}
                   >
-                    <Mail size={13} />
                     <span>Wszystkie</span>
-                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
-                      correspondenceFilter === 'all' ? 'bg-slate-800 text-slate-200' : 'bg-slate-200 text-slate-700'
+                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] ml-2 ${
+                      correspondenceFilter === 'all'
+                        ? 'bg-emerald-500/20 text-emerald-300 font-bold'
+                        : 'bg-slate-100 text-slate-500'
                     }`}>
                       {correspondenceLog.length}
                     </span>
@@ -1324,36 +1362,38 @@ export default function DocumentsRepositoryTab() {
                   <button
                     type="button"
                     onClick={() => setCorrespondenceFilter('IN')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                    className={`h-9 px-3.5 rounded-lg text-xs font-medium transition-all flex items-center cursor-pointer ${
                       correspondenceFilter === 'IN'
-                        ? 'bg-emerald-600 text-white shadow-xs'
-                        : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/60'
+                        ? 'bg-emerald-100 text-emerald-900 border border-emerald-200 shadow-sm'
+                        : 'bg-transparent text-slate-600 hover:bg-emerald-50/50 hover:text-emerald-900'
                     }`}
                   >
-                    <Inbox size={13} />
-                    <span>Wchodzące</span>
-                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
-                      correspondenceFilter === 'IN' ? 'bg-emerald-700 text-emerald-100' : 'bg-emerald-200/80 text-emerald-900'
+                    <span>Przychodzące (IN)</span>
+                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] ml-2 ${
+                      correspondenceFilter === 'IN'
+                        ? 'bg-emerald-200/80 text-emerald-800 font-bold'
+                        : 'bg-slate-100 text-slate-500'
                     }`}>
-                      {correspondenceLog.filter(c => c.direction === 'IN').length}
+                      {correspondenceLog.filter((c) => c.direction === 'IN').length}
                     </span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setCorrespondenceFilter('OUT')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                    className={`h-9 px-3.5 rounded-lg text-xs font-medium transition-all flex items-center cursor-pointer ${
                       correspondenceFilter === 'OUT'
-                        ? 'bg-sky-600 text-white shadow-xs'
-                        : 'bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200/60'
+                        ? 'bg-sky-100 text-sky-900 border border-sky-200 shadow-sm'
+                        : 'bg-transparent text-slate-600 hover:bg-sky-50/50 hover:text-sky-900'
                     }`}
                   >
-                    <Send size={13} />
-                    <span>Wychodzące</span>
-                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
-                      correspondenceFilter === 'OUT' ? 'bg-sky-700 text-sky-100' : 'bg-sky-200/80 text-sky-900'
+                    <span>Wychodzące (OUT)</span>
+                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] ml-2 ${
+                      correspondenceFilter === 'OUT'
+                        ? 'bg-sky-200/80 text-sky-800 font-bold'
+                        : 'bg-slate-100 text-slate-500'
                     }`}>
-                      {correspondenceLog.filter(c => c.direction === 'OUT').length}
+                      {correspondenceLog.filter((c) => c.direction === 'OUT').length}
                     </span>
                   </button>
                 </div>
@@ -1367,7 +1407,7 @@ export default function DocumentsRepositoryTab() {
                       value={correspondenceSearch}
                       onChange={(e) => setCorrespondenceSearch(e.target.value)}
                       placeholder="Szukaj po sygnaturze, temacie..."
-                      className="w-full pl-8 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white transition"
+                      className="w-full h-9 pl-8 pr-7 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white transition"
                     />
                     {correspondenceSearch && (
                       <button
@@ -1383,11 +1423,11 @@ export default function DocumentsRepositoryTab() {
                   <button
                     type="button"
                     onClick={() => handleOpenMailModal()}
-                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-xs hover:shadow-md transition cursor-pointer shrink-0"
+                    className="h-9 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium shadow-sm flex items-center gap-1.5 transition cursor-pointer shrink-0"
                     title="Zarejestruj nowe pismo lub wklej treść e-maila"
                   >
                     <Plus size={14} />
-                    <span>+ Zarejestruj pismo / Wklej e-mail</span>
+                    <span>+ Zarejestruj pismo</span>
                   </button>
                 </div>
               </div>

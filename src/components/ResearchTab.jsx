@@ -414,34 +414,34 @@ export default function ResearchTab() {
             </div>
 
             {/* Vertical Stats / Quick Filters */}
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {/* All Items Tile */}
               <button
                 type="button"
                 onClick={() => setActiveSubTab('All')}
-                className={`h-[72px] min-h-[72px] max-h-[72px] p-3 rounded-2xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
+                className={`h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 rounded-xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
                   activeSubTab === 'All'
-                    ? 'bg-slate-800 text-white border border-slate-700 shadow-sm'
+                    ? 'bg-slate-900 text-white border border-slate-900 shadow-sm'
                     : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/80 hover:border-slate-300'
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0 pr-2">
-                  <div className={`p-2 rounded-xl shrink-0 flex items-center justify-center ${
-                    activeSubTab === 'All' ? 'bg-slate-700 text-emerald-300' : 'bg-slate-100 text-slate-600'
+                  <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center ${
+                    activeSubTab === 'All' ? 'bg-slate-800 text-emerald-300' : 'bg-slate-100 text-slate-600'
                   }`}>
-                    <Layers size={18} />
+                    <Layers className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
-                    <span className="block text-xs font-bold leading-tight truncate">Wszystkie osiągnięcia</span>
-                    <span className={`text-[11px] leading-tight truncate block mt-0.5 ${
-                      activeSubTab === 'All' ? 'text-slate-300' : 'text-slate-500'
+                    <span className="block text-xs font-semibold leading-tight truncate">Wszystkie osiągnięcia</span>
+                    <span className={`text-[11px] font-normal truncate block mt-0.5 ${
+                      activeSubTab === 'All' ? 'text-slate-400' : 'text-slate-400'
                     }`}>
                       Cały dorobek SKN
                     </span>
                   </div>
                 </div>
-                <span className={`px-2.5 py-1 rounded-full text-xs font-mono font-bold shrink-0 ml-2 ${
-                  activeSubTab === 'All' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-slate-100 text-slate-700 border border-slate-200'
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ml-2 ${
+                  activeSubTab === 'All' ? 'bg-emerald-500/20 text-emerald-300 font-bold' : 'bg-slate-100 text-slate-600'
                 }`}>
                   {items.length}
                 </span>
@@ -451,35 +451,35 @@ export default function ResearchTab() {
               <button
                 type="button"
                 onClick={() => setActiveSubTab('Publication')}
-                className={`h-[72px] min-h-[72px] max-h-[72px] p-3 rounded-2xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
+                className={`h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 rounded-xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
                   activeSubTab === 'Publication'
                     ? 'bg-indigo-50/90 border-2 border-indigo-400 text-indigo-950 shadow-xs'
                     : 'bg-white hover:bg-indigo-50/40 text-slate-700 border border-slate-200/80 hover:border-indigo-200'
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0 pr-2">
-                  <div className={`p-2 rounded-xl shrink-0 flex items-center justify-center ${
+                  <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center ${
                     activeSubTab === 'Publication' ? 'bg-indigo-200/80 text-indigo-800' : 'bg-indigo-50 text-indigo-600'
                   }`}>
-                    <BookOpen size={18} />
+                    <BookOpen className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
-                    <span className={`block text-xs font-bold leading-tight truncate ${
+                    <span className={`block text-xs font-semibold leading-tight truncate ${
                       activeSubTab === 'Publication' ? 'text-indigo-950' : 'text-slate-800'
                     }`}>
                       Publikacje naukowe
                     </span>
-                    <span className={`text-[11px] leading-tight truncate block mt-0.5 ${
-                      activeSubTab === 'Publication' ? 'text-indigo-700' : 'text-slate-500'
+                    <span className={`text-[11px] font-normal truncate block mt-0.5 ${
+                      activeSubTab === 'Publication' ? 'text-indigo-700' : 'text-slate-400'
                     }`}>
                       Artykuły i monografie
                     </span>
                   </div>
                 </div>
-                <span className={`px-2.5 py-1 rounded-full text-xs font-mono font-bold shrink-0 ml-2 ${
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ml-2 ${
                   activeSubTab === 'Publication'
-                    ? 'bg-indigo-200 text-indigo-900 border border-indigo-300/80'
-                    : 'bg-indigo-50 text-indigo-700 border border-indigo-100'
+                    ? 'bg-indigo-200 text-indigo-900 font-bold border border-indigo-300/80'
+                    : 'bg-slate-100 text-slate-600'
                 }`}>
                   {items.filter((i) => i.type === 'Publication').length}
                 </span>
@@ -489,35 +489,35 @@ export default function ResearchTab() {
               <button
                 type="button"
                 onClick={() => setActiveSubTab('Conference')}
-                className={`h-[72px] min-h-[72px] max-h-[72px] p-3 rounded-2xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
+                className={`h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 rounded-xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
                   activeSubTab === 'Conference'
                     ? 'bg-amber-50/90 border-2 border-amber-400 text-amber-950 shadow-xs'
                     : 'bg-white hover:bg-amber-50/40 text-slate-700 border border-slate-200/80 hover:border-amber-200'
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0 pr-2">
-                  <div className={`p-2 rounded-xl shrink-0 flex items-center justify-center ${
+                  <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center ${
                     activeSubTab === 'Conference' ? 'bg-amber-200/80 text-amber-800' : 'bg-amber-50 text-amber-600'
                   }`}>
-                    <Award size={18} />
+                    <Award className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
-                    <span className={`block text-xs font-bold leading-tight truncate ${
+                    <span className={`block text-xs font-semibold leading-tight truncate ${
                       activeSubTab === 'Conference' ? 'text-amber-950' : 'text-slate-800'
                     }`}>
                       Wystąpienia & Referaty
                     </span>
-                    <span className={`text-[11px] leading-tight truncate block mt-0.5 ${
-                      activeSubTab === 'Conference' ? 'text-amber-700' : 'text-slate-500'
+                    <span className={`text-[11px] font-normal truncate block mt-0.5 ${
+                      activeSubTab === 'Conference' ? 'text-amber-700' : 'text-slate-400'
                     }`}>
                       Konferencje i sympozja
                     </span>
                   </div>
                 </div>
-                <span className={`px-2.5 py-1 rounded-full text-xs font-mono font-bold shrink-0 ml-2 ${
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ml-2 ${
                   activeSubTab === 'Conference'
-                    ? 'bg-amber-200 text-amber-900 border border-amber-300/80'
-                    : 'bg-amber-50 text-amber-700 border border-amber-100'
+                    ? 'bg-amber-200 text-amber-900 font-bold border border-amber-300/80'
+                    : 'bg-slate-100 text-slate-600'
                 }`}>
                   {metrics.conferencesCount}
                 </span>
@@ -527,57 +527,57 @@ export default function ResearchTab() {
               <button
                 type="button"
                 onClick={() => setActiveSubTab('Project')}
-                className={`h-[72px] min-h-[72px] max-h-[72px] p-3 rounded-2xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
+                className={`h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 rounded-xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
                   activeSubTab === 'Project'
                     ? 'bg-sky-50/90 border-2 border-sky-400 text-sky-950 shadow-xs'
                     : 'bg-white hover:bg-sky-50/40 text-slate-700 border border-slate-200/80 hover:border-sky-200'
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0 pr-2">
-                  <div className={`p-2 rounded-xl shrink-0 flex items-center justify-center ${
+                  <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center ${
                     activeSubTab === 'Project' ? 'bg-sky-200/80 text-sky-800' : 'bg-sky-50 text-sky-600'
                   }`}>
-                    <BarChart2 size={18} />
+                    <BarChart2 className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
-                    <span className={`block text-xs font-bold leading-tight truncate ${
+                    <span className={`block text-xs font-semibold leading-tight truncate ${
                       activeSubTab === 'Project' ? 'text-sky-950' : 'text-slate-800'
                     }`}>
                       Projekty badawcze
                     </span>
-                    <span className={`text-[11px] leading-tight truncate block mt-0.5 ${
-                      activeSubTab === 'Project' ? 'text-sky-700' : 'text-slate-500'
+                    <span className={`text-[11px] font-normal truncate block mt-0.5 ${
+                      activeSubTab === 'Project' ? 'text-sky-700' : 'text-slate-400'
                     }`}>
                       Badania empiryczne
                     </span>
                   </div>
                 </div>
-                <span className={`px-2.5 py-1 rounded-full text-xs font-mono font-bold shrink-0 ml-2 ${
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ml-2 ${
                   activeSubTab === 'Project'
-                    ? 'bg-sky-200 text-sky-900 border border-sky-300/80'
-                    : 'bg-sky-50 text-sky-700 border border-sky-100'
+                    ? 'bg-sky-200 text-sky-900 font-bold border border-sky-300/80'
+                    : 'bg-slate-100 text-slate-600'
                 }`}>
                   {metrics.projectsCount}
                 </span>
               </button>
 
               {/* 4. Łączne punkty MEiN / MNiSW - Static Metric Box */}
-              <div className="border-t border-slate-200/80 pt-2.5 mt-2">
-                <div className="h-[72px] min-h-[72px] max-h-[72px] p-3 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl flex items-center justify-between select-none">
+              <div className="border-t border-slate-200/80 pt-2 mt-1.5">
+                <div className="h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 bg-emerald-50/70 border border-emerald-200/80 rounded-xl flex items-center justify-between select-none">
                   <div className="flex items-center gap-3 min-w-0 pr-2">
-                    <div className="p-2 rounded-xl bg-emerald-100/90 text-emerald-800 shrink-0 flex items-center justify-center">
-                      <GraduationCap size={18} />
+                    <div className="w-8 h-8 rounded-lg bg-emerald-100/90 text-emerald-800 shrink-0 flex items-center justify-center">
+                      <GraduationCap className="w-4 h-4" />
                     </div>
                     <div className="min-w-0">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 leading-tight block truncate">
                         Łączne Punkty MEiN
                       </span>
-                      <span className="text-xs text-emerald-700 font-semibold leading-tight truncate block mt-0.5">
+                      <span className="text-[11px] text-emerald-700 font-medium leading-tight truncate block mt-0.5">
                         Ewaluacja dorobku
                       </span>
                     </div>
                   </div>
-                  <span className="text-sm font-extrabold text-emerald-900 font-mono shrink-0 ml-2 px-2 py-0.5 bg-emerald-100/80 rounded-lg border border-emerald-200">
+                  <span className="text-xs font-bold text-emerald-900 font-mono shrink-0 ml-2 px-2 py-1 bg-emerald-100/80 rounded-lg border border-emerald-200">
                     {metrics.totalPoints} pkt
                   </span>
                 </div>
@@ -624,17 +624,17 @@ export default function ResearchTab() {
                 <button
                   type="button"
                   onClick={() => setActiveSubTab('All')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center cursor-pointer ${
+                  className={`h-9 px-3.5 rounded-lg text-xs font-medium transition-all flex items-center cursor-pointer ${
                     activeSubTab === 'All'
-                      ? 'bg-slate-800 text-white shadow-xs'
+                      ? 'bg-slate-900 text-white shadow-sm'
                       : 'bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                   }`}
                 >
                   <span>Wszystkie</span>
-                  <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-semibold ml-2 ${
+                  <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] ml-2 ${
                     activeSubTab === 'All'
                       ? 'bg-emerald-500/20 text-emerald-300 font-bold'
-                      : 'bg-slate-200 text-slate-600'
+                      : 'bg-slate-100 text-slate-500'
                   }`}>
                     {items.length}
                   </span>
@@ -642,17 +642,17 @@ export default function ResearchTab() {
                 <button
                   type="button"
                   onClick={() => setActiveSubTab('Publication')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center cursor-pointer ${
+                  className={`h-9 px-3.5 rounded-lg text-xs font-medium transition-all flex items-center cursor-pointer ${
                     activeSubTab === 'Publication'
-                      ? 'bg-indigo-100 text-indigo-900 border border-indigo-200 shadow-xs'
+                      ? 'bg-indigo-100 text-indigo-900 border border-indigo-200 shadow-sm'
                       : 'bg-transparent text-slate-600 hover:bg-indigo-50/50 hover:text-indigo-900'
                   }`}
                 >
                   <span>Publikacje</span>
-                  <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-semibold ml-2 ${
+                  <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] ml-2 ${
                     activeSubTab === 'Publication'
                       ? 'bg-indigo-200/80 text-indigo-700 font-bold'
-                      : 'bg-slate-200 text-slate-600'
+                      : 'bg-slate-100 text-slate-500'
                   }`}>
                     {items.filter((i) => i.type === 'Publication').length}
                   </span>
@@ -660,17 +660,17 @@ export default function ResearchTab() {
                 <button
                   type="button"
                   onClick={() => setActiveSubTab('Conference')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center cursor-pointer ${
+                  className={`h-9 px-3.5 rounded-lg text-xs font-medium transition-all flex items-center cursor-pointer ${
                     activeSubTab === 'Conference'
-                      ? 'bg-amber-100 text-amber-900 border border-amber-200 shadow-xs'
+                      ? 'bg-amber-100 text-amber-900 border border-amber-200 shadow-sm'
                       : 'bg-transparent text-slate-600 hover:bg-amber-50/50 hover:text-amber-900'
                   }`}
                 >
                   <span>Konferencje</span>
-                  <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-semibold ml-2 ${
+                  <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] ml-2 ${
                     activeSubTab === 'Conference'
                       ? 'bg-amber-200/80 text-amber-800 font-bold'
-                      : 'bg-slate-200 text-slate-600'
+                      : 'bg-slate-100 text-slate-500'
                   }`}>
                     {metrics.conferencesCount}
                   </span>
@@ -678,17 +678,17 @@ export default function ResearchTab() {
                 <button
                   type="button"
                   onClick={() => setActiveSubTab('Project')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center cursor-pointer ${
+                  className={`h-9 px-3.5 rounded-lg text-xs font-medium transition-all flex items-center cursor-pointer ${
                     activeSubTab === 'Project'
-                      ? 'bg-sky-100 text-sky-900 border border-sky-200 shadow-xs'
+                      ? 'bg-sky-100 text-sky-900 border border-sky-200 shadow-sm'
                       : 'bg-transparent text-slate-600 hover:bg-sky-50/50 hover:text-sky-900'
                   }`}
                 >
                   <span>Projekty Badawcze</span>
-                  <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-semibold ml-2 ${
+                  <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] ml-2 ${
                     activeSubTab === 'Project'
                       ? 'bg-sky-200/80 text-sky-800 font-bold'
-                      : 'bg-slate-200 text-slate-600'
+                      : 'bg-slate-100 text-slate-500'
                   }`}>
                     {metrics.projectsCount}
                   </span>
@@ -704,7 +704,7 @@ export default function ResearchTab() {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Szukaj po tytule, autorze..."
-                    className="w-full pl-8 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white transition"
+                    className="w-full h-9 pl-8 pr-7 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white transition"
                   />
                   {searchQuery && (
                     <button
@@ -720,7 +720,7 @@ export default function ResearchTab() {
                 <button
                   type="button"
                   onClick={() => handleOpenAddModal('Publication')}
-                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-xs hover:shadow-md transition cursor-pointer shrink-0"
+                  className="h-9 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium shadow-sm flex items-center gap-1.5 transition cursor-pointer shrink-0"
                 >
                   <Plus size={14} />
                   <span>+ Dodaj</span>
