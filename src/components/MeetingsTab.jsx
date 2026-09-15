@@ -30,6 +30,8 @@ import {
   Trash2,
   Undo2,
   Loader2,
+  Search,
+  Users,
 } from 'lucide-react';
 import { MEETING_TYPES, getMeetingType } from '../utils/meetingTypes';
 import { parseAttendanceLine, parseDurationToMinutes, fetchMeetingSheetAttendance, saveMeetingAttendanceToGAS, deleteMeetingAttendanceFromGAS, sendToGAS } from '../services/googleSheets';
@@ -84,6 +86,7 @@ export default function MeetingsTab({
   const [rawList, setRawList]   = useState('');
   const [results, setResults]   = useState(null);
   const [parsedParticipants, setParsedParticipants] = useState([]);
+  const [attendeeSearchQuery, setAttendeeSearchQuery] = useState('');
   const [manualOverrides, setManualOverrides] = useState({});
   const [fetchingSheet, setFetchingSheet] = useState(false);
   const [sheetFeedback, setSheetFeedback] = useState(null);
@@ -418,6 +421,7 @@ export default function MeetingsTab({
     setSelectedMeeting(m);
     setResults(null);
     setSheetFeedback(null);
+    setAttendeeSearchQuery('');
 
     const mId = m.id || m.code || m.date;
     const listKey = getStorageKey(`meeting_${mId}_list`);
@@ -436,7 +440,45 @@ export default function MeetingsTab({
         participants = saved;
       } else if (Array.isArray(saved.attendees) && saved.attendees.length > 0) {
         participants = saved.attendees;
+      } else if (Array.isArray(saved.confirmedIndexes) && saved.confirmedIndexes.length > 0) {
+        participants = saved.confirmedIndexes.map((idx, i) => {
+          const mem = members.find(item => String(item.index || '').trim() === String(idx).trim());
+          return {
+            id: `p_saved_${i}_${idx}`,
+            rawName: mem ? (mem.fullName || `${mem.firstName} ${mem.lastName}`) : `Indeks: ${idx}`,
+            joinTime: '18:00',
+            durationStr: '60 min',
+            durationMinutes: 60,
+            member: mem || null,
+            role: 'member',
+            isGuest: !mem,
+            isExternalGuest: !mem,
+            isEligible: true,
+            manualApproved: true,
+            hasManualOverride: false,
+            status: 'approved',
+          };
+        });
       }
+    } else if (Array.isArray(m.attendees) && m.attendees.length > 0) {
+      participants = m.attendees.map((idx, i) => {
+        const mem = members.find(item => String(item.index || '').trim() === String(idx).trim());
+        return {
+          id: `p_att_${i}_${idx}`,
+          rawName: mem ? (mem.fullName || `${mem.firstName} ${mem.lastName}`) : `Indeks: ${idx}`,
+          joinTime: '18:00',
+          durationStr: '60 min',
+          durationMinutes: 60,
+          member: mem || null,
+          role: 'member',
+          isGuest: !mem,
+          isExternalGuest: !mem,
+          isEligible: true,
+          manualApproved: true,
+          hasManualOverride: false,
+          status: 'approved',
+        };
+      });
     }
 
     if (savedListText && savedListText.trim()) {
@@ -1114,6 +1156,17 @@ export default function MeetingsTab({
   const rejectedParticipantsCount = parsedParticipants.filter(p => p.manualApproved === false || (!p.manualApproved && !p.isEligible && p.role !== 'supervisor' && !isFacultySupervisor(p.rawName) && p.role !== 'speaker')).length;
   const unmatchedParticipantsCount = parsedParticipants.filter(p => !p.member && p.role !== 'supervisor' && !isFacultySupervisor(p.rawName) && p.role !== 'speaker').length;
 
+  // Filtered participants for sidebar search
+  const filteredParticipants = useMemo(() => {
+    if (!attendeeSearchQuery.trim()) return parsedParticipants;
+    const q = attendeeSearchQuery.toLowerCase().trim();
+    return parsedParticipants.filter(p => {
+      const name = (p.member ? (p.member.fullName || `${p.member.firstName} ${p.member.lastName}`) : p.rawName || '').toLowerCase();
+      const idx = String(p.member?.index || '').toLowerCase();
+      return name.includes(q) || idx.includes(q);
+    });
+  }, [parsedParticipants, attendeeSearchQuery]);
+
   return (
     <div className="space-y-6">
       {/* Header controls for Academic Year & Calendar (Sticky at Top) */}
@@ -1195,111 +1248,102 @@ export default function MeetingsTab({
         )}
       </div>
 
-      {/* Main Two-Column Independent Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column: Meeting list with independent scrolling */}
-        <div className="lg:col-span-7 space-y-3">
-          {/* Header with View Switcher (Active vs Trash) and Add Meeting button */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-1">
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-semibold">
-              <button
-                type="button"
-                onClick={() => setViewMode('active')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                  viewMode === 'active'
-                    ? 'bg-white text-indigo-900 shadow-2xs font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <CalendarDays size={13} className={viewMode === 'active' ? 'text-indigo-600' : 'text-slate-400'} />
-                <span>Aktywne spotkania ({activeMeetings.length})</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setViewMode('trash')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                  viewMode === 'trash'
-                    ? 'bg-white text-rose-800 shadow-2xs font-bold'
-                    : 'text-slate-600 hover:text-rose-700'
-                }`}
-              >
-                <Trash2 size={13} className={viewMode === 'trash' ? 'text-rose-600' : 'text-slate-400'} />
-                <span>Kosz ({trashList.length})</span>
-              </button>
-            </div>
-
-            {/* ➕ Dodaj spotkanie button */}
+      {/* Main Three-Column Master-Detail Layout */}
+      <div className="flex flex-col lg:flex-row gap-4 items-start w-full">
+        {/* ── Left Column: Narrow Navigation List of Meetings (220px - 260px) ── */}
+        <div className="w-full lg:w-[240px] xl:w-[260px] shrink-0 space-y-2.5">
+          {/* Header with View Switcher (Active vs Trash) */}
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-semibold">
             <button
               type="button"
-              onClick={handleOpenAddModal}
-              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 text-white text-xs font-semibold hover:from-indigo-700 hover:to-indigo-800 shadow-xs transition-all cursor-pointer"
+              onClick={() => setViewMode('active')}
+              className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg transition-all cursor-pointer text-[11px] ${
+                viewMode === 'active'
+                  ? 'bg-white text-indigo-900 shadow-2xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
             >
-              <Plus size={14} />
-              <span>Dodaj spotkanie</span>
+              <CalendarDays size={12} className={viewMode === 'active' ? 'text-indigo-600' : 'text-slate-400'} />
+              <span>Aktywne ({activeMeetings.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setViewMode('trash')}
+              className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg transition-all cursor-pointer text-[11px] ${
+                viewMode === 'trash'
+                  ? 'bg-white text-rose-800 shadow-2xs font-bold'
+                  : 'text-slate-600 hover:text-rose-700'
+              }`}
+            >
+              <Trash2 size={12} className={viewMode === 'trash' ? 'text-rose-600' : 'text-slate-400'} />
+              <span>Kosz ({trashList.length})</span>
             </button>
           </div>
 
-          <div className="space-y-3 max-h-[calc(100vh-280px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-purple-200">
+          {/* ➕ Dodaj spotkanie button */}
+          <button
+            type="button"
+            onClick={handleOpenAddModal}
+            className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 text-white text-xs font-semibold hover:from-indigo-700 hover:to-indigo-800 shadow-xs transition-all cursor-pointer"
+          >
+            <Plus size={13} />
+            <span>Dodaj spotkanie</span>
+          </button>
+
+          {/* Scrollable Meeting Cards List */}
+          <div className="space-y-2 max-h-[calc(100vh-270px)] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-indigo-200">
             {viewMode === 'trash' ? (
               trashList.length === 0 ? (
-                <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-8 text-center text-slate-400 text-xs">
-                  <div className="w-12 h-12 mx-auto mb-2 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400">
-                    <Trash2 size={20} />
+                <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-6 text-center text-slate-400 text-xs">
+                  <div className="w-10 h-10 mx-auto mb-2 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400">
+                    <Trash2 size={16} />
                   </div>
-                  <div className="font-semibold text-slate-700 text-sm">Kosz jest pusty</div>
-                  <p className="text-slate-400 mt-0.5">Żadne spotkanie nie zostało przeniesione do kosza.</p>
+                  <div className="font-semibold text-slate-700 text-xs">Kosz jest pusty</div>
+                  <p className="text-slate-400 mt-0.5 text-[11px]">Brak usuniętych spotkań.</p>
                 </div>
               ) : (
                 trashList.map(tm => (
                   <div
                     key={tm.id || tm.code}
-                    className="p-3.5 rounded-2xl border border-rose-200/80 bg-rose-50/30 hover:bg-rose-50/60 transition-all flex items-center justify-between gap-3 shadow-2xs"
+                    className="p-2.5 rounded-xl border border-rose-200/80 bg-rose-50/30 hover:bg-rose-50/60 transition-all flex flex-col gap-1.5 shadow-2xs text-xs"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-rose-100/80 border border-rose-200 flex flex-col items-center justify-center text-center">
-                        <span className="text-[9px] font-bold text-rose-500 uppercase">Kosz</span>
-                        <span className="text-xs font-black font-mono text-rose-800">{String(tm.code || tm.id || '').replace(/[\[\]]/g, '')}</span>
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-xs font-bold text-slate-800 truncate">{tm.title}</div>
-                        <div className="text-[11px] text-slate-500 font-mono flex items-center gap-2 mt-0.5">
-                          <span>📅 {tm.formattedDate || tm.date}</span>
-                          {tm.deletedAt && (
-                            <span className="text-rose-600 text-[10px]">
-                              (Usunięto: {new Date(tm.deletedAt).toLocaleDateString('pl-PL')})
-                            </span>
-                          )}
-                        </div>
-                      </div>
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-[10px] font-mono font-bold text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded border border-rose-200">
+                        {String(tm.code || tm.id || '').replace(/[\[\]]/g, '')}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {tm.formattedDate || tm.date}
+                      </span>
                     </div>
-
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="text-[11px] font-bold text-slate-800 truncate" title={tm.title}>
+                      {tm.title}
+                    </div>
+                    <div className="flex items-center justify-end gap-1 pt-1 border-t border-rose-100">
                       <button
                         type="button"
                         onClick={() => handleRestoreMeeting(tm)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 text-xs font-semibold transition cursor-pointer"
-                        title="Przywróć spotkanie na główną listę"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 text-[10px] font-semibold transition cursor-pointer"
+                        title="Przywróć spotkanie"
                       >
-                        <RotateCcw size={12} />
+                        <RotateCcw size={10} />
                         <span>Przywróć</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => setMeetingToPermanentDelete(tm)}
-                        className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg bg-white text-rose-600 hover:bg-rose-100 border border-rose-200 text-xs font-semibold transition cursor-pointer"
-                        title="Trwałe usunięcie"
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-white text-rose-600 hover:bg-rose-100 border border-rose-200 text-[10px] font-semibold transition cursor-pointer"
+                        title="Usuń trwale"
                       >
-                        <Trash2 size={12} />
-                        <span className="sr-only sm:not-sr-only">Trwale</span>
+                        <Trash2 size={10} />
                       </button>
                     </div>
                   </div>
                 ))
               )
             ) : activeMeetings.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-400 text-sm">
-                Brak spotkań w wybranym okresie i podkalendarzu.
+              <div className="bg-white rounded-2xl border border-slate-200 p-6 text-center text-slate-400 text-xs">
+                Brak spotkań w wybranym okresie.
               </div>
             ) : (
               activeMeetings.map(m => {
@@ -1308,111 +1352,89 @@ export default function MeetingsTab({
                 const type = getMeetingType(m, customTypes);
                 const typeConfig = MEETING_TYPES[type] || MEETING_TYPES.mandatory;
 
+                const saved = getSavedMeetingAttendance(m);
+                const isSavedVerified = !!(
+                  (saved && (
+                    (saved.confirmedCount !== undefined && saved.confirmedCount > 0) ||
+                    (Array.isArray(saved.confirmedIndexes) && saved.confirmedIndexes.length > 0) ||
+                    (Array.isArray(saved.attendees) && saved.attendees.length > 0) ||
+                    (Array.isArray(saved) && saved.length > 0)
+                  )) || (m.attendeesCount && m.attendeesCount > 0)
+                );
+                const count = saved?.confirmedCount ??
+                  (saved?.confirmedIndexes?.length) ??
+                  (Array.isArray(saved?.attendees) ? saved.attendees.length : (Array.isArray(saved) ? saved.length : (m.attendeesCount || m.attendees?.length || 0)));
+
+                const cleanYear = String(m.academicYear || academicYear || '25/26').replace(/[\[\]]/g, '').replace(/20/g, '');
+                const cleanCode = String(m.code || m.id || 'M01').replace(/[\[\]]/g, '').trim();
+
                 return (
                   <button
+                    type="button"
                     key={m.id || m.code}
                     onClick={() => handleSelectMeeting(m)}
-                    className={`group w-full text-left p-3 rounded-2xl border transition-all cursor-pointer flex items-center gap-3.5 ${
+                    className={`group w-full text-left p-2.5 rounded-xl border transition-all cursor-pointer flex flex-col gap-1.5 ${
                       isSelected
-                        ? 'border-indigo-400 bg-indigo-50/80 shadow-md ring-2 ring-indigo-200'
+                        ? 'border-indigo-500 bg-indigo-50/90 shadow-2xs ring-2 ring-indigo-200'
                         : isUpcoming
-                        ? 'border-emerald-200 bg-emerald-50/30 hover:border-emerald-300 hover:bg-emerald-50/60'
-                        : 'border-slate-200/70 bg-white hover:border-indigo-300 hover:shadow-xs hover:bg-slate-50'
+                        ? 'border-emerald-200/80 bg-emerald-50/30 hover:border-emerald-300 hover:bg-emerald-50/60'
+                        : 'border-slate-200/80 bg-white hover:border-indigo-300 hover:bg-slate-50'
                     }`}
                   >
-                    <div className={`flex-shrink-0 w-14 h-14 rounded-2xl flex flex-col items-center justify-center text-center shadow-xs transition-colors border ${
-                      isSelected
-                        ? 'bg-indigo-100/90 border-indigo-300'
-                        : isUpcoming
-                        ? 'bg-emerald-100/90 border-emerald-300 group-hover:bg-emerald-100'
-                        : 'bg-slate-100/90 border-slate-200/80 group-hover:bg-indigo-50 group-hover:border-indigo-200'
-                    }`}>
-                      <span className={`text-[10px] font-bold uppercase tracking-tight leading-none mb-1 ${
-                        isSelected
-                          ? 'text-indigo-600'
-                          : isUpcoming
-                          ? 'text-emerald-700'
-                          : 'text-slate-400 group-hover:text-indigo-500'
-                      }`}>
-                        {String(m.academicYear || academicYear || '25/26').replace(/[\[\]]/g, '').replace(/20/g, '')}
-                      </span>
-                      
-                      <span className={`text-sm font-extrabold tracking-tight leading-none ${
-                        isSelected
-                          ? 'text-indigo-900 font-black'
-                          : isUpcoming
-                          ? 'text-emerald-900 font-black'
-                          : 'text-slate-700 group-hover:text-indigo-600'
-                      }`}>
-                        {String(m.code || m.id || 'M01').replace(/[\[\]]/g, '').trim()}
-                      </span>
-                    </div>
-
-                    {/* Środkowa część (Tytuł spotkania, data, prelegent) */}
-                    <div className="flex-1 min-w-0 text-left">
-                      <p className="font-semibold text-slate-800 text-sm leading-snug truncate">{m.title}</p>
-
-                      <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-1 font-mono">
-                        <CalendarDays size={12} className={isUpcoming ? 'text-emerald-600' : 'text-slate-400'} />
-                        <span>{m.formattedDate || m.date || m.start_dt}</span>
-                        {m.who && (
-                          <>
-                            <span className="text-slate-300">·</span>
-                            <span className="flex items-center gap-0.5 font-sans text-slate-500 truncate max-w-[140px]">
-                              <User size={11} /> {m.who}
-                            </span>
-                          </>
-                        )}
-                        {m.location && (
-                          <>
-                            <span className="text-slate-300">·</span>
-                            <span className="flex items-center gap-0.5 font-sans text-slate-500 truncate max-w-[120px]">
-                              <MapPin size={11} /> {m.location}
-                            </span>
-                          </>
-                        )}
-                      </p>
-                    </div>
-
-                    {/* Prawa strona (Status & Type Badges) */}
-                    <div className="flex-shrink-0 flex flex-col items-end gap-1">
-                      {/* Meeting Type Badge */}
-                      <span className={`w-32 inline-flex items-center text-[10px] font-bold px-2.5 py-0.5 rounded-full border shrink-0 ${typeConfig.badgeClass}`}>
-                        <span className="shrink-0">{typeConfig.icon}</span>
-                        <span className="flex-1 text-center truncate pl-1">{typeConfig.label}</span>
-                      </span>
-
-                      {isUpcoming ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-full">
-                          <Sparkles size={10} />
-                          Zaplanowane
+                    {/* Top Row: Code Pill + Date */}
+                    <div className="flex items-center justify-between gap-1 w-full">
+                      <div className="flex items-center gap-1 min-w-0">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold tracking-tight shrink-0 border ${
+                          isSelected
+                            ? 'bg-indigo-600 text-white border-indigo-600'
+                            : isUpcoming
+                            ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                            : 'bg-slate-100 text-slate-700 border-slate-200 group-hover:bg-indigo-100 group-hover:text-indigo-800'
+                        }`}>
+                          {cleanYear} {cleanCode}
                         </span>
-                      ) : (() => {
-                        const saved = getSavedMeetingAttendance(m);
-                        const isSavedVerified = !!(
-                          (saved && (
-                            (saved.confirmedCount !== undefined && saved.confirmedCount > 0) ||
-                            (Array.isArray(saved.confirmedIndexes) && saved.confirmedIndexes.length > 0) ||
-                            (Array.isArray(saved.attendees) && saved.attendees.length > 0) ||
-                            (Array.isArray(saved) && saved.length > 0)
-                          )) || (m.attendeesCount && m.attendeesCount > 0)
-                        );
-                        const count = saved?.confirmedCount ??
-                          (saved?.confirmedIndexes?.length) ??
-                          (Array.isArray(saved?.attendees) ? saved.attendees.length : (Array.isArray(saved) ? saved.length : (m.attendeesCount || m.attendees?.length || 0)));
+                        {typeConfig && (
+                          <span className="text-xs shrink-0" title={typeConfig.label}>
+                            {typeConfig.icon}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10px] font-mono text-slate-400 shrink-0 truncate max-w-[85px]">
+                        {m.formattedDate || m.date || m.start_dt}
+                      </span>
+                    </div>
 
-                        return isSavedVerified ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-full shadow-2xs">
-                            <Check size={10} className="text-emerald-600 font-bold" />
-                            ✓ Zakończone ({count})
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded-full">
-                            <Clock size={10} />
-                            Zakończone ({count})
-                          </span>
-                        );
-                      })()}
+                    {/* Middle Row: Title (compact text-xs, truncate) */}
+                    <p className={`text-xs font-semibold leading-tight line-clamp-2 ${
+                      isSelected ? 'text-indigo-950 font-bold' : 'text-slate-800'
+                    }`} title={m.title}>
+                      {m.title}
+                    </p>
+
+                    {/* Bottom Row: Status pill */}
+                    <div className="flex items-center justify-between text-[10px] pt-0.5 border-t border-slate-100/70">
+                      {isUpcoming ? (
+                        <span className="inline-flex items-center gap-1 text-emerald-700 font-medium">
+                          <Sparkles size={10} className="text-emerald-500" />
+                          <span>Zaplanowane</span>
+                        </span>
+                      ) : isSavedVerified ? (
+                        <span className="inline-flex items-center gap-1 text-emerald-700 font-bold">
+                          <Check size={10} className="text-emerald-600" />
+                          <span>✓ {count} obecnych</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-slate-400">
+                          <Clock size={10} />
+                          <span>{count > 0 ? `${count} obecnych` : 'Zakończone'}</span>
+                        </span>
+                      )}
+
+                      {m.who && (
+                        <span className="text-slate-400 truncate max-w-[85px] text-[10px]" title={m.who}>
+                          {m.who}
+                        </span>
+                      )}
                     </div>
                   </button>
                 );
@@ -1421,13 +1443,12 @@ export default function MeetingsTab({
           </div>
         </div>
 
-        {/* Right Column: Attendance processor & Category Switcher (Sticky at top) */}
-        <div className="lg:col-span-5 sticky top-20 space-y-4">
-          <h3 className="text-sm font-bold text-slate-800">Kategoria & Obecność</h3>
+        {/* ── Middle Column: Main Details & Editing Panel (flex-1) ── */}
+        <div className="flex-1 min-w-0 w-full space-y-4">
           {!selectedMeeting ? (
-            <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400 text-sm">
+            <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400 text-sm shadow-sm">
               <ClipboardList size={36} className="mx-auto mb-2 text-slate-300" />
-              Wybierz spotkanie z listy po lewej stronie, aby zmienić jego charakter lub zarejestrować obecności.
+              Wybierz spotkanie z listy po lewej stronie, aby edytować jego szczegóły, próg obecności lub przetworzyć dane z Google Meet.
             </div>
           ) : (
             <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 shadow-sm">
@@ -1492,7 +1513,7 @@ export default function MeetingsTab({
                     </div>
                   )}
 
-                  <span className="truncate">{currentSelectedMeeting.title}</span>
+                  <span className="truncate font-semibold">{currentSelectedMeeting.title}</span>
                 </div>
                 <span className="text-xs font-mono font-medium shrink-0 ml-2">{currentSelectedMeeting.formattedDate || currentSelectedMeeting.date}</span>
               </div>
@@ -1519,7 +1540,7 @@ export default function MeetingsTab({
                 </button>
               </div>
 
-              {/* ── Meeting Type Selector Card ─────────────────────────────── */}
+              {/* ── Meeting Type Selector Card ── */}
               <div className="bg-slate-50/80 rounded-xl p-3.5 border border-slate-200/80 space-y-2.5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
                   <div>
@@ -1541,7 +1562,7 @@ export default function MeetingsTab({
                   {selectedTypeConfig.description}
                 </p>
 
-                <div className="grid grid-cols-4 gap-2 pt-1 w-full">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 w-full">
                   {Object.values(MEETING_TYPES).map(t => {
                     const isCurrent = selectedType === t.id;
                     const count = categoryCounts[t.id] || 0;
@@ -1573,7 +1594,7 @@ export default function MeetingsTab({
                 </div>
               </div>
 
-              {/* ── Attendance Duration Threshold Regulator ────────────────── */}
+              {/* ── Attendance Duration Threshold Regulator ── */}
               <div className="bg-gradient-to-br from-indigo-50/70 to-purple-50/50 rounded-xl p-3.5 border border-indigo-100 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
@@ -1622,11 +1643,11 @@ export default function MeetingsTab({
                 </div>
 
                 <p className="text-[10px] text-slate-500 leading-snug">
-                  Uczestnicy z czasem &lt; <strong>{minDurationThreshold} min</strong> zostaną oznaczeni jako ⚠️ <em>nieobecni</em> (z możliwością ręcznego zaliczenia).
+                  Uczestnicy z czasem &lt; <strong>{minDurationThreshold} min</strong> zostaną oznaczeni jako ⚠️ <em>nieobecni</em> (z możliwością natychmiastowego ręcznego zaliczenia w panelu po prawej).
                 </p>
               </div>
 
-              {/* ── Attendance Source & Action ─────────────────────────────── */}
+              {/* ── Attendance Source & Action ── */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -1648,9 +1669,9 @@ export default function MeetingsTab({
 
                       if (!isCurrentVerified) return null;
                       return (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs animate-in fade-in">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
                           <CheckCircle2 size={11} className="text-emerald-600" />
-                          <span>🟢 Zweryfikowano i zapisano ({currentSavedCount} obecnych)</span>
+                          <span>🟢 Zapisano ({currentSavedCount} obecnych)</span>
                         </span>
                       );
                     })()}
@@ -1670,11 +1691,11 @@ export default function MeetingsTab({
                       type="button"
                       onClick={handleClearAttendanceFromDB}
                       disabled={isClearingAttendance || !selectedMeeting}
-                      className="inline-flex items-center gap-1 text-[11px] font-semibold border border-rose-300 text-rose-700 bg-rose-50 hover:bg-rose-100 px-2.5 py-1 rounded-lg transition cursor-pointer disabled:opacity-50"
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold border border-rose-300 text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-1 rounded-lg transition cursor-pointer disabled:opacity-50"
                       title="Usuwa zapisane obecności dla tego spotkania z arkusza Google"
                     >
                       <Trash2 size={12} className={isClearingAttendance ? 'animate-spin' : ''} />
-                      <span>{isClearingAttendance ? 'Usuwanie…' : 'Wyczyść obecności z bazy'}</span>
+                      <span>{isClearingAttendance ? 'Usuwanie…' : 'Wyczyść bazę'}</span>
                     </button>
                   </div>
                 </div>
@@ -1694,7 +1715,7 @@ export default function MeetingsTab({
                   value={rawList}
                   onChange={e => { setRawList(e.target.value); setResults(null); }}
                   rows={4}
-                  placeholder="Wklej listę obecności z Google Meet lub załaduj obecności z arkusza..."
+                  placeholder="Wklej surową listę obecności z Google Meet lub kliknij 'Wczytaj z arkusza'..."
                   className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2.5 font-mono resize-none focus:outline-none focus:ring-2 focus:ring-indigo-300 transition"
                 />
 
@@ -1708,180 +1729,204 @@ export default function MeetingsTab({
                     (Array.isArray(currentSaved) && currentSaved.length > 0)
                   ));
 
-                  if (isCurrentVerified) {
-                    return (
-                      <div className="flex flex-col gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setIsModalOpen(true)}
-                          className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-sm cursor-pointer"
-                        >
-                          <span>⛶ Otwórz zweryfikowaną listę i edytuj (Duże okno)</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (rawList.trim()) setShowResetConfirm(true);
-                          }}
-                          disabled={!rawList.trim()}
-                          className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 hover:border-rose-300 bg-white hover:bg-rose-50 text-slate-500 hover:text-rose-600 text-[11px] font-semibold transition cursor-pointer disabled:opacity-40"
-                        >
-                          <RotateCcw size={12} />
-                          <span>↻ Przetwórz surowy tekst od nowa (Reset korekt)</span>
-                        </button>
-                      </div>
-                    );
-                  }
-
                   return (
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
                       <button
                         type="button"
                         onClick={handleProcessAttendance}
-                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-sm cursor-pointer"
+                        className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-sm cursor-pointer"
                       >
                         <Play size={13} />
                         <span>▶ Przetwórz i zweryfikuj listę</span>
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={handleProcessAttendance}
-                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-300 text-xs font-bold transition cursor-pointer"
-                      >
-                        <span>⛶ Otwórz pełny panel weryfikacji i edycji (Duże okno)</span>
-                      </button>
+                      {isCurrentVerified && rawList.trim() && (
+                        <button
+                          type="button"
+                          onClick={() => setShowResetConfirm(true)}
+                          className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 hover:border-rose-300 bg-white hover:bg-rose-50 text-slate-500 hover:text-rose-600 text-[11px] font-semibold transition cursor-pointer shrink-0"
+                          title="Przetwórz surowy tekst od nowa (Reset korekt)"
+                        >
+                          <RotateCcw size={12} />
+                          <span>Reset</span>
+                        </button>
+                      )}
                     </div>
                   );
                 })()}
               </div>
+            </div>
+          )}
+        </div>
 
-              {/* ── Verified Participants Table ───────────────────────────── */}
+        {/* ── Right Column: Attendance List Sidebar (280px - 320px) ── */}
+        <div className="w-full lg:w-[285px] xl:w-[315px] shrink-0 space-y-3 lg:sticky lg:top-20">
+          {!selectedMeeting ? (
+            <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-400 text-xs shadow-sm">
+              <Users size={28} className="mx-auto mb-2 text-slate-300" />
+              <p className="font-semibold text-slate-600">Lista obecności</p>
+              <p className="mt-1 text-[11px]">Wybierz spotkanie, aby podejrzeć listę uczestników.</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-slate-200 p-3.5 space-y-3 shadow-sm">
+              {/* Sidebar Header */}
+              <div className="flex items-center justify-between gap-1 pb-2 border-b border-slate-100">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Users size={14} className="text-indigo-600 shrink-0" />
+                  <h3 className="text-xs font-bold text-slate-800 truncate">Lista obecności</h3>
+                </div>
+                <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 shrink-0">
+                  {parsedParticipants.length} os.
+                </span>
+              </div>
+
+              {/* Status Breakdown Badges */}
               {parsedParticipants.length > 0 && (
-                <div className="space-y-3 pt-3 border-t border-slate-100 animate-in fade-in duration-150">
-                  {/* Summary Bar */}
-                  <div className="flex items-center justify-between flex-wrap gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs">
-                    <span className="font-bold text-slate-800">Uczestnicy ({parsedParticipants.length}):</span>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded-full text-[11px]">
-                        🟢 {approvedParticipantsCount} zaliczonych
-                      </span>
-                      {rejectedParticipantsCount > 0 && (
-                        <span className="text-rose-700 font-bold bg-rose-100 px-2 py-0.5 rounded-full text-[11px]">
-                          ⚠️ {rejectedParticipantsCount} &lt; {minDurationThreshold}m
-                        </span>
-                      )}
-                      {unmatchedParticipantsCount > 0 && (
-                        <span className="text-amber-700 font-bold bg-amber-100 px-2 py-0.5 rounded-full text-[11px]">
-                          ❓ {unmatchedParticipantsCount} nieznanych
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                <div className="flex items-center gap-1 flex-wrap text-[10px] font-bold">
+                  <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
+                    🟢 {approvedParticipantsCount}
+                  </span>
+                  {rejectedParticipantsCount > 0 && (
+                    <span className="text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded-full" title={`Czas < ${minDurationThreshold} min`}>
+                      ⚠️ {rejectedParticipantsCount} za krótko
+                    </span>
+                  )}
+                  {unmatchedParticipantsCount > 0 && (
+                    <span className="text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full" title="Nierozpoznany student w bazie">
+                      ❓ {unmatchedParticipantsCount} nieznanych
+                    </span>
+                  )}
+                </div>
+              )}
 
-                  {/* Scrollable Table */}
-                  <div className="max-h-64 overflow-y-auto border border-slate-200 rounded-xl overflow-hidden scrollbar-thin scrollbar-thumb-indigo-200">
-                    <table className="w-full text-xs text-left border-collapse">
-                      <thead className="sticky top-0 bg-slate-100 text-slate-600 font-semibold border-b border-slate-200 z-10">
-                        <tr>
-                          <th className="p-2">Uczestnik</th>
-                          <th className="p-2 text-center w-20">Wejście</th>
-                          <th className="p-2 text-center w-24">Czas (Kol. C)</th>
-                          <th className="p-2 text-center w-20">Status</th>
-                          <th className="p-2 text-right w-16">Ręcznie</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {parsedParticipants.map(p => {
-                          const isApproved = p.manualApproved;
-                          const isShortTime = p.durationMinutes < minDurationThreshold;
-                          const memberName = p.member ? (p.member.fullName || `${p.member.firstName} ${p.member.lastName}`) : p.rawName;
-
-                          return (
-                            <tr
-                              key={p.id}
-                              className={`transition-colors ${
-                                isApproved
-                                  ? 'bg-white hover:bg-slate-50/70'
-                                  : 'bg-rose-50/40 hover:bg-rose-50/70'
-                              }`}
-                            >
-                              {/* Student Name */}
-                              <td className="p-2">
-                                <p className="font-semibold text-slate-800 truncate max-w-[140px]" title={memberName}>
-                                  {memberName}
-                                </p>
-                                {p.member?.index && (
-                                  <span className="text-[10px] text-slate-400 font-mono">
-                                    idx: {p.member.index}
-                                  </span>
-                                )}
-                              </td>
-
-                              {/* Join Time */}
-                              <td className="p-2 text-center font-mono text-[11px] text-slate-600">
-                                {p.joinTime}
-                              </td>
-
-                              {/* Duration */}
-                              <td className="p-2 text-center">
-                                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold font-mono border ${
-                                  isShortTime
-                                    ? 'bg-rose-100 text-rose-800 border-rose-200'
-                                    : 'bg-emerald-100 text-emerald-800 border-emerald-200'
-                                }`}>
-                                  {p.durationStr || `${p.durationMinutes} min`}
-                                </span>
-                              </td>
-
-                              {/* Status Badge */}
-                              <td className="p-2 text-center">
-                                {isApproved ? (
-                                  <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-700">
-                                    <CheckCircle2 size={11} /> Zaliczona
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-rose-600" title={`Czas na spotkaniu (${p.durationMinutes} min) mniejszy niż próg ${minDurationThreshold} min`}>
-                                    <AlertTriangle size={11} /> Za krótko
-                                  </span>
-                                )}
-                              </td>
-
-                              {/* Manual Override Toggle */}
-                              <td className="p-2 text-right">
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleManualApproval(p.id)}
-                                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition cursor-pointer ${
-                                    isApproved
-                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
-                                      : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
-                                  }`}
-                                  title="Kliknij, aby wymusić zaliczenie lub odrzucenie obecności tego studenta"
-                                >
-                                  {isApproved ? 'Tak' : 'Nie'}
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Explicit Save & Sync Button */}
-                  <div className="pt-2">
+              {/* Filter search if list is long */}
+              {parsedParticipants.length > 5 && (
+                <div className="relative">
+                  <Search size={12} className="absolute left-2.5 top-2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={attendeeSearchQuery}
+                    onChange={(e) => setAttendeeSearchQuery(e.target.value)}
+                    placeholder="Szukaj uczestnika..."
+                    className="w-full text-[11px] bg-slate-50 border border-slate-200 rounded-lg pl-7 pr-2.5 py-1 text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                  />
+                  {attendeeSearchQuery && (
                     <button
                       type="button"
-                      onClick={handleSaveSidebarAttendance}
-                      disabled={isSavingAttendance}
-                      className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold transition shadow-sm cursor-pointer"
+                      onClick={() => setAttendeeSearchQuery('')}
+                      className="absolute right-2 top-1.5 text-slate-400 hover:text-slate-600 cursor-pointer"
                     >
-                      {isSavingAttendance ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                      <span>{isSavingAttendance ? 'Zapisywanie w arkuszu...' : `Zatwierdź i zapisz obecności (${approvedParticipantsCount}) w Google Sheets`}</span>
+                      <X size={11} />
                     </button>
-                  </div>
+                  )}
+                </div>
+              )}
+
+              {/* Numbered Participants List */}
+              {parsedParticipants.length === 0 ? (
+                <div className="py-8 px-3 text-center text-slate-400 text-xs">
+                  <Clock size={24} className="mx-auto mb-1.5 text-slate-300" />
+                  <p className="font-medium text-slate-600 text-xs">Brak wczytanych obecności</p>
+                  <p className="text-[10px] text-slate-400 mt-1 leading-snug">
+                    Wklej listę z Google Meet w środkowym panelu lub kliknij &bdquo;Wczytaj z arkusza&rdquo;.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-1.5 max-h-[calc(100vh-360px)] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-indigo-200">
+                  {filteredParticipants.map((p, idx) => {
+                    const isApproved = p.manualApproved;
+                    const isShortTime = p.durationMinutes < minDurationThreshold;
+                    const memberName = p.member ? (p.member.fullName || `${p.member.firstName} ${p.member.lastName}`) : p.rawName;
+                    const isSup = p.role === 'supervisor' || isFacultySupervisor(p.rawName);
+                    const isGuest = p.isGuest || p.role === 'guest';
+
+                    return (
+                      <div
+                        key={p.id || idx}
+                        className={`p-2 rounded-xl border text-xs flex items-center justify-between gap-2 transition-all ${
+                          isApproved
+                            ? 'bg-white border-slate-200/80 hover:border-indigo-200'
+                            : 'bg-rose-50/40 border-rose-200/80 hover:bg-rose-50/70'
+                        }`}
+                      >
+                        {/* Number + Name + Subtext */}
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          <span className="text-[10px] font-mono font-bold text-slate-400 w-5 text-right shrink-0">
+                            {idx + 1}.
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-slate-800 text-[11px] truncate leading-tight" title={memberName}>
+                              {memberName}
+                            </p>
+                            <div className="flex items-center gap-1 text-[10px] text-slate-400 font-mono mt-0.5">
+                              {p.member?.index ? (
+                                <span>{p.member.index}</span>
+                              ) : isSup ? (
+                                <span className="text-purple-600 font-sans font-bold">Opiekun</span>
+                              ) : isGuest ? (
+                                <span className="text-amber-600 font-sans font-medium">Gość</span>
+                              ) : (
+                                <span className="text-amber-600 font-sans">Nieznany</span>
+                              )}
+                              <span>·</span>
+                              <span className={isShortTime ? 'text-rose-600 font-bold' : 'text-slate-500'}>
+                                {p.durationStr || `${p.durationMinutes}m`}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Status icon + Manual toggle */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          {isApproved ? (
+                            <span title="Zaliczona obecność" className="text-emerald-600">
+                              <CheckCircle2 size={13} />
+                            </span>
+                          ) : (
+                            <span title={`Czas (${p.durationMinutes} min) poniżej progu (${minDurationThreshold} min)`} className="text-rose-500">
+                              <AlertTriangle size={13} />
+                            </span>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleToggleManualApproval(p.id)}
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition cursor-pointer ${
+                              isApproved
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                                : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                            }`}
+                            title="Przełącz zaliczenie obecności (Tak / Nie)"
+                          >
+                            {isApproved ? 'Tak' : 'Nie'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Action Buttons in Right Column */}
+              {parsedParticipants.length > 0 && (
+                <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                  <button
+                    type="button"
+                    onClick={handleSaveSidebarAttendance}
+                    disabled={isSavingAttendance}
+                    className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold transition shadow-sm cursor-pointer"
+                  >
+                    {isSavingAttendance ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                    <span>{isSavingAttendance ? 'Zapisywanie...' : `Zapisz (${approvedParticipantsCount}) w Google Sheets`}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(true)}
+                    className="w-full inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 hover:text-indigo-600 text-[11px] font-semibold transition cursor-pointer"
+                  >
+                    <span>⛶ Pełny edytor (modal)</span>
+                  </button>
                 </div>
               )}
             </div>
