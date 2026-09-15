@@ -1367,19 +1367,28 @@ export default function MeetingsTab({
                   <p className="text-slate-400 mt-0.5 text-[11px]">Brak usuniętych spotkań.</p>
                 </div>
               ) : (
-                trashList.map(tm => (
-                  <div
-                    key={tm.id || tm.code}
-                    className="p-2.5 rounded-xl border border-rose-200/80 bg-rose-50/30 hover:bg-rose-50/60 transition-all flex flex-col gap-1.5 shadow-2xs text-xs"
-                  >
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="text-[10px] font-mono font-bold text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded border border-rose-200">
-                        {String(tm.code || tm.id || '').replace(/[\[\]]/g, '')}
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-mono">
-                        {tm.formattedDate || tm.date}
-                      </span>
-                    </div>
+                trashList.map(tm => {
+                  const rawTrashCode = String(tm.code || tm.id || '').replace(/[\[\]]/g, '');
+                  const cleanTrashCode = rawTrashCode
+                    .replace(/\b20\d\d\/20\d\d\b/g, '')
+                    .replace(/\b20\d\d\/\d\d\b/g, '')
+                    .replace(/\b\d\d\/\d\d\b/g, '')
+                    .replace(/^[\s•\-\/]+|[\s•\-\/]+$/g, '')
+                    .trim() || rawTrashCode.trim();
+
+                  return (
+                    <div
+                      key={tm.id || tm.code}
+                      className="p-2.5 rounded-xl border border-rose-200/80 bg-rose-50/30 hover:bg-rose-50/60 transition-all flex flex-col gap-1.5 shadow-2xs text-xs"
+                    >
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-[10px] font-mono font-bold text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded border border-rose-200">
+                          {cleanTrashCode}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {tm.formattedDate || tm.date}
+                        </span>
+                      </div>
                     <div className="text-[11px] font-bold text-slate-800 truncate" title={tm.title}>
                       {tm.title}
                     </div>
@@ -1403,7 +1412,8 @@ export default function MeetingsTab({
                       </button>
                     </div>
                   </div>
-                ))
+                  );
+                })
               )
             ) : activeMeetings.length === 0 ? (
               <div className="bg-white rounded-2xl border border-slate-200 p-6 text-center text-slate-400 text-xs">
@@ -1429,8 +1439,16 @@ export default function MeetingsTab({
                   (saved?.confirmedIndexes?.length) ??
                   (Array.isArray(saved?.attendees) ? saved.attendees.length : (Array.isArray(saved) ? saved.length : (m.attendeesCount || m.attendees?.length || 0)));
 
-                const cleanYear = String(m.academicYear || academicYear || '25/26').replace(/[\[\]]/g, '').replace(/20/g, '');
-                const cleanCode = String(m.code || m.id || 'M01').replace(/[\[\]]/g, '').trim();
+                const rawYear = String(m.academicYear || academicYear || '25/26');
+                const cleanYear = rawYear.replace(/[\[\]]/g, '').replace(/20(\d\d)/g, '$1').trim();
+                const rawCode = String(m.code || m.id || 'M01').replace(/[\[\]]/g, '');
+                const cleanCodeOnly = rawCode
+                  .replace(/\b20\d\d\/20\d\d\b/g, '')
+                  .replace(/\b20\d\d\/\d\d\b/g, '')
+                  .replace(/\b\d\d\/\d\d\b/g, '')
+                  .replace(/^[\s•\-\/]+|[\s•\-\/]+$/g, '')
+                  .trim() || rawCode.trim();
+                const displayCodeBadge = cleanYear ? `${cleanYear} • ${cleanCodeOnly}` : cleanCodeOnly;
 
                 return (
                   <button
@@ -1455,7 +1473,7 @@ export default function MeetingsTab({
                             ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
                             : 'bg-slate-100 text-slate-700 border-slate-200 group-hover:bg-indigo-100 group-hover:text-indigo-800'
                         }`}>
-                          {cleanYear} {cleanCode}
+                          {displayCodeBadge}
                         </span>
                         {typeConfig && (
                           <span className="text-xs shrink-0" title={typeConfig.label}>
@@ -1590,12 +1608,28 @@ export default function MeetingsTab({
                           ? 'bg-emerald-200 border-emerald-300 text-emerald-900'
                           : 'bg-indigo-200 border-indigo-300 text-indigo-900'
                       }`}>
-                        {String(currentSelectedMeeting.code || currentSelectedMeeting.id || 'M01').replace(/[\[\]]/g, '').trim()}
+                        {(() => {
+                          const raw = String(currentSelectedMeeting.code || currentSelectedMeeting.id || 'M01').replace(/[\[\]]/g, '');
+                          const clean = raw
+                            .replace(/\b20\d\d\/20\d\d\b/g, '')
+                            .replace(/\b20\d\d\/\d\d\b/g, '')
+                            .replace(/\b\d\d\/\d\d\b/g, '')
+                            .replace(/^[\s•\-\/]+|[\s•\-\/]+$/g, '')
+                            .trim() || raw.trim();
+                          return clean;
+                        })()}
                       </span>
                       <button
                         type="button"
                         onClick={() => {
-                          setEditedCodeValue(String(currentSelectedMeeting.code || currentSelectedMeeting.id || 'M01').replace(/[\[\]]/g, '').trim());
+                          const raw = String(currentSelectedMeeting.code || currentSelectedMeeting.id || 'M01').replace(/[\[\]]/g, '');
+                          const clean = raw
+                            .replace(/\b20\d\d\/20\d\d\b/g, '')
+                            .replace(/\b20\d\d\/\d\d\b/g, '')
+                            .replace(/\b\d\d\/\d\d\b/g, '')
+                            .replace(/^[\s•\-\/]+|[\s•\-\/]+$/g, '')
+                            .trim() || raw.trim();
+                          setEditedCodeValue(clean);
                           setIsEditingCode(true);
                         }}
                         className="p-1 text-slate-400 hover:text-indigo-600 transition cursor-pointer rounded"
@@ -1659,28 +1693,56 @@ export default function MeetingsTab({
                   {Object.values(MEETING_TYPES).map(t => {
                     const isCurrent = selectedType === t.id;
                     const count = categoryCounts[t.id] || 0;
+
+                    const TYPE_CARD_THEMES = {
+                      mandatory: {
+                        dot: 'bg-emerald-600 text-white shadow-xs',
+                        active: 'bg-emerald-50/90 border-emerald-400 text-emerald-950 ring-2 ring-emerald-300 shadow-xs font-bold',
+                        inactive: 'bg-white border-slate-200 text-slate-700 hover:bg-emerald-50/40 hover:border-emerald-200',
+                      },
+                      optional: {
+                        dot: 'bg-amber-500 text-white shadow-xs',
+                        active: 'bg-amber-50/90 border-amber-400 text-amber-950 ring-2 ring-amber-300 shadow-xs font-bold',
+                        inactive: 'bg-white border-slate-200 text-slate-700 hover:bg-amber-50/40 hover:border-amber-200',
+                      },
+                      trigger_warning: {
+                        dot: 'bg-orange-500 text-white shadow-xs',
+                        active: 'bg-orange-50/90 border-orange-400 text-orange-950 ring-2 ring-orange-300 shadow-xs font-bold',
+                        inactive: 'bg-white border-slate-200 text-slate-700 hover:bg-orange-50/40 hover:border-orange-200',
+                      },
+                      internal: {
+                        dot: 'bg-blue-600 text-white shadow-xs',
+                        active: 'bg-blue-50/90 border-blue-400 text-blue-950 ring-2 ring-blue-300 shadow-xs font-bold',
+                        inactive: 'bg-white border-slate-200 text-slate-700 hover:bg-blue-50/40 hover:border-blue-200',
+                      },
+                    };
+
+                    const theme = TYPE_CARD_THEMES[t.id] || {
+                      dot: 'bg-slate-600 text-white',
+                      active: 'bg-indigo-50 border-indigo-400 text-indigo-950 ring-2 ring-indigo-300 font-bold',
+                      inactive: 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50',
+                    };
+
                     return (
                       <button
                         key={t.id}
                         type="button"
                         onClick={() => handleSetMeetingType(selectedMeeting.id, t.id)}
-                        className={`w-full flex flex-col items-center justify-center p-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                          isCurrent
-                            ? `${t.badgeClass} ring-2 ring-indigo-400 shadow-xs`
-                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100 hover:border-slate-300'
+                        className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-all cursor-pointer text-left ${
+                          isCurrent ? theme.active : theme.inactive
                         }`}
                       >
-                        <div className="flex items-center justify-between w-full mb-1">
-                          <span className="text-base">{t.icon}</span>
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-bold border shadow-2xs ${
-                            isCurrent
-                              ? 'bg-white/90 text-slate-900 border-indigo-200'
-                              : 'bg-slate-100 text-slate-700 border-slate-200'
-                          }`}>
-                            {count}
-                          </span>
-                        </div>
-                        <span className="text-[11px] text-center leading-tight mt-0.5 truncate w-full">{t.label}</span>
+                        {/* Okrągła kropka z liczbą wewnątrz po lewej stronie */}
+                        <span
+                          className={`w-6 h-6 rounded-full shrink-0 flex items-center justify-center font-mono font-bold text-xs ${theme.dot}`}
+                        >
+                          {count}
+                        </span>
+
+                        {/* Czytelna etykieta opisu obok */}
+                        <span className="text-xs font-bold truncate leading-tight flex-1">
+                          {t.label}
+                        </span>
                       </button>
                     );
                   })}
