@@ -615,29 +615,32 @@ export default function ReportsTab({
       `}</style>
 
       {/* ── Top Header Banner (Hidden on Print) ── */}
-      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 print:hidden">
-        <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-600/10 text-indigo-700 border border-indigo-200 flex items-center justify-center shrink-0 shadow-2xs">
-            <FileText size={26} />
+      <div className="bg-white px-6 py-3.5 h-[72px] min-h-[72px] max-h-[72px] rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between gap-3 print:hidden">
+        <div className="flex items-center min-w-0">
+          <div className="w-11 h-11 min-w-[44px] rounded-xl bg-slate-100 border border-slate-200/80 text-slate-700 flex items-center justify-center mr-4 shrink-0 shadow-2xs">
+            <FileText className="w-5 h-5" />
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-slate-900 tracking-tight font-sans">
+              <h1 className="text-base font-semibold leading-tight text-slate-900 tracking-tight truncate">
                 Sprawozdawczość & Dokumenty Akademickie
               </h1>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
                 {currentOrg?.shortName || currentOrg?.name || 'Koło Naukowe'} {academicYear}
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-400 leading-normal mt-0.5 truncate">
               {currentOrg?.name || 'Studenckie Koło Naukowe'} • Generator oficjalnych zaświadczeń, certyfikatów i sprawozdań.
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <div className="text-xs text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl font-mono">
-            Opiekunowie: <strong className="text-slate-800">{supervisors.map(s => typeof s === 'string' ? s : (s.academicTitle ? `${s.academicTitle} ${s.name}` : (s.fullName || s.name))).join(', ')}</strong>
+          <div className="h-9 px-3.5 rounded-lg border border-slate-200 bg-slate-50 text-xs text-slate-600 flex items-center font-mono">
+            <span>Opiekunowie:&nbsp;</span>
+            <strong className="text-slate-800 truncate max-w-[280px]">
+              {supervisors.map(s => typeof s === 'string' ? s : (s.academicTitle ? `${s.academicTitle} ${s.name}` : (s.fullName || s.name))).join(', ')}
+            </strong>
           </div>
         </div>
       </div>

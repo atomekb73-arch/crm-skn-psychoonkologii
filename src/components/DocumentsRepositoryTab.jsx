@@ -703,23 +703,23 @@ export default function DocumentsRepositoryTab() {
     <div className="space-y-4 pb-12 font-sans animate-in fade-in duration-200">
       
       {/* ── HEADER BAR ────────────────────────────────────────────────────────── */}
-      <div className="bg-white px-5 py-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-gradient-to-br from-slate-800 to-slate-950 rounded-xl text-white shadow-xs">
-            {activeModuleTab === 'repository' ? <FolderKanban size={22} /> : <Mail size={22} />}
+      <div className="bg-white px-6 py-3.5 h-[72px] min-h-[72px] max-h-[72px] rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between gap-3 print:hidden">
+        <div className="flex items-center min-w-0">
+          <div className="w-11 h-11 min-w-[44px] rounded-xl bg-slate-100 border border-slate-200/80 text-slate-700 flex items-center justify-center mr-4 shrink-0 shadow-2xs">
+            {activeModuleTab === 'repository' ? <FolderKanban className="w-5 h-5" /> : <Mail className="w-5 h-5" />}
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h1 className="text-lg font-extrabold text-slate-900 tracking-tight">
+              <h1 className="text-base font-semibold leading-tight text-slate-900 tracking-tight truncate">
                 {activeModuleTab === 'repository'
                   ? 'Repozytorium Dokumentów & Rejestr Uchwał'
                   : 'Elektroniczny Dziennik Podawczy & Kancelaria'}
               </h1>
-              <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
                 {currentOrg.shortName || currentOrg.name}
               </span>
             </div>
-            <p className="text-[11px] text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-400 leading-normal mt-0.5 truncate">
               {activeModuleTab === 'repository'
                 ? 'Oficjalna ewidencja aktów prawnych, statutów, uchwał i protokołów naukowych WSKZ.'
                 : 'Ewidencja pism przychodzących i wychodzących z inteligentnym parserem e-maili i detekcją spraw.'}
@@ -728,14 +728,15 @@ export default function DocumentsRepositoryTab() {
         </div>
 
         {/* Global Quick Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           {activeModuleTab === 'repository' ? (
             <button
+              type="button"
               onClick={handleOpenAddModal}
               className="h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 shadow-sm transition cursor-pointer"
             >
               <Plus size={14} />
-              <span>+ Dodaj Dokument / Uchwałę</span>
+              <span>+ Dodaj Dokument</span>
             </button>
           ) : (
             <>
@@ -795,27 +796,25 @@ export default function DocumentsRepositoryTab() {
                     onClick={() => setActiveModuleTab('repository')}
                     className={`h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 rounded-xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
                       activeModuleTab === 'repository'
-                        ? 'bg-slate-900 text-white border border-slate-900 shadow-sm'
+                        ? 'bg-slate-100 border-2 border-slate-300 text-slate-800 shadow-xs'
                         : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/80 hover:border-slate-300'
                     }`}
                   >
                     <div className="flex items-center gap-3 min-w-0 pr-2">
                       <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center ${
-                        activeModuleTab === 'repository' ? 'bg-slate-800 text-emerald-300' : 'bg-slate-100 text-slate-600'
+                        activeModuleTab === 'repository' ? 'bg-slate-200 text-slate-700' : 'bg-slate-100 text-slate-600'
                       }`}>
                         <FolderKanban className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
                         <span className="block text-xs font-semibold leading-tight truncate">Repozytorium Aktów</span>
-                        <span className={`text-[11px] font-normal truncate block mt-0.5 ${
-                          activeModuleTab === 'repository' ? 'text-slate-400' : 'text-slate-400'
-                        }`}>
+                        <span className="text-[11px] font-normal truncate block mt-0.5 text-slate-400">
                           Rejestr uchwał i statut
                         </span>
                       </div>
                     </div>
                     <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ml-2 ${
-                      activeModuleTab === 'repository' ? 'bg-emerald-500/20 text-emerald-300 font-bold' : 'bg-slate-100 text-slate-600'
+                      activeModuleTab === 'repository' ? 'bg-slate-200 text-slate-700 font-bold border border-slate-300/80' : 'bg-slate-100 text-slate-600'
                     }`}>
                       {documents.length}
                     </span>
@@ -826,27 +825,25 @@ export default function DocumentsRepositoryTab() {
                     onClick={() => setActiveModuleTab('correspondence')}
                     className={`h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 rounded-xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
                       activeModuleTab === 'correspondence'
-                        ? 'bg-slate-900 text-white border border-slate-900 shadow-sm'
+                        ? 'bg-slate-100 border-2 border-slate-300 text-slate-800 shadow-xs'
                         : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/80 hover:border-slate-300'
                     }`}
                   >
                     <div className="flex items-center gap-3 min-w-0 pr-2">
                       <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center ${
-                        activeModuleTab === 'correspondence' ? 'bg-slate-800 text-emerald-300' : 'bg-slate-100 text-slate-600'
+                        activeModuleTab === 'correspondence' ? 'bg-slate-200 text-slate-700' : 'bg-slate-100 text-slate-600'
                       }`}>
                         <Mail className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
                         <span className="block text-xs font-semibold leading-tight truncate">Dziennik Podawczy</span>
-                        <span className={`text-[11px] font-normal truncate block mt-0.5 ${
-                          activeModuleTab === 'correspondence' ? 'text-slate-400' : 'text-slate-400'
-                        }`}>
+                        <span className="text-[11px] font-normal truncate block mt-0.5 text-slate-400">
                           Kancelaria & korespondencja
                         </span>
                       </div>
                     </div>
                     <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ml-2 ${
-                      activeModuleTab === 'correspondence' ? 'bg-emerald-500/20 text-emerald-300 font-bold' : 'bg-slate-100 text-slate-600'
+                      activeModuleTab === 'correspondence' ? 'bg-slate-200 text-slate-700 font-bold border border-slate-300/80' : 'bg-slate-100 text-slate-600'
                     }`}>
                       {correspondenceLog.length}
                     </span>
@@ -869,18 +866,49 @@ export default function DocumentsRepositoryTab() {
 
                       let icon = <Layers className="w-4 h-4" />;
                       let subtitle = 'Wszystkie zarejestrowane akty';
+                      let activeCardClass = 'bg-slate-100 border-2 border-slate-300 text-slate-800 shadow-xs';
+                      let activeIconBox = 'bg-slate-200 text-slate-700';
+                      let activeBadge = 'bg-slate-200 text-slate-700 font-bold border border-slate-300/80';
+                      let hoverClass = 'hover:bg-slate-50 border-slate-200/80 hover:border-slate-300';
+                      let activeTextClass = 'text-slate-800';
+                      let activeSubtitleClass = 'text-slate-400';
+
                       if (cat === 'Uchwały Zarządu') {
                         icon = <FileText className="w-4 h-4" />;
                         subtitle = 'Decyzje i regulacje wewnętrzne';
+                        activeCardClass = 'bg-purple-50/90 border-2 border-purple-200 text-purple-950 shadow-xs';
+                        activeIconBox = 'bg-purple-200/80 text-purple-800';
+                        activeBadge = 'bg-purple-200 text-purple-900 font-bold border border-purple-300/80';
+                        hoverClass = 'hover:bg-purple-50/40 border-slate-200/80 hover:border-purple-200';
+                        activeTextClass = 'text-purple-950';
+                        activeSubtitleClass = 'text-purple-700';
                       } else if (cat === 'Protokoły Zebrań') {
                         icon = <FileCheck className="w-4 h-4" />;
                         subtitle = 'Seminaria i posiedzenia koła';
+                        activeCardClass = 'bg-amber-50/90 border-2 border-amber-200 text-amber-950 shadow-xs';
+                        activeIconBox = 'bg-amber-200/80 text-amber-800';
+                        activeBadge = 'bg-amber-200 text-amber-900 font-bold border border-amber-300/80';
+                        hoverClass = 'hover:bg-amber-50/40 border-slate-200/80 hover:border-amber-200';
+                        activeTextClass = 'text-amber-950';
+                        activeSubtitleClass = 'text-amber-700';
                       } else if (cat === 'Regulaminy i Statut') {
                         icon = <ShieldCheck className="w-4 h-4" />;
                         subtitle = 'Akty ustrojowe i statut WSKZ';
+                        activeCardClass = 'bg-cyan-50/90 border-2 border-cyan-200 text-cyan-950 shadow-xs';
+                        activeIconBox = 'bg-cyan-200/80 text-cyan-800';
+                        activeBadge = 'bg-cyan-200 text-cyan-900 font-bold border border-cyan-300/80';
+                        hoverClass = 'hover:bg-cyan-50/40 border-slate-200/80 hover:border-cyan-200';
+                        activeTextClass = 'text-cyan-950';
+                        activeSubtitleClass = 'text-cyan-700';
                       } else if (cat === 'Wnioski i Granty') {
                         icon = <Sparkles className="w-4 h-4" />;
                         subtitle = 'Dofinansowania i projekty';
+                        activeCardClass = 'bg-emerald-50/90 border-2 border-emerald-200 text-emerald-950 shadow-xs';
+                        activeIconBox = 'bg-emerald-200/80 text-emerald-800';
+                        activeBadge = 'bg-emerald-200 text-emerald-900 font-bold border border-emerald-300/80';
+                        hoverClass = 'hover:bg-emerald-50/40 border-slate-200/80 hover:border-emerald-200';
+                        activeTextClass = 'text-emerald-950';
+                        activeSubtitleClass = 'text-emerald-700';
                       }
 
                       return (
@@ -890,27 +918,27 @@ export default function DocumentsRepositoryTab() {
                           onClick={() => setSelectedCategory(cat)}
                           className={`h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 rounded-xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
                             isActive
-                              ? 'bg-slate-900 text-white border border-slate-900 shadow-sm'
-                              : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/80 hover:border-slate-300'
+                              ? activeCardClass
+                              : `bg-white ${hoverClass} text-slate-700 border`
                           }`}
                         >
                           <div className="flex items-center gap-3 min-w-0 pr-2">
                             <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center ${
-                              isActive ? 'bg-slate-800 text-emerald-300' : 'bg-slate-100 text-slate-600'
+                              isActive ? activeIconBox : 'bg-slate-100 text-slate-600'
                             }`}>
                               {icon}
                             </div>
                             <div className="min-w-0">
-                              <span className="block text-xs font-semibold leading-tight truncate">{cat}</span>
+                              <span className={`block text-xs font-semibold leading-tight truncate ${isActive ? activeTextClass : 'text-slate-800'}`}>{cat}</span>
                               <span className={`text-[11px] font-normal truncate block mt-0.5 ${
-                                isActive ? 'text-slate-400' : 'text-slate-400'
+                                isActive ? activeSubtitleClass : 'text-slate-400'
                               }`}>
                                 {subtitle}
                               </span>
                             </div>
                           </div>
                           <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ml-2 ${
-                            isActive ? 'bg-emerald-500/20 text-emerald-300 font-bold' : 'bg-slate-100 text-slate-600'
+                            isActive ? activeBadge : 'bg-slate-100 text-slate-600'
                           }`}>
                             {count}
                           </span>
@@ -931,27 +959,25 @@ export default function DocumentsRepositoryTab() {
                       onClick={() => setCorrespondenceFilter('all')}
                       className={`h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 rounded-xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
                         correspondenceFilter === 'all'
-                          ? 'bg-slate-900 text-white border border-slate-900 shadow-sm'
+                          ? 'bg-slate-100 border-2 border-slate-300 text-slate-800 shadow-xs'
                           : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/80 hover:border-slate-300'
                       }`}
                     >
                       <div className="flex items-center gap-3 min-w-0 pr-2">
                         <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center ${
-                          correspondenceFilter === 'all' ? 'bg-slate-800 text-emerald-300' : 'bg-slate-100 text-slate-600'
+                          correspondenceFilter === 'all' ? 'bg-slate-200 text-slate-700' : 'bg-slate-100 text-slate-600'
                         }`}>
                           <Mail className="w-4 h-4" />
                         </div>
                         <div className="min-w-0">
                           <span className="block text-xs font-semibold leading-tight truncate">Wszystkie pisma</span>
-                          <span className={`text-[11px] font-normal truncate block mt-0.5 ${
-                            correspondenceFilter === 'all' ? 'text-slate-400' : 'text-slate-400'
-                          }`}>
+                          <span className="text-[11px] font-normal truncate block mt-0.5 text-slate-400">
                             Cała korespondencja SKN
                           </span>
                         </div>
                       </div>
                       <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ml-2 ${
-                        correspondenceFilter === 'all' ? 'bg-emerald-500/20 text-emerald-300 font-bold' : 'bg-slate-100 text-slate-600'
+                        correspondenceFilter === 'all' ? 'bg-slate-200 text-slate-700 font-bold border border-slate-300/80' : 'bg-slate-100 text-slate-600'
                       }`}>
                         {correspondenceLog.length}
                       </span>
@@ -963,7 +989,7 @@ export default function DocumentsRepositoryTab() {
                       onClick={() => setCorrespondenceFilter('IN')}
                       className={`h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 rounded-xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
                         correspondenceFilter === 'IN'
-                          ? 'bg-emerald-50/90 border-2 border-emerald-400 text-emerald-950 shadow-xs'
+                          ? 'bg-emerald-50/90 border-2 border-emerald-200 text-emerald-950 shadow-xs'
                           : 'bg-white hover:bg-emerald-50/40 text-slate-700 border border-slate-200/80 hover:border-emerald-200'
                       }`}
                     >
@@ -999,7 +1025,7 @@ export default function DocumentsRepositoryTab() {
                       onClick={() => setCorrespondenceFilter('OUT')}
                       className={`h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 rounded-xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
                         correspondenceFilter === 'OUT'
-                          ? 'bg-sky-50/90 border-2 border-sky-400 text-sky-950 shadow-xs'
+                          ? 'bg-sky-50/90 border-2 border-sky-200 text-sky-950 shadow-xs'
                           : 'bg-white hover:bg-sky-50/40 text-slate-700 border border-slate-200/80 hover:border-sky-200'
                       }`}
                     >
@@ -1150,6 +1176,29 @@ export default function DocumentsRepositoryTab() {
                       ? documents.length
                       : documents.filter((d) => d.category === cat).length;
                     const isActive = selectedCategory === cat;
+
+                    let activeClass = 'bg-slate-100 text-slate-800 border border-slate-300 shadow-xs';
+                    let activeBadge = 'bg-slate-200 text-slate-700 font-bold';
+                    let hoverClass = 'hover:bg-slate-100 hover:text-slate-900';
+
+                    if (cat === 'Uchwały Zarządu') {
+                      activeClass = 'bg-purple-50/80 text-purple-800 border border-purple-200 shadow-xs';
+                      activeBadge = 'bg-purple-200/80 text-purple-800 font-bold';
+                      hoverClass = 'hover:bg-purple-50/50 hover:text-purple-900';
+                    } else if (cat === 'Protokoły Zebrań') {
+                      activeClass = 'bg-amber-50/80 text-amber-800 border border-amber-200 shadow-xs';
+                      activeBadge = 'bg-amber-200/80 text-amber-800 font-bold';
+                      hoverClass = 'hover:bg-amber-50/50 hover:text-amber-900';
+                    } else if (cat === 'Regulaminy i Statut') {
+                      activeClass = 'bg-cyan-50/80 text-cyan-800 border border-cyan-200 shadow-xs';
+                      activeBadge = 'bg-cyan-200/80 text-cyan-800 font-bold';
+                      hoverClass = 'hover:bg-cyan-50/50 hover:text-cyan-900';
+                    } else if (cat === 'Wnioski i Granty') {
+                      activeClass = 'bg-emerald-50/80 text-emerald-800 border border-emerald-200 shadow-xs';
+                      activeBadge = 'bg-emerald-200/80 text-emerald-800 font-bold';
+                      hoverClass = 'hover:bg-emerald-50/50 hover:text-emerald-900';
+                    }
+
                     return (
                       <button
                         key={cat}
@@ -1157,14 +1206,14 @@ export default function DocumentsRepositoryTab() {
                         onClick={() => setSelectedCategory(cat)}
                         className={`h-9 px-3.5 rounded-lg text-xs font-medium transition-all flex items-center cursor-pointer ${
                           isActive
-                            ? 'bg-slate-900 text-white shadow-sm'
-                            : 'bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                            ? activeClass
+                            : `bg-transparent text-slate-600 ${hoverClass}`
                         }`}
                       >
                         <span>{cat}</span>
                         <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] ml-2 ${
                           isActive
-                            ? 'bg-emerald-500/20 text-emerald-300 font-bold'
+                            ? activeBadge
                             : 'bg-slate-100 text-slate-500'
                         }`}>
                           {count}
@@ -1345,14 +1394,14 @@ export default function DocumentsRepositoryTab() {
                     onClick={() => setCorrespondenceFilter('all')}
                     className={`h-9 px-3.5 rounded-lg text-xs font-medium transition-all flex items-center cursor-pointer ${
                       correspondenceFilter === 'all'
-                        ? 'bg-slate-900 text-white shadow-sm'
+                        ? 'bg-slate-100 text-slate-800 border border-slate-300 shadow-xs'
                         : 'bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                     }`}
                   >
                     <span>Wszystkie</span>
                     <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] ml-2 ${
                       correspondenceFilter === 'all'
-                        ? 'bg-emerald-500/20 text-emerald-300 font-bold'
+                        ? 'bg-slate-200 text-slate-700 font-bold'
                         : 'bg-slate-100 text-slate-500'
                     }`}>
                       {correspondenceLog.length}
@@ -1364,7 +1413,7 @@ export default function DocumentsRepositoryTab() {
                     onClick={() => setCorrespondenceFilter('IN')}
                     className={`h-9 px-3.5 rounded-lg text-xs font-medium transition-all flex items-center cursor-pointer ${
                       correspondenceFilter === 'IN'
-                        ? 'bg-emerald-100 text-emerald-900 border border-emerald-200 shadow-sm'
+                        ? 'bg-emerald-50/80 text-emerald-800 border border-emerald-200 shadow-xs'
                         : 'bg-transparent text-slate-600 hover:bg-emerald-50/50 hover:text-emerald-900'
                     }`}
                   >
@@ -1383,7 +1432,7 @@ export default function DocumentsRepositoryTab() {
                     onClick={() => setCorrespondenceFilter('OUT')}
                     className={`h-9 px-3.5 rounded-lg text-xs font-medium transition-all flex items-center cursor-pointer ${
                       correspondenceFilter === 'OUT'
-                        ? 'bg-sky-100 text-sky-900 border border-sky-200 shadow-sm'
+                        ? 'bg-sky-50/80 text-sky-800 border border-sky-200 shadow-xs'
                         : 'bg-transparent text-slate-600 hover:bg-sky-50/50 hover:text-sky-900'
                     }`}
                   >
