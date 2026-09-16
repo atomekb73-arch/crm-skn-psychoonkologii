@@ -796,25 +796,31 @@ export default function DocumentsRepositoryTab() {
                     onClick={() => setActiveModuleTab('repository')}
                     className={`h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 rounded-xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
                       activeModuleTab === 'repository'
-                        ? 'bg-slate-100 border-2 border-slate-300 text-slate-800 shadow-xs'
-                        : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/80 hover:border-slate-300'
+                        ? 'bg-indigo-50/90 border-2 border-indigo-500 text-indigo-950 shadow-xs'
+                        : 'bg-white hover:bg-indigo-50/40 text-slate-700 border border-slate-200/80 hover:border-indigo-200'
                     }`}
                   >
                     <div className="flex items-center gap-3 min-w-0 pr-2">
                       <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center ${
-                        activeModuleTab === 'repository' ? 'bg-slate-200 text-slate-700' : 'bg-slate-100 text-slate-600'
+                        activeModuleTab === 'repository' ? 'bg-indigo-200/80 text-indigo-800' : 'bg-indigo-50 text-indigo-600'
                       }`}>
                         <FolderKanban className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <span className="block text-xs font-semibold leading-tight truncate">Repozytorium Aktów</span>
-                        <span className="text-[11px] font-normal truncate block mt-0.5 text-slate-400">
+                        <span className={`block text-xs font-semibold leading-tight truncate ${
+                          activeModuleTab === 'repository' ? 'text-indigo-950' : 'text-slate-800'
+                        }`}>
+                          Repozytorium Aktów
+                        </span>
+                        <span className={`text-[11px] font-normal truncate block mt-0.5 ${
+                          activeModuleTab === 'repository' ? 'text-indigo-700' : 'text-slate-400'
+                        }`}>
                           Rejestr uchwał i statut
                         </span>
                       </div>
                     </div>
                     <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ml-2 ${
-                      activeModuleTab === 'repository' ? 'bg-slate-200 text-slate-700 font-bold border border-slate-300/80' : 'bg-slate-100 text-slate-600'
+                      activeModuleTab === 'repository' ? 'bg-indigo-200 text-indigo-900 font-bold border border-indigo-300' : 'bg-slate-100 text-slate-600'
                     }`}>
                       {documents.length}
                     </span>
@@ -825,25 +831,31 @@ export default function DocumentsRepositoryTab() {
                     onClick={() => setActiveModuleTab('correspondence')}
                     className={`h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 rounded-xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
                       activeModuleTab === 'correspondence'
-                        ? 'bg-slate-100 border-2 border-slate-300 text-slate-800 shadow-xs'
-                        : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/80 hover:border-slate-300'
+                        ? 'bg-teal-50/90 border-2 border-teal-500 text-teal-950 shadow-xs'
+                        : 'bg-white hover:bg-teal-50/40 text-slate-700 border border-slate-200/80 hover:border-teal-200'
                     }`}
                   >
                     <div className="flex items-center gap-3 min-w-0 pr-2">
                       <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center ${
-                        activeModuleTab === 'correspondence' ? 'bg-slate-200 text-slate-700' : 'bg-slate-100 text-slate-600'
+                        activeModuleTab === 'correspondence' ? 'bg-teal-200/80 text-teal-800' : 'bg-teal-50 text-teal-600'
                       }`}>
                         <Mail className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <span className="block text-xs font-semibold leading-tight truncate">Dziennik Podawczy</span>
-                        <span className="text-[11px] font-normal truncate block mt-0.5 text-slate-400">
+                        <span className={`block text-xs font-semibold leading-tight truncate ${
+                          activeModuleTab === 'correspondence' ? 'text-teal-950' : 'text-slate-800'
+                        }`}>
+                          Dziennik Podawczy
+                        </span>
+                        <span className={`text-[11px] font-normal truncate block mt-0.5 ${
+                          activeModuleTab === 'correspondence' ? 'text-teal-700' : 'text-slate-400'
+                        }`}>
                           Kancelaria & korespondencja
                         </span>
                       </div>
                     </div>
                     <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ml-2 ${
-                      activeModuleTab === 'correspondence' ? 'bg-slate-200 text-slate-700 font-bold border border-slate-300/80' : 'bg-slate-100 text-slate-600'
+                      activeModuleTab === 'correspondence' ? 'bg-teal-200 text-teal-900 font-bold border border-teal-300' : 'bg-slate-100 text-slate-600'
                     }`}>
                       {correspondenceLog.length}
                     </span>
@@ -866,46 +878,51 @@ export default function DocumentsRepositoryTab() {
 
                       let icon = <Layers className="w-4 h-4" />;
                       let subtitle = 'Wszystkie zarejestrowane akty';
-                      let activeCardClass = 'bg-slate-100 border-2 border-slate-300 text-slate-800 shadow-xs';
-                      let activeIconBox = 'bg-slate-200 text-slate-700';
-                      let activeBadge = 'bg-slate-200 text-slate-700 font-bold border border-slate-300/80';
-                      let hoverClass = 'hover:bg-slate-50 border-slate-200/80 hover:border-slate-300';
-                      let activeTextClass = 'text-slate-800';
-                      let activeSubtitleClass = 'text-slate-400';
+                      let activeCardClass = 'bg-indigo-50/90 border-2 border-indigo-500 text-indigo-950 shadow-xs';
+                      let activeIconBox = 'bg-indigo-200/80 text-indigo-800';
+                      let restingIconBox = 'bg-indigo-50 text-indigo-600';
+                      let activeBadge = 'bg-emerald-100 text-emerald-800 font-bold border border-emerald-300';
+                      let hoverClass = 'hover:bg-indigo-50/40 border-slate-200/80 hover:border-indigo-200';
+                      let activeTextClass = 'text-indigo-950';
+                      let activeSubtitleClass = 'text-indigo-700';
 
                       if (cat === 'Uchwały Zarządu') {
                         icon = <FileText className="w-4 h-4" />;
                         subtitle = 'Decyzje i regulacje wewnętrzne';
-                        activeCardClass = 'bg-purple-50/90 border-2 border-purple-200 text-purple-950 shadow-xs';
+                        activeCardClass = 'bg-purple-50/90 border-2 border-purple-500 text-purple-950 shadow-xs';
                         activeIconBox = 'bg-purple-200/80 text-purple-800';
-                        activeBadge = 'bg-purple-200 text-purple-900 font-bold border border-purple-300/80';
+                        restingIconBox = 'bg-purple-50 text-purple-600';
+                        activeBadge = 'bg-purple-200 text-purple-900 font-bold border border-purple-300';
                         hoverClass = 'hover:bg-purple-50/40 border-slate-200/80 hover:border-purple-200';
                         activeTextClass = 'text-purple-950';
                         activeSubtitleClass = 'text-purple-700';
                       } else if (cat === 'Protokoły Zebrań') {
                         icon = <FileCheck className="w-4 h-4" />;
                         subtitle = 'Seminaria i posiedzenia koła';
-                        activeCardClass = 'bg-amber-50/90 border-2 border-amber-200 text-amber-950 shadow-xs';
+                        activeCardClass = 'bg-amber-50/90 border-2 border-amber-500 text-amber-950 shadow-xs';
                         activeIconBox = 'bg-amber-200/80 text-amber-800';
-                        activeBadge = 'bg-amber-200 text-amber-900 font-bold border border-amber-300/80';
+                        restingIconBox = 'bg-amber-50 text-amber-600';
+                        activeBadge = 'bg-amber-200 text-amber-900 font-bold border border-amber-300';
                         hoverClass = 'hover:bg-amber-50/40 border-slate-200/80 hover:border-amber-200';
                         activeTextClass = 'text-amber-950';
                         activeSubtitleClass = 'text-amber-700';
                       } else if (cat === 'Regulaminy i Statut') {
                         icon = <ShieldCheck className="w-4 h-4" />;
                         subtitle = 'Akty ustrojowe i statut WSKZ';
-                        activeCardClass = 'bg-cyan-50/90 border-2 border-cyan-200 text-cyan-950 shadow-xs';
-                        activeIconBox = 'bg-cyan-200/80 text-cyan-800';
-                        activeBadge = 'bg-cyan-200 text-cyan-900 font-bold border border-cyan-300/80';
-                        hoverClass = 'hover:bg-cyan-50/40 border-slate-200/80 hover:border-cyan-200';
-                        activeTextClass = 'text-cyan-950';
-                        activeSubtitleClass = 'text-cyan-700';
+                        activeCardClass = 'bg-teal-50/90 border-2 border-teal-500 text-teal-950 shadow-xs';
+                        activeIconBox = 'bg-teal-200/80 text-teal-800';
+                        restingIconBox = 'bg-teal-50 text-teal-600';
+                        activeBadge = 'bg-teal-200 text-teal-900 font-bold border border-teal-300';
+                        hoverClass = 'hover:bg-teal-50/40 border-slate-200/80 hover:border-teal-200';
+                        activeTextClass = 'text-teal-950';
+                        activeSubtitleClass = 'text-teal-700';
                       } else if (cat === 'Wnioski i Granty') {
                         icon = <Sparkles className="w-4 h-4" />;
                         subtitle = 'Dofinansowania i projekty';
-                        activeCardClass = 'bg-emerald-50/90 border-2 border-emerald-200 text-emerald-950 shadow-xs';
+                        activeCardClass = 'bg-emerald-50/90 border-2 border-emerald-500 text-emerald-950 shadow-xs';
                         activeIconBox = 'bg-emerald-200/80 text-emerald-800';
-                        activeBadge = 'bg-emerald-200 text-emerald-900 font-bold border border-emerald-300/80';
+                        restingIconBox = 'bg-emerald-50 text-emerald-600';
+                        activeBadge = 'bg-emerald-200 text-emerald-900 font-bold border border-emerald-300';
                         hoverClass = 'hover:bg-emerald-50/40 border-slate-200/80 hover:border-emerald-200';
                         activeTextClass = 'text-emerald-950';
                         activeSubtitleClass = 'text-emerald-700';
@@ -924,7 +941,7 @@ export default function DocumentsRepositoryTab() {
                         >
                           <div className="flex items-center gap-3 min-w-0 pr-2">
                             <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center ${
-                              isActive ? activeIconBox : 'bg-slate-100 text-slate-600'
+                              isActive ? activeIconBox : restingIconBox
                             }`}>
                               {icon}
                             </div>
@@ -959,25 +976,31 @@ export default function DocumentsRepositoryTab() {
                       onClick={() => setCorrespondenceFilter('all')}
                       className={`h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 rounded-xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
                         correspondenceFilter === 'all'
-                          ? 'bg-slate-100 border-2 border-slate-300 text-slate-800 shadow-xs'
-                          : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/80 hover:border-slate-300'
+                          ? 'bg-indigo-50/90 border-2 border-indigo-500 text-indigo-950 shadow-xs'
+                          : 'bg-white hover:bg-indigo-50/40 text-slate-700 border border-slate-200/80 hover:border-indigo-200'
                       }`}
                     >
                       <div className="flex items-center gap-3 min-w-0 pr-2">
                         <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center ${
-                          correspondenceFilter === 'all' ? 'bg-slate-200 text-slate-700' : 'bg-slate-100 text-slate-600'
+                          correspondenceFilter === 'all' ? 'bg-indigo-200/80 text-indigo-800' : 'bg-indigo-50 text-indigo-600'
                         }`}>
                           <Mail className="w-4 h-4" />
                         </div>
                         <div className="min-w-0">
-                          <span className="block text-xs font-semibold leading-tight truncate">Wszystkie pisma</span>
-                          <span className="text-[11px] font-normal truncate block mt-0.5 text-slate-400">
+                          <span className={`block text-xs font-semibold leading-tight truncate ${
+                            correspondenceFilter === 'all' ? 'text-indigo-950' : 'text-slate-800'
+                          }`}>
+                            Wszystkie pisma
+                          </span>
+                          <span className={`text-[11px] font-normal truncate block mt-0.5 ${
+                            correspondenceFilter === 'all' ? 'text-indigo-700' : 'text-slate-400'
+                          }`}>
                             Cała korespondencja SKN
                           </span>
                         </div>
                       </div>
                       <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ml-2 ${
-                        correspondenceFilter === 'all' ? 'bg-slate-200 text-slate-700 font-bold border border-slate-300/80' : 'bg-slate-100 text-slate-600'
+                        correspondenceFilter === 'all' ? 'bg-emerald-100 text-emerald-800 font-bold border border-emerald-300' : 'bg-slate-100 text-slate-600'
                       }`}>
                         {correspondenceLog.length}
                       </span>
@@ -989,7 +1012,7 @@ export default function DocumentsRepositoryTab() {
                       onClick={() => setCorrespondenceFilter('IN')}
                       className={`h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 rounded-xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
                         correspondenceFilter === 'IN'
-                          ? 'bg-emerald-50/90 border-2 border-emerald-200 text-emerald-950 shadow-xs'
+                          ? 'bg-emerald-50/90 border-2 border-emerald-500 text-emerald-950 shadow-xs'
                           : 'bg-white hover:bg-emerald-50/40 text-slate-700 border border-slate-200/80 hover:border-emerald-200'
                       }`}
                     >
@@ -1013,7 +1036,7 @@ export default function DocumentsRepositoryTab() {
                         </div>
                       </div>
                       <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ml-2 ${
-                        correspondenceFilter === 'IN' ? 'bg-emerald-200 text-emerald-900 font-bold border border-emerald-300/80' : 'bg-slate-100 text-slate-600'
+                        correspondenceFilter === 'IN' ? 'bg-emerald-200 text-emerald-900 font-bold border border-emerald-300' : 'bg-slate-100 text-slate-600'
                       }`}>
                         {correspondenceLog.filter((c) => c.direction === 'IN').length}
                       </span>
@@ -1025,7 +1048,7 @@ export default function DocumentsRepositoryTab() {
                       onClick={() => setCorrespondenceFilter('OUT')}
                       className={`h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 rounded-xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
                         correspondenceFilter === 'OUT'
-                          ? 'bg-sky-50/90 border-2 border-sky-200 text-sky-950 shadow-xs'
+                          ? 'bg-sky-50/90 border-2 border-sky-500 text-sky-950 shadow-xs'
                           : 'bg-white hover:bg-sky-50/40 text-slate-700 border border-slate-200/80 hover:border-sky-200'
                       }`}
                     >
@@ -1049,7 +1072,7 @@ export default function DocumentsRepositoryTab() {
                         </div>
                       </div>
                       <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ml-2 ${
-                        correspondenceFilter === 'OUT' ? 'bg-sky-200 text-sky-900 font-bold border border-sky-300/80' : 'bg-slate-100 text-slate-600'
+                        correspondenceFilter === 'OUT' ? 'bg-sky-200 text-sky-900 font-bold border border-sky-300' : 'bg-slate-100 text-slate-600'
                       }`}>
                         {correspondenceLog.filter((c) => c.direction === 'OUT').length}
                       </span>
@@ -1177,25 +1200,25 @@ export default function DocumentsRepositoryTab() {
                       : documents.filter((d) => d.category === cat).length;
                     const isActive = selectedCategory === cat;
 
-                    let activeClass = 'bg-slate-100 text-slate-800 border border-slate-300 shadow-xs';
-                    let activeBadge = 'bg-slate-200 text-slate-700 font-bold';
-                    let hoverClass = 'hover:bg-slate-100 hover:text-slate-900';
+                    let activeClass = 'bg-indigo-50/90 text-indigo-950 border-2 border-indigo-500 shadow-xs';
+                    let activeBadge = 'bg-emerald-100 text-emerald-800 font-bold border border-emerald-300';
+                    let hoverClass = 'hover:bg-indigo-50/50 hover:text-indigo-900';
 
                     if (cat === 'Uchwały Zarządu') {
-                      activeClass = 'bg-purple-50/80 text-purple-800 border border-purple-200 shadow-xs';
-                      activeBadge = 'bg-purple-200/80 text-purple-800 font-bold';
+                      activeClass = 'bg-purple-50/90 text-purple-950 border-2 border-purple-500 shadow-xs';
+                      activeBadge = 'bg-purple-200 text-purple-900 font-bold border border-purple-300';
                       hoverClass = 'hover:bg-purple-50/50 hover:text-purple-900';
                     } else if (cat === 'Protokoły Zebrań') {
-                      activeClass = 'bg-amber-50/80 text-amber-800 border border-amber-200 shadow-xs';
-                      activeBadge = 'bg-amber-200/80 text-amber-800 font-bold';
+                      activeClass = 'bg-amber-50/90 text-amber-950 border-2 border-amber-500 shadow-xs';
+                      activeBadge = 'bg-amber-200 text-amber-900 font-bold border border-amber-300';
                       hoverClass = 'hover:bg-amber-50/50 hover:text-amber-900';
                     } else if (cat === 'Regulaminy i Statut') {
-                      activeClass = 'bg-cyan-50/80 text-cyan-800 border border-cyan-200 shadow-xs';
-                      activeBadge = 'bg-cyan-200/80 text-cyan-800 font-bold';
-                      hoverClass = 'hover:bg-cyan-50/50 hover:text-cyan-900';
+                      activeClass = 'bg-teal-50/90 text-teal-950 border-2 border-teal-500 shadow-xs';
+                      activeBadge = 'bg-teal-200 text-teal-900 font-bold border border-teal-300';
+                      hoverClass = 'hover:bg-teal-50/50 hover:text-teal-900';
                     } else if (cat === 'Wnioski i Granty') {
-                      activeClass = 'bg-emerald-50/80 text-emerald-800 border border-emerald-200 shadow-xs';
-                      activeBadge = 'bg-emerald-200/80 text-emerald-800 font-bold';
+                      activeClass = 'bg-emerald-50/90 text-emerald-950 border-2 border-emerald-500 shadow-xs';
+                      activeBadge = 'bg-emerald-200 text-emerald-900 font-bold border border-emerald-300';
                       hoverClass = 'hover:bg-emerald-50/50 hover:text-emerald-900';
                     }
 
@@ -1308,36 +1331,35 @@ export default function DocumentsRepositoryTab() {
                                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-[10.5px] border border-indigo-200 transition-colors"
                                 >
                                   <ExternalLink size={11} />
-                                  <span>Drive</span>
+                                  <span>Dysk</span>
                                 </a>
                               ) : (
-                                <span className="text-slate-400 font-mono text-[11px]">—</span>
+                                <span className="text-slate-300 font-mono text-[11px]">—</span>
                               )}
                             </td>
                             <td className="py-2.5 px-3 text-center">
                               <span
-                                className={`px-2 py-0.5 rounded-full text-[10.5px] font-bold border inline-flex items-center gap-1 ${getStatusBadgeClass(
+                                className={`px-2 py-0.5 rounded-full text-[10.5px] font-semibold border ${getStatusBadgeClass(
                                   doc.status
                                 )}`}
                               >
-                                {doc.status === 'Obowiązujący' && <CheckCircle2 size={11} />}
-                                {doc.status === 'W toku' && <Clock size={11} />}
-                                {doc.status === 'Zastąpiony' && <Archive size={11} />}
                                 {doc.status}
                               </span>
                             </td>
                             <td className="py-2.5 px-3 text-center">
                               <div className="flex items-center justify-center gap-1">
                                 <button
+                                  type="button"
                                   onClick={() => handleOpenEditModal(doc)}
-                                  className="p-1 rounded text-slate-400 hover:text-indigo-600 hover:bg-slate-100 cursor-pointer"
+                                  className="p-1 rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition cursor-pointer"
                                   title="Edytuj dokument"
                                 >
                                   <Edit3 size={13} />
                                 </button>
                                 <button
+                                  type="button"
                                   onClick={() => handleDeleteDocument(doc.id)}
-                                  className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-slate-100 cursor-pointer"
+                                  className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
                                   title="Usuń dokument"
                                 >
                                   <Trash2 size={13} />
@@ -1358,21 +1380,15 @@ export default function DocumentsRepositoryTab() {
           {activeModuleTab === 'correspondence' && (
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
               
-              {/* Sync Status Alert */}
+              {/* Mail Sync Banner / Alert if applicable */}
               {mailSyncStatus && (
-                <div
-                  className={`p-3 rounded-xl border text-xs flex items-center justify-between gap-2 animate-in fade-in duration-200 ${
-                    mailSyncStatus.success
-                      ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
-                      : 'bg-rose-50 text-rose-900 border-rose-200'
-                  }`}
-                >
+                <div className={`p-3 rounded-xl border text-xs flex items-center justify-between transition-all ${
+                  mailSyncStatus.type === 'success'
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    : 'bg-amber-50 border-amber-200 text-amber-800'
+                }`}>
                   <div className="flex items-center gap-2">
-                    {mailSyncStatus.success ? (
-                      <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
-                    ) : (
-                      <AlertTriangle size={16} className="text-rose-600 shrink-0" />
-                    )}
+                    <Sparkles size={14} className="shrink-0" />
                     <span>{mailSyncStatus.message}</span>
                   </div>
                   <button
@@ -1394,14 +1410,14 @@ export default function DocumentsRepositoryTab() {
                     onClick={() => setCorrespondenceFilter('all')}
                     className={`h-9 px-3.5 rounded-lg text-xs font-medium transition-all flex items-center cursor-pointer ${
                       correspondenceFilter === 'all'
-                        ? 'bg-slate-100 text-slate-800 border border-slate-300 shadow-xs'
-                        : 'bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                        ? 'bg-indigo-50/90 text-indigo-950 border-2 border-indigo-500 shadow-xs'
+                        : 'bg-transparent text-slate-600 hover:bg-indigo-50/50 hover:text-indigo-900'
                     }`}
                   >
                     <span>Wszystkie</span>
                     <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] ml-2 ${
                       correspondenceFilter === 'all'
-                        ? 'bg-slate-200 text-slate-700 font-bold'
+                        ? 'bg-emerald-100 text-emerald-800 font-bold border border-emerald-300'
                         : 'bg-slate-100 text-slate-500'
                     }`}>
                       {correspondenceLog.length}
@@ -1413,14 +1429,14 @@ export default function DocumentsRepositoryTab() {
                     onClick={() => setCorrespondenceFilter('IN')}
                     className={`h-9 px-3.5 rounded-lg text-xs font-medium transition-all flex items-center cursor-pointer ${
                       correspondenceFilter === 'IN'
-                        ? 'bg-emerald-50/80 text-emerald-800 border border-emerald-200 shadow-xs'
+                        ? 'bg-emerald-50/90 text-emerald-950 border-2 border-emerald-500 shadow-xs'
                         : 'bg-transparent text-slate-600 hover:bg-emerald-50/50 hover:text-emerald-900'
                     }`}
                   >
                     <span>Przychodzące (IN)</span>
                     <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] ml-2 ${
                       correspondenceFilter === 'IN'
-                        ? 'bg-emerald-200/80 text-emerald-800 font-bold'
+                        ? 'bg-emerald-200 text-emerald-900 font-bold border border-emerald-300'
                         : 'bg-slate-100 text-slate-500'
                     }`}>
                       {correspondenceLog.filter((c) => c.direction === 'IN').length}
@@ -1432,14 +1448,14 @@ export default function DocumentsRepositoryTab() {
                     onClick={() => setCorrespondenceFilter('OUT')}
                     className={`h-9 px-3.5 rounded-lg text-xs font-medium transition-all flex items-center cursor-pointer ${
                       correspondenceFilter === 'OUT'
-                        ? 'bg-sky-50/80 text-sky-800 border border-sky-200 shadow-xs'
+                        ? 'bg-sky-50/90 text-sky-950 border-2 border-sky-500 shadow-xs'
                         : 'bg-transparent text-slate-600 hover:bg-sky-50/50 hover:text-sky-900'
                     }`}
                   >
                     <span>Wychodzące (OUT)</span>
                     <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] ml-2 ${
                       correspondenceFilter === 'OUT'
-                        ? 'bg-sky-200/80 text-sky-800 font-bold'
+                        ? 'bg-sky-200 text-sky-900 font-bold border border-sky-300'
                         : 'bg-slate-100 text-slate-500'
                     }`}>
                       {correspondenceLog.filter((c) => c.direction === 'OUT').length}

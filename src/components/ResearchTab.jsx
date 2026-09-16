@@ -424,25 +424,31 @@ export default function ResearchTab() {
                 onClick={() => setActiveSubTab('All')}
                 className={`h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 rounded-xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
                   activeSubTab === 'All'
-                    ? 'bg-slate-100 border-2 border-slate-300 text-slate-800 shadow-xs'
-                    : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/80 hover:border-slate-300'
+                    ? 'bg-indigo-50/90 border-2 border-indigo-500 text-indigo-950 shadow-xs'
+                    : 'bg-white hover:bg-indigo-50/40 text-slate-700 border border-slate-200/80 hover:border-indigo-200'
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0 pr-2">
                   <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center ${
-                    activeSubTab === 'All' ? 'bg-slate-200 text-slate-700' : 'bg-slate-100 text-slate-600'
+                    activeSubTab === 'All' ? 'bg-indigo-200/80 text-indigo-800' : 'bg-indigo-50 text-indigo-600'
                   }`}>
                     <Layers className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
-                    <span className="block text-xs font-semibold leading-tight truncate">Wszystkie osiągnięcia</span>
-                    <span className="text-[11px] font-normal truncate block mt-0.5 text-slate-400">
+                    <span className={`block text-xs font-semibold leading-tight truncate ${
+                      activeSubTab === 'All' ? 'text-indigo-950' : 'text-slate-800'
+                    }`}>
+                      Wszystkie osiągnięcia
+                    </span>
+                    <span className={`text-[11px] font-normal truncate block mt-0.5 ${
+                      activeSubTab === 'All' ? 'text-indigo-700' : 'text-slate-400'
+                    }`}>
                       Cały dorobek SKN
                     </span>
                   </div>
                 </div>
                 <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ml-2 ${
-                  activeSubTab === 'All' ? 'bg-slate-200 text-slate-700 font-bold border border-slate-300/80' : 'bg-slate-100 text-slate-600'
+                  activeSubTab === 'All' ? 'bg-emerald-100 text-emerald-800 font-bold border border-emerald-300' : 'bg-slate-100 text-slate-600'
                 }`}>
                   {items.length}
                 </span>
@@ -454,7 +460,7 @@ export default function ResearchTab() {
                 onClick={() => setActiveSubTab('Publication')}
                 className={`h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 rounded-xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
                   activeSubTab === 'Publication'
-                    ? 'bg-indigo-50/90 border-2 border-indigo-400 text-indigo-950 shadow-xs'
+                    ? 'bg-indigo-50/90 border-2 border-indigo-500 text-indigo-950 shadow-xs'
                     : 'bg-white hover:bg-indigo-50/40 text-slate-700 border border-slate-200/80 hover:border-indigo-200'
                 }`}
               >
@@ -479,7 +485,7 @@ export default function ResearchTab() {
                 </div>
                 <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ml-2 ${
                   activeSubTab === 'Publication'
-                    ? 'bg-indigo-200 text-indigo-900 font-bold border border-indigo-300/80'
+                    ? 'bg-indigo-200 text-indigo-900 font-bold border border-indigo-300'
                     : 'bg-slate-100 text-slate-600'
                 }`}>
                   {items.filter((i) => i.type === 'Publication').length}
@@ -492,7 +498,7 @@ export default function ResearchTab() {
                 onClick={() => setActiveSubTab('Conference')}
                 className={`h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 rounded-xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
                   activeSubTab === 'Conference'
-                    ? 'bg-amber-50/90 border-2 border-amber-400 text-amber-950 shadow-xs'
+                    ? 'bg-amber-50/90 border-2 border-amber-500 text-amber-950 shadow-xs'
                     : 'bg-white hover:bg-amber-50/40 text-slate-700 border border-slate-200/80 hover:border-amber-200'
                 }`}
               >
@@ -517,7 +523,7 @@ export default function ResearchTab() {
                 </div>
                 <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ml-2 ${
                   activeSubTab === 'Conference'
-                    ? 'bg-amber-200 text-amber-900 font-bold border border-amber-300/80'
+                    ? 'bg-amber-200 text-amber-900 font-bold border border-amber-300'
                     : 'bg-slate-100 text-slate-600'
                 }`}>
                   {metrics.conferencesCount}
@@ -530,7 +536,7 @@ export default function ResearchTab() {
                 onClick={() => setActiveSubTab('Project')}
                 className={`h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 rounded-xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
                   activeSubTab === 'Project'
-                    ? 'bg-sky-50/90 border-2 border-sky-400 text-sky-950 shadow-xs'
+                    ? 'bg-sky-50/90 border-2 border-sky-500 text-sky-950 shadow-xs'
                     : 'bg-white hover:bg-sky-50/40 text-slate-700 border border-slate-200/80 hover:border-sky-200'
                 }`}
               >
@@ -555,33 +561,38 @@ export default function ResearchTab() {
                 </div>
                 <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ml-2 ${
                   activeSubTab === 'Project'
-                    ? 'bg-sky-200 text-sky-900 font-bold border border-sky-300/80'
+                    ? 'bg-sky-200 text-sky-900 font-bold border border-sky-300'
                     : 'bg-slate-100 text-slate-600'
                 }`}>
                   {metrics.projectsCount}
                 </span>
               </button>
+            </div>
+          </div>
 
-              {/* 4. Łączne punkty MEiN / MNiSW - Static Metric Box */}
-              <div className="border-t border-slate-200/80 pt-2 mt-1.5">
-                <div className="h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 bg-emerald-50/70 border border-emerald-200/80 rounded-xl flex items-center justify-between select-none">
-                  <div className="flex items-center gap-3 min-w-0 pr-2">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-100/90 text-emerald-800 shrink-0 flex items-center justify-center">
-                      <GraduationCap className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 leading-tight block truncate">
-                        Łączne Punkty MEiN
-                      </span>
-                      <span className="text-[11px] text-emerald-700 font-medium leading-tight truncate block mt-0.5">
-                        Ewaluacja dorobku
-                      </span>
-                    </div>
-                  </div>
-                  <span className="text-xs font-bold text-emerald-900 font-mono shrink-0 ml-2 px-2 py-1 bg-emerald-100/80 rounded-lg border border-emerald-200">
-                    {metrics.totalPoints} pkt
+          {/* 4. Łączne punkty MEiN / MNiSW - Static Metric Box */}
+          <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
+            <div className="h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 bg-emerald-50/70 border border-emerald-200/80 rounded-xl flex items-center justify-between select-none">
+              <div className="flex items-center gap-3 min-w-0 pr-2">
+                <div className="w-8 h-8 rounded-lg bg-emerald-100/90 text-emerald-800 shrink-0 flex items-center justify-center">
+                  <GraduationCap className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 leading-tight block truncate">
+                    Łączne Punkty MEiN
+                  </span>
+                  <span className="text-[11px] text-emerald-700 font-medium leading-tight truncate block mt-0.5">
+                    Ewaluacja dorobku
                   </span>
                 </div>
+              </div>
+              <div className="text-right shrink-0">
+                <span className="font-mono text-base font-extrabold text-emerald-800 block leading-tight">
+                  {metrics.totalPoints}
+                </span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600">
+                  PKT
+                </span>
               </div>
             </div>
           </div>
@@ -627,14 +638,14 @@ export default function ResearchTab() {
                   onClick={() => setActiveSubTab('All')}
                   className={`h-9 px-3.5 rounded-lg text-xs font-medium transition-all flex items-center cursor-pointer ${
                     activeSubTab === 'All'
-                      ? 'bg-slate-100 text-slate-800 border border-slate-300 shadow-xs'
-                      : 'bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                      ? 'bg-indigo-50/90 text-indigo-950 border-2 border-indigo-500 shadow-xs'
+                      : 'bg-transparent text-slate-600 hover:bg-indigo-50/50 hover:text-indigo-900'
                   }`}
                 >
                   <span>Wszystkie</span>
                   <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] ml-2 ${
                     activeSubTab === 'All'
-                      ? 'bg-slate-200 text-slate-700 font-bold'
+                      ? 'bg-emerald-100 text-emerald-800 font-bold border border-emerald-300'
                       : 'bg-slate-100 text-slate-500'
                   }`}>
                     {items.length}
@@ -645,14 +656,14 @@ export default function ResearchTab() {
                   onClick={() => setActiveSubTab('Publication')}
                   className={`h-9 px-3.5 rounded-lg text-xs font-medium transition-all flex items-center cursor-pointer ${
                     activeSubTab === 'Publication'
-                      ? 'bg-indigo-100 text-indigo-900 border border-indigo-200 shadow-sm'
+                      ? 'bg-indigo-50/90 text-indigo-950 border-2 border-indigo-500 shadow-xs'
                       : 'bg-transparent text-slate-600 hover:bg-indigo-50/50 hover:text-indigo-900'
                   }`}
                 >
                   <span>Publikacje</span>
                   <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] ml-2 ${
                     activeSubTab === 'Publication'
-                      ? 'bg-indigo-200/80 text-indigo-700 font-bold'
+                      ? 'bg-indigo-200 text-indigo-900 font-bold border border-indigo-300'
                       : 'bg-slate-100 text-slate-500'
                   }`}>
                     {items.filter((i) => i.type === 'Publication').length}
@@ -663,14 +674,14 @@ export default function ResearchTab() {
                   onClick={() => setActiveSubTab('Conference')}
                   className={`h-9 px-3.5 rounded-lg text-xs font-medium transition-all flex items-center cursor-pointer ${
                     activeSubTab === 'Conference'
-                      ? 'bg-amber-100 text-amber-900 border border-amber-200 shadow-sm'
+                      ? 'bg-amber-50/90 text-amber-950 border-2 border-amber-500 shadow-xs'
                       : 'bg-transparent text-slate-600 hover:bg-amber-50/50 hover:text-amber-900'
                   }`}
                 >
                   <span>Konferencje</span>
                   <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] ml-2 ${
                     activeSubTab === 'Conference'
-                      ? 'bg-amber-200/80 text-amber-800 font-bold'
+                      ? 'bg-amber-200 text-amber-900 font-bold border border-amber-300'
                       : 'bg-slate-100 text-slate-500'
                   }`}>
                     {metrics.conferencesCount}
@@ -681,14 +692,14 @@ export default function ResearchTab() {
                   onClick={() => setActiveSubTab('Project')}
                   className={`h-9 px-3.5 rounded-lg text-xs font-medium transition-all flex items-center cursor-pointer ${
                     activeSubTab === 'Project'
-                      ? 'bg-sky-100 text-sky-900 border border-sky-200 shadow-sm'
+                      ? 'bg-sky-50/90 text-sky-950 border-2 border-sky-500 shadow-xs'
                       : 'bg-transparent text-slate-600 hover:bg-sky-50/50 hover:text-sky-900'
                   }`}
                 >
                   <span>Projekty Badawcze</span>
                   <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] ml-2 ${
                     activeSubTab === 'Project'
-                      ? 'bg-sky-200/80 text-sky-800 font-bold'
+                      ? 'bg-sky-200 text-sky-900 font-bold border border-sky-300'
                       : 'bg-slate-100 text-slate-500'
                   }`}>
                     {metrics.projectsCount}
