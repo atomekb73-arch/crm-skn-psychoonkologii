@@ -93,21 +93,23 @@ function findMemberMatch(nameOrIndex, members = [], aliasesMap = {}) {
 function resolveInitialParticipants(meeting, members = [], participants = [], threshold = 15, supervisors = null, getStorageKey = (k) => k, aliasesMap = {}) {
   const processParticipant = (p, idx = 0) => {
     const rawName = p.rawName || p.name || String(p);
+    const isExplicitSpeaker = p.isSpeaker || p.role === 'speaker' || String(rawName).toUpperCase().includes('[SPEAKER]') || String(rawName).toLowerCase().includes('speaker') || String(rawName).toLowerCase().includes('prelegent');
     const matchedSup = findMatchingSupervisor(rawName, supervisors);
     const isSup = matchedSup != null || isFacultySupervisor(rawName, supervisors);
     const supervisorFormattedName = matchedSup ? (matchedSup.fullName || `${matchedSup.academicTitle || 'mgr'} ${matchedSup.name}`) : rawName;
 
     const isMonika = isMonikaLyniewska(rawName) || (p.member && isMonikaLyniewska(p.member.index || p.member.fullName));
     const customMember = getCustomMappedMember(rawName);
-    const matchedMember = !isSup ? (customMember || findMemberMatch(rawName, members, aliasesMap) || p.member) : null;
+    const matchedMember = (!isSup && !isExplicitSpeaker) ? (customMember || findMemberMatch(rawName, members, aliasesMap) || p.member) : null;
 
-    let role = p.role || (isSup ? 'supervisor' : (matchedMember || isMonika ? 'member' : (p.isGuest ? 'guest' : 'member')));
+    let role = p.role || (isSup ? 'supervisor' : (isExplicitSpeaker ? 'speaker' : (matchedMember || isMonika ? 'member' : (p.isGuest ? 'guest' : 'member'))));
     if (isSup) role = 'supervisor';
-    if (isMonika) role = 'member';
+    if (isExplicitSpeaker) role = 'speaker';
+    if (isMonika && !isSup && !isExplicitSpeaker) role = 'member';
 
     const dur = typeof p.durationMinutes === 'number' ? p.durationMinutes : (parseInt(p.durationMinutes || p.durationStr, 10) || 60);
     const isOver = dur >= threshold;
-    const approved = p.manualApproved !== undefined ? p.manualApproved : (isSup || !!matchedMember || isMonika || isOver);
+    const approved = p.manualApproved !== undefined ? p.manualApproved : (isSup || isExplicitSpeaker || !!matchedMember || isMonika || isOver);
 
     let status = 'approved';
     if (role === 'supervisor') status = 'supervisor';
@@ -120,9 +122,10 @@ function resolveInitialParticipants(meeting, members = [], participants = [], th
       ? null
       : (matchedMember || (isMonika ? findMemberMatch('34327', members) || getCustomMappedMember('34327') : null));
 
+    const cleanRawName = String(rawName).replace(/^\[SPEAKER\]:?\s*/i, '').replace(/^\[GOŚĆ\]:?\s*/i, '').trim();
     const finalRawName = isSup
       ? supervisorFormattedName
-      : (finalMember ? (finalMember.fullName || `${finalMember.firstName} ${finalMember.lastName}`) : rawName);
+      : (finalMember ? (finalMember.fullName || `${finalMember.firstName} ${finalMember.lastName}`) : (cleanRawName || rawName));
 
     return {
       ...p,
@@ -133,10 +136,11 @@ function resolveInitialParticipants(meeting, members = [], participants = [], th
       durationMinutes: dur,
       member: finalMember,
       role,
+      isSpeaker: role === 'speaker',
       isGuest: role === 'guest',
-      isEligible: isOver,
+      isEligible: isOver || role === 'speaker' || role === 'supervisor',
       manualApproved: approved,
-      hasManualOverride: p.hasManualOverride || isSup || isMonika,
+      hasManualOverride: p.hasManualOverride || isSup || isMonika || role === 'speaker',
       activities: Array.isArray(p.activities) ? p.activities : [],
       status,
     };

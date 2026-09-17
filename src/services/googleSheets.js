@@ -1245,15 +1245,19 @@ export function parseAttendanceLine(rawLine) {
       }
     }
 
-    // 3. Text format with status & index: check if line contains explicit guest markers
-    if (line.includes('Sprawdź opis') || lower.includes('[gość]') || lower.includes('gosc') || lower.startsWith('gość')) {
+    // 3. Text format with status & index: check if line contains explicit guest or speaker markers
+    let isExplicitSpeaker = false;
+    if (line.toUpperCase().includes('[SPEAKER]') || lower.includes('speaker') || lower.includes('prelegent') || lower.includes('gość specjalny') || lower.includes('gosc specjalny')) {
+      isExplicitSpeaker = true;
+    }
+    if (!isExplicitSpeaker && (line.includes('Sprawdź opis') || lower.includes('[gość]') || lower.includes('gosc') || lower.startsWith('gość'))) {
       isExplicitGuest = true;
     }
 
     // Extract index if present (preferably after date to avoid matching year)
     const lineAfterDate = line.split(/\d{4}-\d{2}-\d{2}/)[1] || line;
     const indexMatch = lineAfterDate.match(/(?:Zgodny\s*✔️?\s*|indeks[:\s]*|nr[:\s]*)(\d{3,6})/i) || lineAfterDate.match(/\b(\d{4,6})\b/);
-    if (indexMatch) {
+    if (indexMatch && !isExplicitSpeaker) {
       extractedIndex = indexMatch[1];
     }
 
@@ -1308,6 +1312,8 @@ export function parseAttendanceLine(rawLine) {
       .replace(/\d{1,2}:\d{2}.*$/, '')
       .replace(/Zgodny.*$/, '')
       .replace(/Sprawdź opis.*$/, '')
+      .replace(/^\[SPEAKER\]:?\s*/i, '')
+      .replace(/^\[GOŚĆ\]:?\s*/i, '')
       .replace(/\[GOŚĆ\].*$/i, '')
       .trim();
 
@@ -1326,6 +1332,8 @@ export function parseAttendanceLine(rawLine) {
       durationMinutes,
       extractedIndex,
       isExplicitGuest,
+      isExplicitSpeaker,
+      role: isExplicitSpeaker ? 'speaker' : (isExplicitGuest ? 'guest' : 'member'),
       isMultiColumn: false,
     };
   } catch (err) {
@@ -1338,6 +1346,8 @@ export function parseAttendanceLine(rawLine) {
       durationMinutes: 60,
       extractedIndex: '',
       isExplicitGuest: true,
+      isExplicitSpeaker: false,
+      role: 'guest',
       isMultiColumn: false,
     };
   }
@@ -1384,10 +1394,30 @@ export async function fetchMeetingSheetAttendance(meetingCode, sheetId = SHEET_I
         const participants = matching.map((item, idx) => {
           const idxStr = String(item.nrIndeksu || '').trim();
           const nameStr = String(item.name || item.fullName || '').trim();
-          const isExplicitGuest = idxStr.includes('[GOŚĆ]') || idxStr.includes('GOSC') || nameStr.includes('[GOŚĆ]') || nameStr.includes('GOSC') || item.rola === 'Gość' || item.rola === 'guest';
+          const rolaStr = String(item.rola || '').trim().toLowerCase();
+
+          const isExplicitSpeaker =
+            idxStr.toUpperCase().includes('[SPEAKER]') ||
+            idxStr.toLowerCase().includes('speaker') ||
+            idxStr.toLowerCase().includes('prelegent') ||
+            nameStr.toUpperCase().includes('[SPEAKER]') ||
+            nameStr.toLowerCase().includes('speaker') ||
+            nameStr.toLowerCase().includes('prelegent') ||
+            rolaStr.includes('speaker') ||
+            rolaStr.includes('prelegent') ||
+            rolaStr.includes('specjalny');
+
+          const isExplicitGuest = !isExplicitSpeaker && (
+            idxStr.includes('[GOŚĆ]') ||
+            idxStr.includes('GOSC') ||
+            nameStr.includes('[GOŚĆ]') ||
+            nameStr.includes('GOSC') ||
+            rolaStr === 'gość' ||
+            rolaStr === 'guest'
+          );
 
           let matchedMember = null;
-          if (!isExplicitGuest && Array.isArray(members) && members.length > 0) {
+          if (!isExplicitGuest && !isExplicitSpeaker && Array.isArray(members) && members.length > 0) {
             const cleanIdx = normalizeIndex(idxStr);
             matchedMember = members.find(m => {
               if (!m) return false;
@@ -1397,12 +1427,20 @@ export async function fetchMeetingSheetAttendance(meetingCode, sheetId = SHEET_I
             });
           }
 
-          let finalName = matchedMember ? (matchedMember.fullName || `${matchedMember.firstName} ${matchedMember.lastName}`) : (nameStr || idxStr || 'Uczestnik');
-          let finalIndex = isExplicitGuest ? '' : (matchedMember?.index || (idxStr && !idxStr.includes('GOŚĆ') ? idxStr : ''));
-          let finalRole = isExplicitGuest ? 'Gość' : (item.rola || matchedMember?.role || (finalIndex ? 'Członek koła' : 'Gość'));
+          let cleanNameStr = nameStr.replace(/^\[SPEAKER\]:?\s*/i, '').replace(/^\[GOŚĆ\]:?\s*/i, '').trim();
+          let cleanIdxStr = idxStr.replace(/^\[SPEAKER\]:?\s*/i, '').replace(/^\[GOŚĆ\]:?\s*/i, '').trim();
+
+          let finalName = matchedMember
+            ? (matchedMember.fullName || `${matchedMember.firstName} ${matchedMember.lastName}`)
+            : (cleanNameStr || cleanIdxStr || (isExplicitSpeaker ? 'Prelegent' : 'Uczestnik'));
+
+          let finalIndex = (isExplicitGuest || isExplicitSpeaker) ? '' : (matchedMember?.index || (cleanIdxStr && !cleanIdxStr.includes('GOŚĆ') && !cleanIdxStr.includes('SPEAKER') ? cleanIdxStr : ''));
+          let finalRole = isExplicitSpeaker ? 'Prelegent' : (isExplicitGuest ? 'Gość' : (item.rola || matchedMember?.role || (finalIndex ? 'Członek koła' : 'Gość')));
 
           let formattedRawName = finalName;
-          if (finalRole === 'Gość' || isExplicitGuest) {
+          if (isExplicitSpeaker) {
+            formattedRawName = `[SPEAKER]: ${finalName}`;
+          } else if (finalRole === 'Gość' || isExplicitGuest) {
             formattedRawName = finalName.startsWith('[GOŚĆ]') ? finalName : `[GOŚĆ]: ${finalName}`;
           } else if (finalIndex && !finalName.includes(finalIndex)) {
             formattedRawName = `${finalName} (${finalIndex})`;
@@ -1414,7 +1452,10 @@ export async function fetchMeetingSheetAttendance(meetingCode, sheetId = SHEET_I
             fullName: finalName,
             index: finalIndex,
             email: matchedMember?.email || item.email || '',
-            role: finalRole,
+            role: isExplicitSpeaker ? 'speaker' : (finalRole === 'Gość' || isExplicitGuest ? 'guest' : 'member'),
+            isSpeaker: isExplicitSpeaker,
+            isGuest: isExplicitGuest,
+            manualApproved: isExplicitSpeaker || isExplicitGuest || !!matchedMember,
             joinTime: item.dataSpotkania || '18:00',
             durationStr: '60 min',
             durationMinutes: 60,

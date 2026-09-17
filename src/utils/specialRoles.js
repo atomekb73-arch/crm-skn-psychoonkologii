@@ -46,8 +46,8 @@ export const PARTICIPANT_ROLES = {
     id: 'speaker',
     label: 'Prelegent / Wykładowca',
     icon: '🎤',
-    badgeClass: 'bg-amber-50 text-amber-800 border-amber-200 font-bold',
-    description: 'Prowadzący spotkanie / prelegent gościnny',
+    badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200 font-bold',
+    description: 'Prowadzący spotkanie / prelegent gościnny / gość specjalny',
     isStudent: false,
   },
   guest: {
@@ -157,6 +157,17 @@ export function isFacultySupervisor(nameOrEmail, customSupervisors = null) {
 export function detectParticipantRole(rawName, member = null, customSupervisors = null) {
   if (!rawName) return 'member';
   const norm = normalizeDiacritics(rawName);
+  if (
+    norm.includes('[speaker]') ||
+    norm.includes('speaker:') ||
+    norm.includes('speaker') ||
+    norm.includes('prelegent') ||
+    norm.includes('wykladowca') ||
+    norm.includes('gosc specjalny') ||
+    norm.includes('[gosc specjalny]')
+  ) {
+    return 'speaker';
+  }
   if (norm.includes('[gosc]') || norm.includes('gosc:') || norm.startsWith('gosc ') || norm.includes('wolny sluchacz') || norm.includes('(gosc)')) {
     return 'guest';
   }

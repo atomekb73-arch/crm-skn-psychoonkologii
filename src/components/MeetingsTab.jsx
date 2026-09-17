@@ -494,41 +494,53 @@ export default function MeetingsTab({
         participants = saved.attendees;
       } else if (Array.isArray(saved.confirmedIndexes) && saved.confirmedIndexes.length > 0) {
         participants = saved.confirmedIndexes.map((idx, i) => {
-          const mem = members.find(item => String(item.index || '').trim() === String(idx).trim());
+          const rawIdxStr = String(idx || '').trim();
+          const isSpk = rawIdxStr.toUpperCase().includes('[SPEAKER]') || rawIdxStr.toLowerCase().includes('speaker') || rawIdxStr.toLowerCase().includes('prelegent');
+          const isSup = isFacultySupervisor(rawIdxStr);
+          const mem = (!isSpk && !isSup) ? members.find(item => String(item.index || '').trim() === rawIdxStr) : null;
+          const cleanName = rawIdxStr.replace(/^\[SPEAKER\]:?\s*/i, '').replace(/^\[GOŚĆ\]:?\s*/i, '').trim();
+
           return {
             id: `p_saved_${i}_${idx}`,
-            rawName: mem ? (mem.fullName || `${mem.firstName} ${mem.lastName}`) : `Indeks: ${idx}`,
+            rawName: mem ? (mem.fullName || `${mem.firstName} ${mem.lastName}`) : (cleanName || `Indeks: ${idx}`),
             joinTime: '18:00',
             durationStr: '60 min',
             durationMinutes: 60,
             member: mem || null,
-            role: 'member',
-            isGuest: !mem,
-            isExternalGuest: !mem,
+            role: isSup ? 'supervisor' : (isSpk ? 'speaker' : 'member'),
+            isSpeaker: isSpk,
+            isGuest: !mem && !isSpk && !isSup,
+            isExternalGuest: !mem && !isSpk && !isSup,
             isEligible: true,
             manualApproved: true,
             hasManualOverride: false,
-            status: 'approved',
+            status: isSup ? 'supervisor' : (isSpk ? 'speaker' : 'approved'),
           };
         });
       }
     } else if (Array.isArray(m.attendees) && m.attendees.length > 0) {
       participants = m.attendees.map((idx, i) => {
-        const mem = members.find(item => String(item.index || '').trim() === String(idx).trim());
+        const rawIdxStr = String(idx || '').trim();
+        const isSpk = rawIdxStr.toUpperCase().includes('[SPEAKER]') || rawIdxStr.toLowerCase().includes('speaker') || rawIdxStr.toLowerCase().includes('prelegent');
+        const isSup = isFacultySupervisor(rawIdxStr);
+        const mem = (!isSpk && !isSup) ? members.find(item => String(item.index || '').trim() === rawIdxStr) : null;
+        const cleanName = rawIdxStr.replace(/^\[SPEAKER\]:?\s*/i, '').replace(/^\[GOŚĆ\]:?\s*/i, '').trim();
+
         return {
           id: `p_att_${i}_${idx}`,
-          rawName: mem ? (mem.fullName || `${mem.firstName} ${mem.lastName}`) : `Indeks: ${idx}`,
+          rawName: mem ? (mem.fullName || `${mem.firstName} ${mem.lastName}`) : (cleanName || `Indeks: ${idx}`),
           joinTime: '18:00',
           durationStr: '60 min',
           durationMinutes: 60,
           member: mem || null,
-          role: 'member',
-          isGuest: !mem,
-          isExternalGuest: !mem,
+          role: isSup ? 'supervisor' : (isSpk ? 'speaker' : 'member'),
+          isSpeaker: isSpk,
+          isGuest: !mem && !isSpk && !isSup,
+          isExternalGuest: !mem && !isSpk && !isSup,
           isEligible: true,
           manualApproved: true,
           hasManualOverride: false,
-          status: 'approved',
+          status: isSup ? 'supervisor' : (isSpk ? 'speaker' : 'approved'),
         };
       });
     }
@@ -683,23 +695,27 @@ export default function MeetingsTab({
 
       const role = detectParticipantRole(parsed.rawName, member);
       const isSup = isFacultySupervisor(parsed.rawName);
+      const isExplicitSpeaker = parsed.isExplicitSpeaker || role === 'speaker' || String(parsed.rawName || '').toUpperCase().includes('[SPEAKER]') || String(parsed.rawName || '').toLowerCase().includes('speaker') || String(parsed.rawName || '').toLowerCase().includes('prelegent');
       const isMonika = isMonikaLyniewska(parsed.rawName) || (extractedIdx === '34327');
       const isMemberInDB = Boolean(member || isMonika);
-      const isGuest = !isSup && (parsed.isExplicitGuest || role === 'guest' || !isMemberInDB || parsed.rawName.includes('[GOŚĆ]') || parsed.rawName.includes('GOSC') || parsed.rawName.toLowerCase().startsWith('gość'));
-      const status = isSup ? 'supervisor' : (isGuest ? 'guest' : (isEligible ? 'approved' : 'short_time'));
+      const isGuest = !isSup && !isExplicitSpeaker && (parsed.isExplicitGuest || role === 'guest' || !isMemberInDB || parsed.rawName.includes('[GOŚĆ]') || parsed.rawName.includes('GOSC') || parsed.rawName.toLowerCase().startsWith('gość'));
+      const status = isSup ? 'supervisor' : (isExplicitSpeaker ? 'speaker' : (isGuest ? 'guest' : (isEligible ? 'approved' : 'short_time')));
+      const effectiveRole = isSup ? 'supervisor' : (isExplicitSpeaker ? 'speaker' : (isGuest ? 'guest' : role));
+      const cleanRawName = parsed.rawName.replace(/^\[SPEAKER\]:?\s*/i, '').replace(/^\[GOŚĆ\]:?\s*/i, '').trim();
 
       const pObj = {
         id: `p_${idx}_${Date.now()}`,
-        rawName: parsed.rawName,
+        rawName: cleanRawName || parsed.rawName,
         joinTime: parsed.joinTime || parsed.time || '18:00',
         durationStr: parsed.durationStr || parsed.duration || '60 min',
         durationMinutes: durMinutes,
-        member: isGuest || isSup ? null : (member || (isMonika ? { fullName: 'Monika Łyniewska', index: '34327', email: '34327@student.wskz.pl' } : null)),
-        role: isSup ? 'supervisor' : (isGuest ? 'guest' : role),
+        member: isGuest || isSup || isExplicitSpeaker ? null : (member || (isMonika ? { fullName: 'Monika Łyniewska', index: '34327', email: '34327@student.wskz.pl' } : null)),
+        role: effectiveRole,
+        isSpeaker: !!isExplicitSpeaker,
         isGuest: !!isGuest,
-        isExternalGuest: !isSup && !isMemberInDB,
-        isEligible: isGuest || isSup || isEligible,
-        manualApproved: isSup || isGuest || isMonika || (isEligible && !!member),
+        isExternalGuest: !isSup && !isExplicitSpeaker && !isMemberInDB,
+        isEligible: isGuest || isSup || isExplicitSpeaker || isEligible,
+        manualApproved: isSup || isGuest || isExplicitSpeaker || isMonika || (isEligible && !!member),
         hasManualOverride: false,
         status,
       };
@@ -707,6 +723,8 @@ export default function MeetingsTab({
       participants.push(pObj);
       if (isSup) {
         // Supervisor
+      } else if (isExplicitSpeaker) {
+        // Speaker
       } else if (isGuest) {
         // Guest
       } else if (member) {
@@ -748,7 +766,9 @@ export default function MeetingsTab({
       .map(p => {
         const nrIndeksu = p.member?.index || (isMonikaLyniewska(p.rawName) ? '34327' : (p.rawName.match(/\d{4,6}/)?.[0] || ''));
         const name = p.member?.fullName || p.fullName || p.rawName || '';
-        const rola = p.role || (isFacultySupervisor(p.rawName) ? 'Opiekun' : (p.isGuest ? 'Gość' : (nrIndeksu ? 'Członek koła' : 'Gość')));
+        const isSup = p.role === 'supervisor' || isFacultySupervisor(p.rawName);
+        const isSpk = p.role === 'speaker' || p.role === 'prelegent' || String(p.rawName || '').toUpperCase().includes('[SPEAKER]');
+        const rola = isSup ? 'Opiekun' : (isSpk ? 'Prelegent' : (p.isGuest ? 'Gość' : (nrIndeksu ? 'Członek koła' : 'Gość')));
         return {
           nrIndeksu: String(nrIndeksu).trim(),
           name: String(name).trim(),
@@ -899,14 +919,16 @@ export default function MeetingsTab({
           }
 
           const isSup = isFacultySupervisor(name);
+          const isSpeaker = name.toUpperCase().includes('[SPEAKER]') || name.toLowerCase().includes('speaker') || name.toLowerCase().includes('prelegent') || name.toLowerCase().includes('gość specjalny') || name.toLowerCase().includes('gosc specjalny');
           const isMonika = isMonikaLyniewska(name) || (extractedIdx === '34327');
           const isMemberInDB = Boolean(matchedMember || isMonika);
-          const role = isSup ? "supervisor" : (isMemberInDB ? "member" : "guest");
-          const roleDisplay = isSup ? "Opiekun" : (isMemberInDB ? "Członek koła" : "Gość");
+          const role = isSup ? "supervisor" : (isSpeaker ? "speaker" : (isMemberInDB ? "member" : "guest"));
+          const roleDisplay = isSup ? "Opiekun" : (isSpeaker ? "Prelegent" : (isMemberInDB ? "Członek koła" : "Gość"));
           const isEligible = durationMinutes >= (minDurationThreshold || 15);
-          const status = isSup ? "supervisor" : (role === "guest" ? "guest" : (isEligible ? "approved" : "short_time"));
-          const memberObj = isMemberInDB ? (matchedMember || (isMonika ? { fullName: 'Monika Łyniewska', index: '34327', email: '34327@student.wskz.pl' } : null)) : null;
-          const finalDisplayName = memberObj ? (memberObj.fullName || memberObj.name || memberObj.imieNazwisko || `${memberObj.firstName} ${memberObj.lastName}`) : name;
+          const status = isSup ? "supervisor" : (isSpeaker ? "speaker" : (role === "guest" ? "guest" : (isEligible ? "approved" : "short_time")));
+          const memberObj = (isMemberInDB && !isSpeaker && !isSup) ? (matchedMember || (isMonika ? { fullName: 'Monika Łyniewska', index: '34327', email: '34327@student.wskz.pl' } : null)) : null;
+          const cleanRawName = name.replace(/^\[SPEAKER\]:?\s*/i, '').replace(/^\[GOŚĆ\]:?\s*/i, '').trim();
+          const finalDisplayName = memberObj ? (memberObj.fullName || memberObj.name || memberObj.imieNazwisko || `${memberObj.firstName} ${memberObj.lastName}`) : (cleanRawName || name);
 
           parsedList.push({
             id: `att_${Date.now()}_${i}`,
@@ -923,14 +945,16 @@ export default function MeetingsTab({
             status: status,
             isFromBase: isMemberInDB,
             member: memberObj,
+            isSpeaker: isSpeaker,
             isGuest: role === "guest",
-            isExternalGuest: !isMemberInDB && !isSup,
-            isEligible: isEligible || role === "guest" || isSup,
-            manualApproved: isEligible || role === "guest" || isSup,
+            isExternalGuest: !isMemberInDB && !isSup && !isSpeaker,
+            isEligible: isEligible || role === "guest" || isSup || isSpeaker,
+            manualApproved: isEligible || role === "guest" || isSup || isSpeaker,
             hasManualOverride: false
           });
 
           if (matchedMember) matched.push(matchedMember);
+          else if (isSup || isSpeaker) { /* supervisor or speaker */ }
           else unmatched.push(name);
         }
       }
@@ -1202,11 +1226,11 @@ export default function MeetingsTab({
 
   // Verified attendance statistics (Aggregated by status "Zaliczono")
   const approvedParticipantsCount = parsedParticipants.filter(p => {
-    if (p.role === 'supervisor' || isFacultySupervisor(p.rawName) || p.role === 'speaker') return true;
+    if (p.role === 'supervisor' || isFacultySupervisor(p.rawName) || p.role === 'speaker' || p.role === 'prelegent' || String(p.rawName || '').toUpperCase().includes('[SPEAKER]')) return true;
     return p.manualApproved !== undefined ? p.manualApproved : (p.isEligible || p.status === 'approved' || p.status === 'Zaliczona');
   }).length;
-  const rejectedParticipantsCount = parsedParticipants.filter(p => p.manualApproved === false || (!p.manualApproved && !p.isEligible && p.role !== 'supervisor' && !isFacultySupervisor(p.rawName) && p.role !== 'speaker')).length;
-  const unmatchedParticipantsCount = parsedParticipants.filter(p => !p.member && p.role !== 'supervisor' && !isFacultySupervisor(p.rawName) && p.role !== 'speaker').length;
+  const rejectedParticipantsCount = parsedParticipants.filter(p => p.manualApproved === false || (!p.manualApproved && !p.isEligible && p.role !== 'supervisor' && !isFacultySupervisor(p.rawName) && p.role !== 'speaker' && p.role !== 'prelegent' && !String(p.rawName || '').toUpperCase().includes('[SPEAKER]'))).length;
+  const unmatchedParticipantsCount = parsedParticipants.filter(p => !p.member && p.role !== 'supervisor' && !isFacultySupervisor(p.rawName) && p.role !== 'speaker' && p.role !== 'prelegent' && !String(p.rawName || '').toUpperCase().includes('[SPEAKER]') && !p.isGuest && p.role !== 'guest' && !isMonikaLyniewska(p.rawName)).length;
 
   // Filtered participants for sidebar search
   const filteredParticipants = useMemo(() => {
@@ -2016,7 +2040,8 @@ export default function MeetingsTab({
                     const isShortTime = p.durationMinutes < minDurationThreshold;
                     const memberName = p.member ? (p.member.fullName || `${p.member.firstName} ${p.member.lastName}`) : p.rawName;
                     const isSup = p.role === 'supervisor' || isFacultySupervisor(p.rawName);
-                    const isGuest = p.isGuest || p.role === 'guest';
+                    const isSpeaker = p.role === 'speaker' || p.role === 'prelegent' || String(p.rawName || '').toUpperCase().includes('[SPEAKER]') || String(p.rawName || '').toLowerCase().includes('prelegent');
+                    const isGuest = !isSup && !isSpeaker && (p.isGuest || p.role === 'guest');
 
                     return (
                       <div
@@ -2041,13 +2066,15 @@ export default function MeetingsTab({
                                 <span>{p.member.index}</span>
                               ) : isSup ? (
                                 <span className="text-purple-600 font-sans font-bold">Opiekun</span>
+                              ) : isSpeaker ? (
+                                <span className="text-indigo-600 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded font-sans font-bold text-[10px]">Prelegent</span>
                               ) : isGuest ? (
                                 <span className="text-amber-600 font-sans font-medium">Gość</span>
                               ) : (
                                 <span className="text-amber-600 font-sans">Nieznany</span>
                               )}
                               <span>·</span>
-                              <span className={isShortTime ? 'text-rose-600 font-bold' : 'text-slate-500'}>
+                              <span className={isShortTime && !isSup && !isSpeaker ? 'text-rose-600 font-bold' : 'text-slate-500'}>
                                 {p.durationStr || `${p.durationMinutes}m`}
                               </span>
                             </div>
