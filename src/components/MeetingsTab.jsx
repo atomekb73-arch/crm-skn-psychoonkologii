@@ -36,7 +36,14 @@ import {
 } from 'lucide-react';
 import { MEETING_TYPES, getMeetingType } from '../utils/meetingTypes';
 import { parseAttendanceLine, parseDurationToMinutes, fetchMeetingSheetAttendance, saveMeetingAttendanceToGAS, deleteMeetingAttendanceFromGAS, sendToGAS } from '../services/googleSheets';
-import { isFacultySupervisor, isMonikaLyniewska, FACULTY_SUPERVISORS, PARTICIPANT_ROLES, detectParticipantRole } from '../utils/specialRoles';
+import {
+  isFacultySupervisor,
+  isMonikaLyniewska,
+  FACULTY_SUPERVISORS,
+  PARTICIPANT_ROLES,
+  detectParticipantRole,
+  matchMemberWaterfall,
+} from '../utils/specialRoles';
 import { useOrg } from '../context/OrgContext';
 import AttendanceModal from './AttendanceModal';
 import CalendarSelector, { PSYCHOONKOLOGIA_SUBCALENDAR_ID } from './CalendarSelector';
@@ -54,6 +61,7 @@ import {
   deleteCustomMeeting,
   getMeetingOverrides,
   saveMeetingOverride,
+  getAliasesFromStorage,
 } from '../utils/storage';
 
 const normalizeDiacritics = (str) => {
@@ -582,31 +590,8 @@ export default function MeetingsTab({
 
   function findMemberMatch(nameOrIndex) {
     if (!nameOrIndex) return null;
-    const clean = String(nameOrIndex).trim().toLowerCase();
-
-    // 1. Explicit check for Monika Łyniewska (34327)
-    if (isMonikaLyniewska(clean)) {
-      const monika = members.find(
-        m => String(m.index || '').trim() === '34327' ||
-             (m.fullName && m.fullName.toLowerCase().includes('łyniewsk')) ||
-             (m.fullName && m.fullName.toLowerCase().includes('lyniewsk')) ||
-             (m.email && m.email.toLowerCase().includes('lyniewsk'))
-      );
-      if (monika) return monika;
-    }
-
-    return members.find(m => {
-      const idx = String(m.index || '').trim().toLowerCase();
-      const fn = String(m.fullName || '').trim().toLowerCase();
-      const ln = String(m.lastName || '').trim().toLowerCase();
-      const em = String(m.email || '').trim().toLowerCase();
-
-      if (idx && (clean === idx || clean.includes(idx))) return true;
-      if (em && (clean === em || clean.includes(em))) return true;
-      if (fn && (clean === fn || clean.includes(fn) || fn.includes(clean))) return true;
-      if (ln && ln.length >= 3 && clean.includes(ln)) return true;
-      return false;
-    });
+    const aliases = getAliasesFromStorage(currentOrg?.id || 'default');
+    return matchMemberWaterfall(nameOrIndex, members, aliases);
   }
 
   function recalculateAttendance(participantsList, overrides, threshold = minDurationThreshold) {
@@ -662,6 +647,7 @@ export default function MeetingsTab({
     const participants = [];
     const matched = [];
     const unmatched = [];
+    const aliasesMap = getAliasesFromStorage(currentOrg?.id || 'default');
 
     lines.forEach((rawLine, idx) => {
       let parsed = null;
@@ -678,29 +664,14 @@ export default function MeetingsTab({
       const isEligible = durMinutes >= threshold;
       const extractedIdx = parsed.extractedIndex || '';
 
-      const member = members.find(m => {
-        if (!m) return false;
-        const normRaw = normalizeDiacritics(parsed.rawName).toLowerCase().trim();
-        const normFull = normalizeDiacritics(m.fullName || `${m.firstName} ${m.lastName}`).toLowerCase().trim();
-        const normReverseFull = normFull.split(' ').reverse().join(' ');
-        const normIdx = String(m.index || '').trim();
-        const normEmail = normalizeDiacritics(m.email || '').toLowerCase().trim();
-
-        if (extractedIdx && normIdx && extractedIdx === normIdx) return true;
-        if (normIdx && normRaw.includes(normIdx)) return true;
-        if (normEmail && normRaw.includes(normEmail)) return true;
-        if (normFull && (normRaw === normFull || normRaw === normReverseFull || normRaw.includes(normFull) || normFull.includes(normRaw))) return true;
-        return false;
-      });
-
-      const role = detectParticipantRole(parsed.rawName, member);
+      const isExplicitSpeaker = parsed.isExplicitSpeaker || String(parsed.rawName || '').toUpperCase().includes('[SPEAKER]') || String(parsed.rawName || '').toLowerCase().includes('speaker') || String(parsed.rawName || '').toLowerCase().includes('prelegent');
       const isSup = isFacultySupervisor(parsed.rawName);
-      const isExplicitSpeaker = parsed.isExplicitSpeaker || role === 'speaker' || String(parsed.rawName || '').toUpperCase().includes('[SPEAKER]') || String(parsed.rawName || '').toLowerCase().includes('speaker') || String(parsed.rawName || '').toLowerCase().includes('prelegent');
-      const isMonika = isMonikaLyniewska(parsed.rawName) || (extractedIdx === '34327');
+      const member = (!isSup && !isExplicitSpeaker) ? matchMemberWaterfall(parsed.rawName, members, aliasesMap) : null;
+      const isMonika = isMonikaLyniewska(parsed.rawName) || (member && isMonikaLyniewska(member.index || member.fullName)) || (extractedIdx === '34327');
       const isMemberInDB = Boolean(member || isMonika);
-      const isGuest = !isSup && !isExplicitSpeaker && (parsed.isExplicitGuest || role === 'guest' || !isMemberInDB || parsed.rawName.includes('[GOŚĆ]') || parsed.rawName.includes('GOSC') || parsed.rawName.toLowerCase().startsWith('gość'));
+      const isGuest = !isSup && !isExplicitSpeaker && (parsed.isExplicitGuest || !isMemberInDB || parsed.rawName.includes('[GOŚĆ]') || parsed.rawName.includes('GOSC') || parsed.rawName.toLowerCase().startsWith('gość'));
       const status = isSup ? 'supervisor' : (isExplicitSpeaker ? 'speaker' : (isGuest ? 'guest' : (isEligible ? 'approved' : 'short_time')));
-      const effectiveRole = isSup ? 'supervisor' : (isExplicitSpeaker ? 'speaker' : (isGuest ? 'guest' : role));
+      const effectiveRole = isSup ? 'supervisor' : (isExplicitSpeaker ? 'speaker' : (isGuest ? 'guest' : 'member'));
       const cleanRawName = parsed.rawName.replace(/^\[SPEAKER\]:?\s*/i, '').replace(/^\[GOŚĆ\]:?\s*/i, '').trim();
 
       const pObj = {
@@ -709,13 +680,13 @@ export default function MeetingsTab({
         joinTime: parsed.joinTime || parsed.time || '18:00',
         durationStr: parsed.durationStr || parsed.duration || '60 min',
         durationMinutes: durMinutes,
-        member: isGuest || isSup || isExplicitSpeaker ? null : (member || (isMonika ? { fullName: 'Monika Łyniewska', index: '34327', email: '34327@student.wskz.pl' } : null)),
+        member: isGuest || isSup || isExplicitSpeaker ? null : member,
         role: effectiveRole,
         isSpeaker: !!isExplicitSpeaker,
         isGuest: !!isGuest,
         isExternalGuest: !isSup && !isExplicitSpeaker && !isMemberInDB,
         isEligible: isGuest || isSup || isExplicitSpeaker || isEligible,
-        manualApproved: isSup || isGuest || isExplicitSpeaker || isMonika || (isEligible && !!member),
+        manualApproved: isSup || isGuest || isExplicitSpeaker || (isEligible && isMemberInDB),
         hasManualOverride: false,
         status,
       };
@@ -901,21 +872,11 @@ export default function MeetingsTab({
         if (name && name.length > 2 && !seenNames.has(name.toLowerCase())) {
           seenNames.add(name.toLowerCase());
 
-          // Sprawdź dopasowanie w bazie członków SKN (jeśli załadowana)
+          // Sprawdź dopasowanie w bazie członków SKN (Waterfall matching z aliasami)
           let matchedMember = null;
           if (Array.isArray(members) && members.length > 0) {
-            const normName = normalizeDiacritics(name).toLowerCase().trim();
-            matchedMember = members.find(m => {
-              if (!m) return false;
-              const normFull = normalizeDiacritics(m.fullName || m.name || m.imieNazwisko || `${m.firstName} ${m.lastName}`).toLowerCase().trim();
-              const normReverseFull = normFull.split(' ').reverse().join(' ');
-              const mIdx = String(m.nrIndeksu || m.index || '').trim();
-              if (extractedIdx && mIdx && extractedIdx === mIdx) return true;
-              if (mIdx && normName.includes(mIdx)) return true;
-              if (normName === normFull || normName === normReverseFull) return true;
-              if (normFull.length > 5 && (normName.includes(normFull) || normFull.includes(normName))) return true;
-              return false;
-            });
+            const aliasesMap = getAliasesFromStorage(currentOrg?.id || 'skn-psychoonkologia');
+            matchedMember = matchMemberWaterfall(extractedIdx || name, members, aliasesMap);
           }
 
           const isSup = isFacultySupervisor(name);

@@ -41,54 +41,13 @@ import {
   getCustomMappedMember,
   normalizeDiacritics,
   detectParticipantRole,
+  matchMemberWaterfall,
 } from '../utils/specialRoles';
 import { useSettings } from '../context/SettingsContext';
 import { useOrg } from '../context/OrgContext';
 import { ACTIVITY_OPTIONS } from '../utils/activityRegistry';
 import { saveMeetingAttendanceToGAS, parseAttendanceLine } from '../services/googleSheets';
 import { getAliasesFromStorage, saveAliasesToStorage } from '../utils/storage';
-
-function findMemberMatch(nameOrIndex, members = [], aliasesMap = {}) {
-  if (!nameOrIndex) return null;
-  const clean = String(nameOrIndex).trim();
-  const normQuery = normalizeDiacritics(clean).toLowerCase();
-
-  // 0. Alias matching (Google Meet pseudonym -> Member profile)
-  if (aliasesMap && aliasesMap[normQuery]) {
-    const target = aliasesMap[normQuery];
-    const matchByAlias = members.find(
-      m => String(m.index || '').trim() === String(target).trim() ||
-           m.id === target ||
-           normalizeDiacritics(m.fullName || `${m.firstName} ${m.lastName}`).toLowerCase() === normalizeDiacritics(target).toLowerCase()
-    );
-    if (matchByAlias) return matchByAlias;
-  }
-
-  // 1. Explicit check for custom mapped members (e.g. Monika Łyniewska - 34327)
-  const customMapped = getCustomMappedMember(clean);
-  if (customMapped) {
-    const foundInDb = members.find(
-      m => String(m.index || '').trim() === customMapped.index ||
-           normalizeDiacritics(m.fullName || `${m.firstName} ${m.lastName}`).includes(normalizeDiacritics(customMapped.fullName)) ||
-           normalizeDiacritics(m.email).includes(normalizeDiacritics(customMapped.email))
-    );
-    return foundInDb || customMapped;
-  }
-
-  // 2. Exact or sub-match against members with diacritics normalization
-  return members.find(m => {
-    const idx = String(m.index || '').trim();
-    const fn = normalizeDiacritics(m.fullName || `${m.firstName} ${m.lastName}`).toLowerCase();
-    const ln = normalizeDiacritics(m.lastName).toLowerCase();
-    const em = normalizeDiacritics(m.email).toLowerCase();
-
-    if (idx && (normQuery === idx || normQuery.includes(idx))) return true;
-    if (em && (normQuery === em || normQuery.includes(em))) return true;
-    if (fn && (normQuery === fn || normQuery.includes(fn) || fn.includes(normQuery))) return true;
-    if (ln && ln.length >= 3 && normQuery.includes(ln)) return true;
-    return false;
-  }) || null;
-}
 
 function resolveInitialParticipants(meeting, members = [], participants = [], threshold = 15, supervisors = null, getStorageKey = (k) => k, aliasesMap = {}) {
   const processParticipant = (p, idx = 0) => {
@@ -98,18 +57,19 @@ function resolveInitialParticipants(meeting, members = [], participants = [], th
     const isSup = matchedSup != null || isFacultySupervisor(rawName, supervisors);
     const supervisorFormattedName = matchedSup ? (matchedSup.fullName || `${matchedSup.academicTitle || 'mgr'} ${matchedSup.name}`) : rawName;
 
-    const isMonika = isMonikaLyniewska(rawName) || (p.member && isMonikaLyniewska(p.member.index || p.member.fullName));
-    const customMember = getCustomMappedMember(rawName);
-    const matchedMember = (!isSup && !isExplicitSpeaker) ? (customMember || findMemberMatch(rawName, members, aliasesMap) || p.member) : null;
+    // Strict Waterfall matching
+    const matchedMember = (!isSup && !isExplicitSpeaker) ? matchMemberWaterfall(rawName, members, aliasesMap) : null;
+    const isMonika = isMonikaLyniewska(rawName) || (matchedMember && isMonikaLyniewska(matchedMember.index || matchedMember.fullName));
 
-    let role = p.role || (isSup ? 'supervisor' : (isExplicitSpeaker ? 'speaker' : (matchedMember || isMonika ? 'member' : (p.isGuest ? 'guest' : 'member'))));
+    let role = p.role || (isSup ? 'supervisor' : (isExplicitSpeaker ? 'speaker' : (matchedMember ? 'member' : 'guest')));
     if (isSup) role = 'supervisor';
     if (isExplicitSpeaker) role = 'speaker';
     if (isMonika && !isSup && !isExplicitSpeaker) role = 'member';
+    if (!isSup && !isExplicitSpeaker && !matchedMember && !isMonika) role = 'guest';
 
     const dur = typeof p.durationMinutes === 'number' ? p.durationMinutes : (parseInt(p.durationMinutes || p.durationStr, 10) || 60);
     const isOver = dur >= threshold;
-    const approved = p.manualApproved !== undefined ? p.manualApproved : (isSup || isExplicitSpeaker || !!matchedMember || isMonika || isOver);
+    const approved = p.manualApproved !== undefined ? p.manualApproved : (isSup || isExplicitSpeaker || role === 'guest' || !!matchedMember || isOver);
 
     let status = 'approved';
     if (role === 'supervisor') status = 'supervisor';
@@ -120,7 +80,7 @@ function resolveInitialParticipants(meeting, members = [], participants = [], th
 
     const finalMember = isSup || role === 'guest' || role === 'speaker'
       ? null
-      : (matchedMember || (isMonika ? findMemberMatch('34327', members) || getCustomMappedMember('34327') : null));
+      : matchedMember;
 
     const cleanRawName = String(rawName).replace(/^\[SPEAKER\]:?\s*/i, '').replace(/^\[GOŚĆ\]:?\s*/i, '').trim();
     const finalRawName = isSup
@@ -138,7 +98,8 @@ function resolveInitialParticipants(meeting, members = [], participants = [], th
       role,
       isSpeaker: role === 'speaker',
       isGuest: role === 'guest',
-      isEligible: isOver || role === 'speaker' || role === 'supervisor',
+      isExternalGuest: role === 'guest' && !isSup && !isExplicitSpeaker,
+      isEligible: isOver || role === 'speaker' || role === 'supervisor' || role === 'guest',
       manualApproved: approved,
       hasManualOverride: p.hasManualOverride || isSup || isMonika || role === 'speaker',
       activities: Array.isArray(p.activities) ? p.activities : [],

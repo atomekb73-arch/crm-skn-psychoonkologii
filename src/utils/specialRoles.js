@@ -123,22 +123,54 @@ export function getCustomMappedMember(nameOrEmailOrIndex) {
 }
 
 /**
- * Znajduje pasującego opiekuna na podstawie imienia, nazwiska, aliasu lub e-maila
+ * Znajduje pasującego opiekuna na podstawie pełnego imienia, nazwiska, aliasu lub e-maila
+ * Wymaga ścisłego dopasowania pełnego imienia i nazwiska (lub odwróconej kolejności "Nazwisko Imię")
  */
 export function findMatchingSupervisor(nameOrEmail, customSupervisors = null) {
   if (!nameOrEmail) return null;
-  const norm = normalizeDiacritics(nameOrEmail);
+  const clean = String(nameOrEmail).replace(/^\[.*?\]\s*/, '').trim();
+  const norm = normalizeDiacritics(clean).replace(/\s+/g, ' ').toLowerCase().trim();
+  if (!norm || norm.length < 3) return null;
+
   const list = Array.isArray(customSupervisors) && customSupervisors.length > 0
     ? customSupervisors
     : getStoredSupervisors();
 
+  // Strip academic titles for comparison (mgr, dr, prof, hab, lek, inż)
+  const stripTitles = (s) => s.replace(/\b(mgr|dr|prof|hab|lek|inz|lic)\.?\s*/gi, '').replace(/\s+/g, ' ').trim();
+  const cleanNorm = stripTitles(norm);
+
   return list.find(sup => {
     if (!sup.isActive && sup.isActive !== undefined) return false;
-    const supNorm = normalizeDiacritics(sup.name || sup.fullName);
-    if (supNorm && (norm === supNorm || norm.includes(supNorm) || supNorm.includes(norm))) return true;
-    if (sup.email && norm.includes(normalizeDiacritics(sup.email))) return true;
+    const supFullName = sup.fullName || sup.name || '';
+    const supNorm = normalizeDiacritics(supFullName).replace(/\s+/g, ' ').toLowerCase().trim();
+    if (!supNorm) return false;
+
+    // 1. Strict full name equality
+    if (norm === supNorm) return true;
+
+    const cleanSupNorm = stripTitles(supNorm);
+    if (cleanSupNorm && cleanNorm && cleanNorm === cleanSupNorm) return true;
+
+    // 2. Strict reverse order ("Nazwisko Imię")
+    const parts = cleanSupNorm.split(' ');
+    if (parts.length === 2) {
+      const rev = `${parts[1]} ${parts[0]}`;
+      if (cleanNorm === rev) return true;
+    }
+
+    // 3. Email strict match
+    if (sup.email) {
+      const em = normalizeDiacritics(sup.email).toLowerCase().trim();
+      if (em && (norm === em || (em.length > 5 && norm.includes(em)))) return true;
+    }
+
+    // 4. Supervisor aliases (exact match)
     if (Array.isArray(sup.aliases)) {
-      return sup.aliases.some(alias => norm.includes(normalizeDiacritics(alias)));
+      return sup.aliases.some(alias => {
+        const aNorm = normalizeDiacritics(alias).replace(/\s+/g, ' ').toLowerCase().trim();
+        return aNorm && (norm === aNorm || cleanNorm === aNorm);
+      });
     }
     return false;
   }) || null;
@@ -152,15 +184,113 @@ export function isFacultySupervisor(nameOrEmail, customSupervisors = null) {
 }
 
 /**
- * Automatyczne wykrycie roli uczestnika
+ * Rygorystyczny algorytm dopasowywania uczestników z Google Meet (Waterfall Matching):
+ * 1. Exact Match (1:1):
+ *    - Pełna zgodność „Imię Nazwisko” lub „Nazwisko Imię” (case-insensitive, znormalizowane spacje i diakrytyki)
+ *    - Dokładny numer indeksu (np. wyodrębniony z logu lub wpisany)
+ *    - Pełna zgodność adresu e-mail
+ * 2. Alias Match:
+ *    - Zgodność ze słownikiem aliasów (aliasesMap)
+ *    - Zgodność z polem aliasy w rekordzie członka (m.aliases / m.aliasy)
+ * 3. Brak dopasowania:
+ *    - ZAKAZ łączenia po samym nazwisku lub rdzeniu słowa. Zwraca null (status Gość zewnętrzny).
+ */
+export function matchMemberWaterfall(nameOrIndexOrQuery, members = [], aliasesMap = {}) {
+  if (!nameOrIndexOrQuery || !Array.isArray(members) || members.length === 0) return null;
+  const clean = String(nameOrIndexOrQuery).replace(/^\[.*?\]\s*/, '').trim();
+  if (!clean || clean.length < 2) return null;
+
+  const normQuery = normalizeDiacritics(clean).replace(/\s+/g, ' ').toLowerCase().trim();
+
+  // 0. Hardcoded Custom mappings (np. Monika Łyniewska - 34327)
+  const customMapped = getCustomMappedMember(clean);
+  if (customMapped) {
+    const foundInDb = members.find(m => String(m.index || '').trim() === customMapped.index);
+    return foundInDb || customMapped;
+  }
+
+  // 1. Exact Index Match (jeśli query zawiera sam 3-6 cyfrowy numer indeksu)
+  const indexMatch = normQuery.match(/\b(\d{3,6})\b/);
+  if (indexMatch) {
+    const extractedNum = indexMatch[1];
+    const memberByIdx = members.find(m => String(m.index || m.nrIndeksu || '').trim() === extractedNum);
+    if (memberByIdx) return memberByIdx;
+  }
+
+  // 2. Exact Match (1:1) po Imię + Nazwisko lub Nazwisko + Imię lub E-mail
+  for (const m of members) {
+    if (!m) continue;
+    const mIdx = String(m.index || m.nrIndeksu || '').trim();
+    if (mIdx && mIdx === normQuery) return m;
+
+    const fn = normalizeDiacritics(m.fullName || m.imieNazwisko || `${m.firstName || m.imie || ''} ${m.lastName || m.nazwisko || ''}`).replace(/\s+/g, ' ').toLowerCase().trim();
+    if (fn) {
+      if (normQuery === fn) return m;
+
+      // Sprawdź odwróconą kolejność "Nazwisko Imię"
+      const parts = fn.split(' ');
+      if (parts.length === 2) {
+        const reverseFn = `${parts[1]} ${parts[0]}`;
+        if (normQuery === reverseFn) return m;
+      }
+    }
+
+    const em = normalizeDiacritics(m.email || '').toLowerCase().trim();
+    if (em && (normQuery === em || (em.length > 6 && normQuery.includes(em)))) {
+      return m;
+    }
+  }
+
+  // 3. Alias Match (Alias z bazy członka m.aliases / m.aliasy lub lokalnej mapy aliasesMap)
+  // A) aliasesMap (lokalne powiązania z localStorage)
+  if (aliasesMap && aliasesMap[normQuery]) {
+    const target = String(aliasesMap[normQuery]).trim().toLowerCase();
+    const matchByAlias = members.find(
+      m => String(m.index || m.nrIndeksu || '').trim().toLowerCase() === target ||
+           m.id === target ||
+           normalizeDiacritics(m.fullName || `${m.firstName} ${m.lastName}`).replace(/\s+/g, ' ').toLowerCase().trim() === target
+    );
+    if (matchByAlias) return matchByAlias;
+  }
+
+  // B) Kolumna J w bazie: m.aliases / m.aliasy
+  for (const m of members) {
+    if (!m) continue;
+    const rawAliases = m.aliases || m.aliasy || m.alias || '';
+    let aliasList = [];
+    if (Array.isArray(rawAliases)) {
+      aliasList = rawAliases;
+    } else if (typeof rawAliases === 'string' && rawAliases.trim()) {
+      aliasList = rawAliases.split(/[,;\n]+/).map(a => a.trim()).filter(Boolean);
+    }
+
+    for (const a of aliasList) {
+      const normAlias = normalizeDiacritics(a).replace(/\s+/g, ' ').toLowerCase().trim();
+      if (normAlias && (normAlias === normQuery || (normAlias.length >= 4 && normQuery === normAlias))) {
+        return m;
+      }
+    }
+  }
+
+  // 4. Jeśli brak dopasowania 1:1 oraz brak aliasu -> ZAKAZ zgadywania po nazwisku/imieniu
+  return null;
+}
+
+/**
+ * Automatyczne wykrycie roli uczestnika (z zachowaniem nadrzędności prelegentów i opiekunów)
  */
 export function detectParticipantRole(rawName, member = null, customSupervisors = null) {
   if (!rawName) return 'member';
-  const norm = normalizeDiacritics(rawName);
+  const clean = String(rawName).trim();
+  const norm = normalizeDiacritics(clean).toLowerCase();
+
+  // 1. Nadrzędność ról: Prelegenci / Wykładowcy / Goście Specjalni
   if (
     norm.includes('[speaker]') ||
     norm.includes('speaker:') ||
     norm.includes('speaker') ||
+    norm.includes('[prelegent]') ||
+    norm.includes('prelegent:') ||
     norm.includes('prelegent') ||
     norm.includes('wykladowca') ||
     norm.includes('gosc specjalny') ||
@@ -168,17 +298,32 @@ export function detectParticipantRole(rawName, member = null, customSupervisors 
   ) {
     return 'speaker';
   }
-  if (norm.includes('[gosc]') || norm.includes('gosc:') || norm.startsWith('gosc ') || norm.includes('wolny sluchacz') || norm.includes('(gosc)')) {
-    return 'guest';
-  }
-  if (isFacultySupervisor(rawName, customSupervisors) || (member && isFacultySupervisor(member.fullName, customSupervisors))) {
+
+  // 2. Oficjalni Opiekunowie Koła (ścisłe dopasowanie pełnego imienia/nazwiska)
+  if (isFacultySupervisor(clean, customSupervisors) || (member && isFacultySupervisor(member.fullName, customSupervisors))) {
     return 'supervisor';
   }
-  if (isMonikaLyniewska(rawName) || (member && isMonikaLyniewska(member.index || member.fullName))) {
+
+  // 3. Oznaczenie gościa zewnętrznego
+  if (
+    norm.includes('[gosc]') ||
+    norm.includes('gosc:') ||
+    norm.startsWith('gosc ') ||
+    norm.includes('wolny sluchacz') ||
+    norm.includes('(gosc)')
+  ) {
+    return 'guest';
+  }
+
+  // 4. Specjalne mapowania studentów
+  if (isMonikaLyniewska(clean) || (member && isMonikaLyniewska(member.index || member.fullName))) {
     return 'member';
   }
+
+  // 5. Dopasowany członek koła
   if (member) {
     return 'member';
   }
+
   return 'member';
 }
