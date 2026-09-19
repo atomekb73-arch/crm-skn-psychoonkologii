@@ -154,7 +154,7 @@ export default function ManagementTab({
         present,
         absent,
         presentMandatory: calc?.presentMandatory ?? present,
-        mandatoryTotal: calc?.mandatoryTotal || dynamicMandatoryTotal,
+        mandatoryTotal: calc?.mandatoryTotal ?? 0,
         optionalBonus: calc?.optionalBonus || 0,
         totalAttended: present,
       };
@@ -255,6 +255,9 @@ export default function ManagementTab({
   // ── KPI Calculations (ONLY for active members, Safe against NaN%) ────────
   const avgFreq = useMemo(() => {
     if (!activeMembers.length) return 0;
+    const conductedMandatory = (meetings || []).filter(m => isMeetingEligibleForDenominator(m, customMeetingTypes));
+    if (conductedMandatory.length === 0) return 0;
+
     const sum = activeMembers.reduce((acc, m) => {
       const f = getMemberFreqData(m)?.freq ?? 0;
       return acc + (isNaN(f) ? 0 : f);
@@ -266,11 +269,11 @@ export default function ManagementTab({
   const certReady = useMemo(
     () => activeMembers.filter(m => {
       const data = getMemberFreqData(m) || { freq: 0, presentMandatory: 0, mandatoryTotal: 0, absent: 0 };
-      if (!isSknSeks) {
-        return (data?.freq ?? 0) >= 50;
-      }
-      const absences = typeof data.absent === 'number' ? data.absent : (data.mandatoryTotal > 0 ? Math.max(0, data.mandatoryTotal - (data.presentMandatory || 0)) : (m?.absent || 0));
-      return (data?.freq ?? 0) >= 50 && absences <= 5;
+      const mTotal = typeof data.mandatoryTotal === 'number' ? data.mandatoryTotal : 0;
+      const f = data?.freq ?? 0;
+      const absences = typeof data.absent === 'number' ? data.absent : (mTotal > 0 ? Math.max(0, mTotal - (data.presentMandatory || 0)) : (m?.absent || 0));
+      const certStatus = getCertificateStatus(f, absences, mTotal);
+      return certStatus.canIssue;
     }).length,
     [activeMembers, isSknSeks, meetings, customMeetingTypes]
   );
@@ -802,19 +805,12 @@ export default function ManagementTab({
 
               const freqData = getMemberFreqData(m) || { freq: 0, present: 0, absent: 0, mandatoryTotal: 0, presentMandatory: 0 };
               const freq  = Number(freqData?.freq) || 0;
+              const mandatoryTotal = typeof freqData?.mandatoryTotal === 'number' ? freqData.mandatoryTotal : 0;
               const absences = typeof freqData.absent === 'number'
                 ? freqData.absent
-                : (freqData?.mandatoryTotal > 0 ? Math.max(0, freqData.mandatoryTotal - (freqData.presentMandatory || 0)) : (m?.absent || 0));
-              const cert = !isSknSeks
-                ? {
-                    canIssue: freq >= 50,
-                    label: freq >= 50 ? 'Można wydać' : 'W toku',
-                    color: freq >= 50
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      : 'bg-slate-100 text-slate-700 border-slate-300'
-                  }
-                : getCertificateStatus(freq, absences);
-              const badge = getFrequencyBadge(freq);
+                : (mandatoryTotal > 0 ? Math.max(0, mandatoryTotal - (freqData.presentMandatory || 0)) : (m?.absent || 0));
+              const cert = getCertificateStatus(freq, absences, mandatoryTotal);
+              const badge = getFrequencyBadge(freq, mandatoryTotal);
               const memberPoints = getMemberPoints(m);
               const name  = m?.fullName || (m?.firstName ? `${m.firstName} ${m.lastName || ''}`.trim() : '') || m?.name || 'Brak danych';
               const isSingleWordName = name.trim().split(' ').length < 2;

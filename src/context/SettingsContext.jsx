@@ -28,7 +28,15 @@ export function getEngagementScaleLevel(freq) {
   return ENGAGEMENT_SCALE.find(level => f >= level.min && f <= level.max) || ENGAGEMENT_SCALE[ENGAGEMENT_SCALE.length - 1];
 }
 
-export function evaluateCertificateEligibility(freq, absences = 0) {
+export function evaluateCertificateEligibility(freq, absences = 0, mandatoryTotal = null) {
+  if (mandatoryTotal === 0) {
+    return {
+      canIssue: false,
+      label: 'W toku',
+      color: 'bg-slate-100 text-slate-700 border-slate-300',
+      reason: 'Brak wymaganych spotkań obowiązkowych w harmonogramie',
+    };
+  }
   const f = typeof freq === 'number' && !isNaN(freq) ? freq : 0;
   const abs = typeof absences === 'number' && !isNaN(absences) ? absences : 0;
 

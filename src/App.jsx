@@ -36,7 +36,7 @@ import { useAcademicYear } from './context/AcademicYearContext';
 import { fetchAllData, AUTHORIZED_INDEXES, updateVerificationStatus, changeStudentStatusInGAS, initializeSubmissionsRegistryInGAS, editMemberInGAS, addMemberManuallyToGAS } from './services/googleSheets';
 import { fetchTeamupEvents, fetchTeamupSubcalendars, DEFAULT_SUBCALENDAR_ID } from './services/teamupService';
 import { materials, initialMembers, initialMeetings } from './data/mockData';
-import { getRecordKey } from './utils/helpers';
+import { getRecordKey, getCertificateStatus } from './utils/helpers';
 import { getAcademicYearKey } from './utils/academicYear';
 import { getCanonicalMeetingsForOrg, filterLegitimateMeetings } from './utils/canonicalMeetings';
 import { getMeetingType, calculateCategorizedFrequency, isMeetingEligibleForDenominator } from './utils/meetingTypes';
@@ -1452,12 +1452,10 @@ export default function App() {
     const plannedMandatory = safeMeetings.filter(
       meet => isMeetingEligibleForDenominator(meet, customMeetingTypes)
     );
-    const dynamicMandatoryTotal = conductedMandatory.length > 0
-      ? conductedMandatory.length
-      : (plannedMandatory.length > 0 ? plannedMandatory.length : 1);
+    const dynamicMandatoryTotal = conductedMandatory.length;
 
     const getMemberFreqData = (m) => {
-      if (!m) return { freq: 0, absent: dynamicMandatoryTotal };
+      if (!m) return { freq: 0, absent: 0, presentMandatory: 0, mandatoryTotal: 0 };
       const calc = calculateCategorizedFrequency(
         m,
         safeMeetings,
@@ -1469,7 +1467,7 @@ export default function App() {
         freq: calc?.freq ?? 0,
         absent: calc?.absent ?? 0,
         presentMandatory: calc?.presentMandatory ?? 0,
-        mandatoryTotal: calc?.mandatoryTotal || dynamicMandatoryTotal,
+        mandatoryTotal: calc?.mandatoryTotal ?? 0,
       };
     };
 
@@ -1478,16 +1476,18 @@ export default function App() {
     const seenEmails = new Set();
     let consentsCount = 0;
 
+    const hasConductMandatory = conductedMandatory.length > 0;
+
     activeMembersList.forEach(m => {
       const fData = getMemberFreqData(m);
       const f = fData?.freq ?? 0;
+      const mTotal = fData?.mandatoryTotal ?? 0;
       sum += isNaN(f) ? 0 : f;
 
-      if (!isSknSeks) {
-        if (f >= 50) certReadyCount++;
-      } else {
-        const absences = typeof fData.absent === 'number' ? fData.absent : (m?.absent || 0);
-        if (f >= 50 && absences <= 5) certReadyCount++;
+      const absences = typeof fData.absent === 'number' ? fData.absent : (m?.absent || 0);
+      const certStatus = getCertificateStatus(f, absences, mTotal);
+      if (certStatus.canIssue) {
+        certReadyCount++;
       }
 
       const email = (m?.email || '').trim().toLowerCase();
@@ -1497,7 +1497,7 @@ export default function App() {
       }
     });
 
-    const avgFreq = activeCount > 0 ? Math.round(sum / activeCount) : 0;
+    const avgFreq = (hasConductMandatory && activeCount > 0) ? Math.round(sum / activeCount) : 0;
 
     return {
       activeCount,

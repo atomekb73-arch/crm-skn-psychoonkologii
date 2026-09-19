@@ -20,7 +20,10 @@ export function calcFrequency(present, absent) {
   return isNaN(res) ? 0 : res;
 }
 
-export function getFrequencyBadge(freq) {
+export function getFrequencyBadge(freq, mandatoryTotal = null) {
+  if (mandatoryTotal === 0) {
+    return { label: 'Start roku', dotColor: 'bg-slate-400', color: 'bg-slate-100 text-slate-600 border-slate-200' };
+  }
   const f = typeof freq === 'number' && !isNaN(freq) ? freq : 0;
   if (f >= 90) return { label: 'Lider',               dotColor: 'bg-emerald-500', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
   if (f >= 75) return { label: 'Bardzo aktywny',      dotColor: 'bg-teal-500',    color: 'bg-teal-50 text-teal-700 border-teal-200' };
@@ -29,7 +32,10 @@ export function getFrequencyBadge(freq) {
   return            { label: 'Wymaga uzupełnienia', dotColor: 'bg-slate-500',   color: 'bg-slate-100 text-slate-700 border-slate-300' };
 }
 
-export function getCertificateStatus(freq, absences = 0) {
+export function getCertificateStatus(freq, absences = 0, mandatoryTotal = null) {
+  if (mandatoryTotal === 0) {
+    return { canIssue: false, label: 'W toku', color: 'bg-slate-100 text-slate-700 border-slate-300' };
+  }
   const f = typeof freq === 'number' && !isNaN(freq) ? freq : 0;
   const abs = typeof absences === 'number' && !isNaN(absences) ? absences : 0;
   const meetsFreq = f >= 50;
