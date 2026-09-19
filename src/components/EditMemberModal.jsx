@@ -160,7 +160,7 @@ export default function EditMemberModal({
 
   // Compute live categorized frequency data
   const freqData = useMemo(() => {
-    if (!member) return { freq: 0, present: 0, absent: 0, presentMandatory: 0, mandatoryTotal: 12, optionalBonus: 0, totalAttended: 0 };
+    if (!member) return { freq: 0, present: 0, absent: 0, presentMandatory: 0, mandatoryTotal: 0, optionalBonus: 0, totalAttended: 0 };
     return calculateCategorizedFrequency(
       member,
       meetings,
@@ -308,7 +308,7 @@ export default function EditMemberModal({
 
   const freqPercent = freqData.freq ?? 0;
   const engagement = getEngagementScaleLevel(freqPercent);
-  const isCertEligible = freqPercent >= 50 && freqData.absent <= 5;
+  const isCertEligible = freqData.mandatoryTotal === 0 ? true : (freqPercent >= 50 && freqData.absent <= 5);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -677,11 +677,13 @@ export default function EditMemberModal({
                 <span>Frekwencja i Zaangażowanie</span>
               </h3>
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                isCertEligible
+                freqData.mandatoryTotal === 0
+                  ? 'bg-slate-100 text-slate-700 border-slate-300'
+                  : isCertEligible
                   ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                   : 'bg-amber-100 text-amber-800 border-amber-300'
               }`}>
-                {isCertEligible ? '✓ Kwalifikacja' : '⚠️ Brakuje'}
+                {freqData.mandatoryTotal === 0 ? 'ℹ️ Brak spotkań obowiązkowych' : (isCertEligible ? '✓ Kwalifikacja' : '⚠️ Brakuje')}
               </span>
             </div>
 
@@ -692,10 +694,14 @@ export default function EditMemberModal({
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Frekwencja roczna:</span>
                   <div className="flex items-baseline gap-2 mt-0.5">
                     <span className="text-2xl sm:text-3xl font-black text-slate-900 font-mono tracking-tight">
-                      {freqPercent}%
+                      {freqData.mandatoryTotal === 0 ? '—' : `${freqPercent}%`}
                     </span>
-                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${engagement.color}`}>
-                      {engagement.icon} {engagement.label}
+                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${
+                      freqData.mandatoryTotal === 0
+                        ? 'bg-slate-100 text-slate-600 border-slate-300'
+                        : engagement.color
+                    }`}>
+                      {freqData.mandatoryTotal === 0 ? 'ℹ️ Brak wymaganych spotkań' : `${engagement.icon} ${engagement.label}`}
                     </span>
                   </div>
                 </div>
@@ -713,14 +719,16 @@ export default function EditMemberModal({
                 <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200/60 flex">
                   <div
                     className={`h-full transition-all duration-300 ${
-                      freqPercent >= 75 ? 'bg-emerald-500' : freqPercent >= 50 ? 'bg-teal-500' : freqPercent >= 25 ? 'bg-amber-500' : 'bg-rose-500'
+                      freqData.mandatoryTotal === 0
+                        ? 'bg-slate-300'
+                        : freqPercent >= 75 ? 'bg-emerald-500' : freqPercent >= 50 ? 'bg-teal-500' : freqPercent >= 25 ? 'bg-amber-500' : 'bg-rose-500'
                     }`}
-                    style={{ width: `${Math.min(100, Math.max(0, freqPercent))}%` }}
+                    style={{ width: `${freqData.mandatoryTotal === 0 ? 0 : Math.min(100, Math.max(0, freqPercent))}%` }}
                   />
                 </div>
                 <div className="flex justify-between text-[9px] text-slate-400 font-medium">
                   <span>Próg zaświadczenia: 50%</span>
-                  <span>100% (12/12)</span>
+                  <span>100% ({freqData.mandatoryTotal}/{freqData.mandatoryTotal})</span>
                 </div>
               </div>
 

@@ -800,7 +800,7 @@ export default function ManagementTab({
               const isGuestMember = isGuest(m);
               const isNonActive = !isActive(m);
 
-              const freqData = getMemberFreqData(m) || { freq: 0, present: 0, absent: 12, mandatoryTotal: 0, presentMandatory: 0 };
+              const freqData = getMemberFreqData(m) || { freq: 0, present: 0, absent: 0, mandatoryTotal: 0, presentMandatory: 0 };
               const freq  = Number(freqData?.freq) || 0;
               const absences = typeof freqData.absent === 'number'
                 ? freqData.absent

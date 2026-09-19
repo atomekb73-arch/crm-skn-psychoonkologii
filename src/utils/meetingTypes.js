@@ -364,20 +364,17 @@ export function calculateCategorizedFrequency(
 
   const totalAttended = attendedMeetingCodes.size;
 
-  // Jeśli brak spotkań w harmonogramie kwalifikujących się do mianownika
+  // Jeśli brak spotkań w harmonogramie kwalifikujących się do mianownika (np. 0 spotkań obowiązkowych)
   if (mandatoryTotal === 0) {
-    const p = typeof fallbackPresent === 'number' && !isNaN(fallbackPresent) ? fallbackPresent : totalAttended;
-    const a = typeof fallbackAbsent === 'number' && !isNaN(fallbackAbsent) ? fallbackAbsent : 0;
-    const total = p + a;
-    const freq = total > 0 ? Math.min(100, Math.round((p / total) * 100)) : 100;
     return {
-      freq,
-      present: p,
-      absent: a,
-      presentMandatory: p,
-      mandatoryTotal: total > 0 ? total : 12,
-      optionalBonus: 0,
-      totalAttended: p,
+      freq: 100,
+      hasNoMandatory: true,
+      present: 0,
+      absent: 0,
+      presentMandatory: 0,
+      mandatoryTotal: 0,
+      optionalBonus: totalAttended,
+      totalAttended: totalAttended,
       conductedTotal: conductedMeetings.length,
     };
   }
