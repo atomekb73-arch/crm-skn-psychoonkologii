@@ -573,6 +573,14 @@ export default function AttendanceModal({
   const [isPasteDrawerOpen, setIsPasteDrawerOpen] = useState(false);
   const [pasteRawText, setPasteRawText] = useState(initialRawText || '');
 
+  // Add participant drawer inside modal
+  const [isAddFormOpen, setIsAddFormOpen] = useState(false);
+  const [addRawInput, setAddRawInput] = useState('');
+  const [addSelectedMember, setAddSelectedMember] = useState(null);
+  const [addDuration, setAddDuration] = useState('60');
+  const [addJoinTime, setAddJoinTime] = useState('18:00');
+  const [addRole, setAddRole] = useState('guest');
+
   React.useEffect(() => {
     if (isOpen) {
       setPasteRawText(initialRawText || '');

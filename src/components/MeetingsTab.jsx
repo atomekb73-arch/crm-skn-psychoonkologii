@@ -216,6 +216,7 @@ export default function MeetingsTab({
   const [meetingToTrash, setMeetingToTrash] = useState(null);
   const [meetingToPermanentDelete, setMeetingToPermanentDelete] = useState(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isAddFormOpen, setIsAddFormOpen] = useState(false);
   const [newMeetingForm, setNewMeetingForm] = useState({
     code: '',
     title: '',
