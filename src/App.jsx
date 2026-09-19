@@ -1391,13 +1391,33 @@ export default function App() {
 
   // ── Mark attendance ─────────────────────────────────────────────────────────
   function handleMarkAttendance(meetingId, indexes, payload) {
+    const rawTarget = String(meetingId || '').trim().toUpperCase();
+    const cleanTarget = rawTarget.replace(/^\[.*?\]\s*/, '').trim();
+
     setMeetings(prev =>
       prev.map(m => {
-        if (m.id === meetingId || m.date === meetingId || m.code === meetingId) {
+        const mId = String(m.id || '').trim().toUpperCase();
+        const mDate = String(m.date || '').trim().toUpperCase();
+        const mCode = String(m.code || '').trim().toUpperCase();
+        const mCleanCode = mCode.replace(/^\[.*?\]\s*/, '').trim();
+
+        const isMatch = (
+          mId === rawTarget || mId === cleanTarget ||
+          mDate === rawTarget || mDate === cleanTarget ||
+          mCode === rawTarget || mCode === cleanTarget ||
+          mCleanCode === rawTarget || mCleanCode === cleanTarget
+        );
+
+        if (isMatch) {
+          const count = Array.isArray(indexes) ? indexes.length : (payload?.confirmedCount !== undefined ? payload.confirmedCount : 0);
           return {
             ...m,
-            attendees: indexes,
-            participantRecords: payload?.attendees || m.participantRecords || [],
+            attendees: indexes || [],
+            attendeesCount: count,
+            confirmedIndexes: indexes || [],
+            confirmedCount: count,
+            participantRecords: payload?.attendees || [],
+            status: count > 0 ? `Zakończone (${count})` : 'Nierozliczone',
           };
         }
         return m;

@@ -450,6 +450,28 @@ export default function MeetingsTab({
     setMeetingToPermanentDelete(null);
   };
 
+  function getAllMeetingStorageKeys(m) {
+    if (!m) return [];
+    const rawCode = String(m.code || '').trim();
+    const cleanCode = rawCode.replace(/^\[.*?\]\s*/, '').trim();
+    const mId = String(m.id || '').trim();
+    const mDate = String(m.date || '').trim();
+
+    const idList = [mId, mDate, rawCode, cleanCode].filter(Boolean);
+    const uniqueIds = Array.from(new Set(idList));
+
+    const keys = [];
+    uniqueIds.forEach(id => {
+      keys.push(getStorageKey(`crm_attendance_${id}`));
+      keys.push(`crm_attendance_${id}`);
+      keys.push(`attendance_${id}`);
+      keys.push(getStorageKey(`meeting_${id}_list`));
+      keys.push(`meeting_${id}_list`);
+    });
+
+    return Array.from(new Set(keys.filter(Boolean)));
+  }
+
   function getMeetingStorageKey(m) {
     if (!m) return '';
     return getStorageKey(`crm_attendance_${m.id || m.date || m.code}`);
@@ -457,16 +479,7 @@ export default function MeetingsTab({
 
   function getSavedMeetingAttendance(m) {
     if (!m) return null;
-    const keys = [
-      getStorageKey(`crm_attendance_${m.id}`),
-      getStorageKey(`crm_attendance_${m.date}`),
-      m.code ? getStorageKey(`crm_attendance_${m.code}`) : null,
-      `crm_attendance_${m.id}`,
-      `crm_attendance_${m.date}`,
-      m.code ? `crm_attendance_${m.code}` : null,
-      `attendance_${m.id}`,
-      `attendance_${m.date}`,
-    ].filter(Boolean);
+    const keys = getAllMeetingStorageKeys(m).filter(k => k.includes('attendance'));
 
     for (const key of keys) {
       try {
@@ -788,15 +801,34 @@ export default function MeetingsTab({
       console.log("Wynik zapisu w GAS:", result);
 
       const confirmedIndexes = verifiedList.map(item => item.nrIndeksu || item.name).filter(Boolean);
-      onMarkAttendance(selectedMeeting.id, confirmedIndexes, {
+      const confirmedCount = confirmedIndexes.length;
+      const finalPayload = {
         meetingId: selectedMeeting.id,
         meetingDate: selectedMeeting.date,
         meetingCode: selectedMeeting.code,
         attendees: parsedParticipants,
         confirmedIndexes,
-        confirmedCount: confirmedIndexes.length,
+        confirmedCount,
         savedAt: new Date().toISOString(),
+      };
+
+      const keys = getAllMeetingStorageKeys(selectedMeeting);
+      keys.forEach(k => {
+        try { localStorage.setItem(k, JSON.stringify(finalPayload)); } catch {}
       });
+
+      if (onMarkAttendance) {
+        onMarkAttendance(selectedMeeting.id || selectedMeeting.code || selectedMeeting.date, confirmedIndexes, finalPayload);
+      }
+      setSelectedMeeting(prev => prev ? ({
+        ...prev,
+        attendees: confirmedIndexes,
+        attendeesCount: confirmedCount,
+        confirmedIndexes,
+        confirmedCount,
+        status: confirmedCount > 0 ? `Zakończone (${confirmedCount})` : 'Nierozliczone',
+      }) : null);
+
       alert("Obecności zostały zapisane w arkuszu Google!");
     } catch (err) {
       console.error("Błąd sieciowy podczas zapisu do GAS:", err);
@@ -995,13 +1027,14 @@ export default function MeetingsTab({
   async function handleClearAttendanceFromDB() {
     if (!selectedMeeting) return;
     const meetCode = String(selectedMeeting.code || selectedMeeting.id || '').trim();
+    const cleanMeetCode = meetCode.replace(/^\[.*?\]\s*/, '').trim();
     const meetTitle = selectedMeeting.code || selectedMeeting.title || selectedMeeting.id;
     const potw = window.confirm(`Czy na pewno chcesz usunąć wszystkie zapisane obecności dla spotkania "${meetTitle}" z arkusza Google?`);
     if (!potw) return;
 
     setIsClearingAttendance(true);
     try {
-      await deleteMeetingAttendanceFromGAS(meetCode);
+      await deleteMeetingAttendanceFromGAS(cleanMeetCode || meetCode);
 
       // Czyszczenie stanu lokalnego
       setRawList('');
@@ -1009,35 +1042,28 @@ export default function MeetingsTab({
       setParsedParticipants([]);
       setManualOverrides({});
 
-      // Usunięcie kluczy z localStorage
-      const m = selectedMeeting;
-      const mId = m.id || m.code || m.date;
-      const keysToRemove = [
-        getStorageKey(`crm_attendance_${m.id}`),
-        getStorageKey(`crm_attendance_${m.date}`),
-        m.code ? getStorageKey(`crm_attendance_${m.code}`) : null,
-        getStorageKey(`meeting_${mId}_list`),
-        m.code ? getStorageKey(`meeting_${m.code}_list`) : null,
-        `crm_attendance_${m.id}`,
-        `crm_attendance_${m.date}`,
-        m.code ? `crm_attendance_${m.code}` : null,
-        `attendance_${m.id}`,
-        `attendance_${m.date}`,
-        m.code ? `attendance_${m.code}` : null,
-        `meeting_${mId}_list`,
-        m.code ? `meeting_${m.code}_list` : null,
-        getMeetingStorageKey(m),
-      ].filter(Boolean);
-
-      keysToRemove.forEach(k => {
+      // Usunięcie WSZYSTKICH wariantów kluczy z localStorage
+      const allKeys = getAllMeetingStorageKeys(selectedMeeting);
+      allKeys.forEach(k => {
         try { localStorage.removeItem(k); } catch {}
       });
 
+      // Zaktualizuj wybrany obiekt spotkania z attendanceCount: 0
+      setSelectedMeeting(prev => prev ? {
+        ...prev,
+        attendees: [],
+        attendeesCount: 0,
+        confirmedIndexes: [],
+        confirmedCount: 0,
+        participantRecords: [],
+        status: 'Nierozliczone',
+      } : null);
+
       if (onMarkAttendance) {
-        onMarkAttendance(m.id || m.date, [], {
-          meetingId: m.id || m.date,
-          meetingDate: m.date,
-          meetingCode: m.code,
+        onMarkAttendance(selectedMeeting.id || selectedMeeting.code || selectedMeeting.date, [], {
+          meetingId: selectedMeeting.id || selectedMeeting.date,
+          meetingDate: selectedMeeting.date,
+          meetingCode: selectedMeeting.code,
           attendees: [],
           confirmedIndexes: [],
           confirmedCount: 0,
@@ -1440,17 +1466,24 @@ export default function MeetingsTab({
                 const typeConfig = MEETING_TYPES[type] || MEETING_TYPES.mandatory;
 
                 const saved = getSavedMeetingAttendance(m);
-                const isSavedVerified = !!(
-                  (saved && (
-                    (saved.confirmedCount !== undefined && saved.confirmedCount > 0) ||
-                    (Array.isArray(saved.confirmedIndexes) && saved.confirmedIndexes.length > 0) ||
-                    (Array.isArray(saved.attendees) && saved.attendees.length > 0) ||
-                    (Array.isArray(saved) && saved.length > 0)
-                  )) || (m.attendeesCount && m.attendeesCount > 0)
+                const savedCount = saved?.confirmedCount !== undefined
+                  ? Number(saved.confirmedCount)
+                  : (Array.isArray(saved?.confirmedIndexes)
+                    ? saved.confirmedIndexes.length
+                    : (Array.isArray(saved?.attendees)
+                      ? saved.attendees.length
+                      : (Array.isArray(saved) ? saved.length : null)));
+
+                const count = savedCount !== null
+                  ? savedCount
+                  : (typeof m.attendeesCount === 'number'
+                    ? m.attendeesCount
+                    : (Array.isArray(m.attendees) ? m.attendees.length : 0));
+
+                const isSavedVerified = count > 0 && (
+                  (saved && savedCount > 0) ||
+                  (!saved && ((typeof m.attendeesCount === 'number' && m.attendeesCount > 0) || (Array.isArray(m.attendees) && m.attendees.length > 0)))
                 );
-                const count = saved?.confirmedCount ??
-                  (saved?.confirmedIndexes?.length) ??
-                  (Array.isArray(saved?.attendees) ? saved.attendees.length : (Array.isArray(saved) ? saved.length : (m.attendeesCount || m.attendees?.length || 0)));
 
                 const rawYear = String(m.academicYear || academicYear || '25/26');
                 const cleanYear = rawYear.replace(/[\[\]]/g, '').replace(/20(\d\d)/g, '$1').trim();
@@ -1521,7 +1554,7 @@ export default function MeetingsTab({
                       ) : (
                         <span className="inline-flex items-center gap-1 text-slate-400">
                           <Clock size={10} />
-                          <span>{count > 0 ? `${count} obecnych` : 'Zakończone'}</span>
+                          <span>Zakończone</span>
                         </span>
                       )}
 
@@ -2147,22 +2180,29 @@ export default function MeetingsTab({
         minDurationThreshold={minDurationThreshold}
         onThresholdChange={handleThresholdChange}
         onSaveAttendance={(meetingId, confirmedIndexes, updatedParticipants, payload) => {
-          const targetMeeting = meetings.find(m => m.id === meetingId || m.date === meetingId || m.code === meetingId) || selectedMeeting;
+          const rawTarget = String(meetingId || '').trim().toUpperCase();
+          const cleanTarget = rawTarget.replace(/^\[.*?\]\s*/, '').trim();
+          const targetMeeting = meetings.find(m => {
+            const mId = String(m.id || '').trim().toUpperCase();
+            const mDate = String(m.date || '').trim().toUpperCase();
+            const mCode = String(m.code || '').trim().toUpperCase();
+            const mCleanCode = mCode.replace(/^\[.*?\]\s*/, '').trim();
+            return mId === rawTarget || mId === cleanTarget || mDate === rawTarget || mDate === cleanTarget || mCode === rawTarget || mCode === cleanTarget || mCleanCode === rawTarget || mCleanCode === cleanTarget;
+          }) || selectedMeeting;
+
+          const confirmedCount = payload?.confirmedCount !== undefined ? payload.confirmedCount : (confirmedIndexes?.length || 0);
+
           const finalPayload = payload || {
             meetingId: targetMeeting?.id || targetMeeting?.date || meetingId,
             meetingDate: targetMeeting?.date,
+            meetingCode: targetMeeting?.code,
             attendees: updatedParticipants,
             confirmedIndexes: confirmedIndexes,
-            confirmedCount: confirmedIndexes.length,
+            confirmedCount: confirmedCount,
             savedAt: new Date().toISOString(),
           };
 
-          const keys = [
-            getStorageKey(`crm_attendance_${targetMeeting?.id || meetingId}`),
-            targetMeeting?.date ? getStorageKey(`crm_attendance_${targetMeeting.date}`) : null,
-            targetMeeting?.code ? getStorageKey(`crm_attendance_${targetMeeting.code}`) : null,
-          ].filter(Boolean);
-
+          const keys = getAllMeetingStorageKeys(targetMeeting || { id: meetingId, code: meetingId });
           keys.forEach(k => {
             try {
               localStorage.setItem(k, JSON.stringify(finalPayload));
@@ -2170,13 +2210,17 @@ export default function MeetingsTab({
           });
 
           setParsedParticipants(updatedParticipants);
-          onMarkAttendance(meetingId, confirmedIndexes, finalPayload);
-          if (selectedMeeting && (selectedMeeting.id === meetingId || selectedMeeting.date === meetingId || selectedMeeting.code === meetingId)) {
-            setSelectedMeeting(prev => ({
-              ...prev,
-              attendees: confirmedIndexes,
-            }));
+          if (onMarkAttendance) {
+            onMarkAttendance(meetingId, confirmedIndexes, finalPayload);
           }
+          setSelectedMeeting(prev => prev ? ({
+            ...prev,
+            attendees: confirmedIndexes,
+            attendeesCount: confirmedCount,
+            confirmedIndexes: confirmedIndexes,
+            confirmedCount: confirmedCount,
+            status: confirmedCount > 0 ? `Zakończone (${confirmedCount})` : 'Nierozliczone',
+          }) : null);
         }}
       />
 
