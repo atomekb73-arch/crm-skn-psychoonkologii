@@ -1036,12 +1036,12 @@ export default function AttendanceModal({
 
   // List of faculty supervisors present on this meeting
   const supervisorsPresent = useMemo(() => {
-    return localParticipants.filter(p => p.role === 'supervisor' || isFacultySupervisor(p.rawName));
-  }, [localParticipants]);
+    return localParticipants.filter(p => p.role === 'supervisor' || isFacultySupervisor(p.rawName, supervisors));
+  }, [localParticipants, supervisors]);
 
   // Helper to determine if participant has approved attendance ("Zaliczono")
   const isApprovedParticipant = (p) => {
-    if (p.role === 'supervisor' || isFacultySupervisor(p.rawName)) return true;
+    if (p.role === 'supervisor' || isFacultySupervisor(p.rawName, supervisors)) return true;
     if (p.role === 'speaker') return true;
     if (p.role === 'guest' || p.isGuest || p.isExternalGuest) return true;
     if (p.manualApproved !== undefined) return Boolean(p.manualApproved);
@@ -1050,9 +1050,9 @@ export default function AttendanceModal({
 
   // Helper to determine if participant is an approved student member
   const isApprovedStudent = (p) => {
-    if (p.role === 'supervisor' || isFacultySupervisor(p.rawName)) return false;
+    if (p.role === 'supervisor' || isFacultySupervisor(p.rawName, supervisors)) return false;
     if (p.role === 'speaker') return false;
-    if (p.role === 'guest' || p.isGuest || p.isExternalGuest) return false;
+    if ((p.role === 'guest' || p.isGuest || p.isExternalGuest) && !p.member && !isMonikaLyniewska(p.rawName)) return false;
     const isApproved = p.manualApproved !== undefined ? p.manualApproved : (p.isEligible || p.status === 'approved' || p.status === 'Zaliczona');
     return isApproved && (p.role === 'member' || !!p.member || isMonikaLyniewska(p.rawName));
   };
@@ -1066,15 +1066,19 @@ export default function AttendanceModal({
       } else if (activeFilter === 'member') {
         if (!isApprovedStudent(p)) return false;
       } else if (activeFilter === 'supervisor') {
-        if (p.role !== 'supervisor' && !isFacultySupervisor(p.rawName)) return false;
+        if (p.role !== 'supervisor' && !isFacultySupervisor(p.rawName, supervisors)) return false;
       } else if (activeFilter === 'speaker') {
+        if (p.role === 'supervisor' || isFacultySupervisor(p.rawName, supervisors)) return false;
         if (p.role !== 'speaker') return false;
       } else if (activeFilter === 'guest') {
+        if (p.role === 'supervisor' || isFacultySupervisor(p.rawName, supervisors)) return false;
+        if (p.role === 'speaker') return false;
+        if (p.member || isMonikaLyniewska(p.rawName)) return false;
         if (p.role !== 'guest' && !p.isGuest && !p.isExternalGuest) return false;
       } else if (activeFilter === 'short_time') {
-        if (p.role === 'supervisor' || p.role === 'speaker' || p.role === 'guest' || p.isGuest || p.isExternalGuest || (p.durationMinutes >= localThreshold || p.manualApproved)) return false;
+        if (p.role === 'supervisor' || isFacultySupervisor(p.rawName, supervisors) || p.role === 'speaker' || p.role === 'guest' || p.isGuest || p.isExternalGuest || (p.durationMinutes >= localThreshold || p.manualApproved)) return false;
       } else if (activeFilter === 'unmatched') {
-        if (p.role === 'supervisor' || p.role === 'speaker' || p.role === 'guest' || p.isGuest || p.isExternalGuest || p.member || isMonikaLyniewska(p.rawName)) return false;
+        if (p.role === 'supervisor' || isFacultySupervisor(p.rawName, supervisors) || p.role === 'speaker' || p.role === 'guest' || p.isGuest || p.isExternalGuest || p.member || isMonikaLyniewska(p.rawName)) return false;
       }
 
       // 2. Query search
@@ -1094,16 +1098,16 @@ export default function AttendanceModal({
       const nameB = (b.member ? (b.member.fullName || `${b.member.firstName} ${b.member.lastName}`) : (b.rawName || '')).trim();
       return nameA.localeCompare(nameB, 'pl', { sensitivity: 'base' });
     });
-  }, [localParticipants, activeFilter, searchQuery, localThreshold]);
+  }, [localParticipants, activeFilter, searchQuery, localThreshold, supervisors]);
 
   // Statistics (Aggregated by status "Zaliczono")
   const countApprovedTotal = localParticipants.filter(isApprovedParticipant).length;
   const countApprovedMembers = localParticipants.filter(isApprovedStudent).length;
-  const countSupervisors = localParticipants.filter(p => p.role === 'supervisor' || isFacultySupervisor(p.rawName)).length;
-  const countSpeakers = localParticipants.filter(p => p.role === 'speaker').length;
-  const countGuests = localParticipants.filter(p => p.role === 'guest' || p.isGuest || p.isExternalGuest).length;
-  const countShortTime = localParticipants.filter(p => (p.role === 'member' || !p.role) && !p.isGuest && !p.isExternalGuest && !isFacultySupervisor(p.rawName) && p.durationMinutes < localThreshold && !p.manualApproved).length;
-  const countUnmatched = localParticipants.filter(p => (p.role === 'member' || !p.role) && !p.member && !p.isGuest && !p.isExternalGuest && !isFacultySupervisor(p.rawName) && !isMonikaLyniewska(p.rawName)).length;
+  const countSupervisors = localParticipants.filter(p => p.role === 'supervisor' || isFacultySupervisor(p.rawName, supervisors)).length;
+  const countSpeakers = localParticipants.filter(p => p.role === 'speaker' && p.role !== 'supervisor' && !isFacultySupervisor(p.rawName, supervisors)).length;
+  const countGuests = localParticipants.filter(p => (p.role === 'guest' || p.isGuest || p.isExternalGuest) && p.role !== 'supervisor' && p.role !== 'speaker' && !isFacultySupervisor(p.rawName, supervisors) && !p.member && !isMonikaLyniewska(p.rawName)).length;
+  const countShortTime = localParticipants.filter(p => (p.role === 'member' || !p.role) && !p.isGuest && !p.isExternalGuest && p.role !== 'supervisor' && !isFacultySupervisor(p.rawName, supervisors) && p.durationMinutes < localThreshold && !p.manualApproved).length;
+  const countUnmatched = localParticipants.filter(p => (p.role === 'member' || !p.role) && !p.member && !p.isGuest && !p.isExternalGuest && p.role !== 'supervisor' && !isFacultySupervisor(p.rawName, supervisors) && !isMonikaLyniewska(p.rawName)).length;
   const totalCount = localParticipants.length;
 
   // Save changes
@@ -1545,16 +1549,14 @@ export default function AttendanceModal({
               </button>
             )}
 
-            {countGuests > 0 && (
-              <button
-                onClick={() => setActiveFilter('guest')}
-                className={`px-3 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-                  activeFilter === 'guest' ? 'bg-white text-purple-700 shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                👤 Goście ({countGuests})
-              </button>
-            )}
+            <button
+              onClick={() => setActiveFilter('guest')}
+              className={`px-3 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                activeFilter === 'guest' ? 'bg-white text-purple-700 shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              👤 Goście ({countGuests})
+            </button>
 
             {countShortTime > 0 && (
               <button
@@ -1574,16 +1576,16 @@ export default function AttendanceModal({
                   activeFilter === 'unmatched' ? 'bg-white text-amber-700 shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                ❓ Do dopasowania ({countUnmatched})
+                ❓ Brak w bazie ({countUnmatched})
               </button>
             )}
           </div>
         </div>
 
-        {/* ── Scrollable Participants Table Area ───────────────────────────── */}
-        <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-indigo-200 p-6">
+        {/* ── Table Content ────────────────────────────────────────────────── */}
+        <div className="flex-1 overflow-auto p-6">
           {sortedAndFilteredParticipants.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 py-12">
+            <div className="text-center py-16 text-slate-400 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
               <Users size={40} className="text-slate-300 mb-2" />
               <p className="text-sm font-semibold">Brak osób spełniających wybrane kryteria</p>
               <p className="text-xs text-slate-400 mt-1">Zmień filtr lub wpisaną frazę w wyszukiwarce</p>
@@ -1607,9 +1609,9 @@ export default function AttendanceModal({
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {sortedAndFilteredParticipants.map((p, idx) => {
-                    const isSupervisorRole = p.role === 'supervisor' || isFacultySupervisor(p.rawName);
-                    const isSpeakerRole = p.role === 'speaker';
-                    const isGuestRole = p.role === 'guest' || p.isGuest || p.isExternalGuest;
+                    const isSupervisorRole = p.role === 'supervisor' || isFacultySupervisor(p.rawName, supervisors);
+                    const isSpeakerRole = !isSupervisorRole && (p.role === 'speaker');
+                    const isGuestRole = !isSupervisorRole && !isSpeakerRole && (p.role === 'guest' || p.isGuest || p.isExternalGuest) && !p.member && !isMonikaLyniewska(p.rawName);
                     const isMemberRole = !isSupervisorRole && !isSpeakerRole && !isGuestRole;
 
                     const isApproved = p.manualApproved !== undefined ? p.manualApproved : (p.isEligible || p.status === 'approved' || p.status === 'Zaliczona');

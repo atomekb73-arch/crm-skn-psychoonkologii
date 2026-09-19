@@ -38,6 +38,7 @@ import { MEETING_TYPES, getMeetingType } from '../utils/meetingTypes';
 import { parseAttendanceLine, parseDurationToMinutes, fetchMeetingSheetAttendance, saveMeetingAttendanceToGAS, deleteMeetingAttendanceFromGAS, sendToGAS } from '../services/googleSheets';
 import {
   isFacultySupervisor,
+  findMatchingSupervisor,
   isMonikaLyniewska,
   FACULTY_SUPERVISORS,
   PARTICIPANT_ROLES,
@@ -666,7 +667,9 @@ export default function MeetingsTab({
       const extractedIdx = parsed.extractedIndex || '';
 
       const isExplicitSpeaker = parsed.isExplicitSpeaker || String(parsed.rawName || '').toUpperCase().includes('[SPEAKER]') || String(parsed.rawName || '').toLowerCase().includes('speaker') || String(parsed.rawName || '').toLowerCase().includes('prelegent');
-      const isSup = isFacultySupervisor(parsed.rawName);
+      const matchedSup = findMatchingSupervisor(parsed.rawName);
+      const isSup = matchedSup != null || isFacultySupervisor(parsed.rawName);
+      const supervisorFormattedName = matchedSup ? (matchedSup.fullName || `${matchedSup.academicTitle || 'dr'} ${matchedSup.name || matchedSup.fullName}`) : parsed.rawName;
       const member = (!isSup && !isExplicitSpeaker) ? matchMemberWaterfall(parsed.rawName, members, aliasesMap) : null;
       const isMonika = isMonikaLyniewska(parsed.rawName) || (member && isMonikaLyniewska(member.index || member.fullName)) || (extractedIdx === '34327');
       const isMemberInDB = Boolean(member || isMonika);
@@ -677,7 +680,7 @@ export default function MeetingsTab({
 
       const pObj = {
         id: `p_${idx}_${Date.now()}`,
-        rawName: cleanRawName || parsed.rawName,
+        rawName: isSup ? supervisorFormattedName : (cleanRawName || parsed.rawName),
         joinTime: parsed.joinTime || parsed.time || '18:00',
         durationStr: parsed.durationStr || parsed.duration || '60 min',
         durationMinutes: durMinutes,

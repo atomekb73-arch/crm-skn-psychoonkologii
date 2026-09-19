@@ -20,6 +20,7 @@ import {
   getMeetingOverrides,
   saveMeetingOverride,
 } from '../utils/storage';
+import { DEFAULT_FACULTY_SUPERVISORS } from '../utils/specialRoles';
 
 export const DEFAULT_ORGS = [
   {
@@ -39,7 +40,7 @@ export const DEFAULT_ORGS = [
     subcalendarName: 'Koła Naukowe: > 07 🎗️ SKN Psychoonkologii',
     description: 'Studenckie Koło Naukowe Psychoonkologii WSKZ - Oficjalna ewidencja i harmonogram',
     isDefault: true,
-    supervisors: [],
+    supervisors: DEFAULT_FACULTY_SUPERVISORS,
   },
 ];
 
@@ -77,13 +78,9 @@ export function OrgProvider({ children }) {
               teamupToken: defOrg.teamupToken || merged[idx].teamupToken,
               subcalendarId: defOrg.subcalendarId || merged[idx].subcalendarId,
               subcalendarName: defOrg.subcalendarName || merged[idx].subcalendarName,
-              supervisors: (Array.isArray(merged[idx].supervisors) ? merged[idx].supervisors : (defOrg.supervisors || [])).filter(s => {
-                const email = (s?.email || '').toLowerCase();
-                const name = (s?.name || s?.fullName || '').toLowerCase();
-                return !email.includes('skupinska') && !email.includes('dziekan') &&
-                       !name.includes('skupińska') && !name.includes('skupinska') &&
-                       !name.includes('dziekan');
-              }),
+              supervisors: (Array.isArray(merged[idx].supervisors) && merged[idx].supervisors.length > 0)
+                ? merged[idx].supervisors
+                : (defOrg.supervisors || DEFAULT_FACULTY_SUPERVISORS),
             };
           }
         });

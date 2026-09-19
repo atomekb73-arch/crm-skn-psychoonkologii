@@ -76,14 +76,8 @@ export function SettingsProvider({ children }) {
   });
 
   const sanitizeSupervisors = (list) => {
-    if (!Array.isArray(list)) return [];
-    return list.filter(s => {
-      const email = (s?.email || '').toLowerCase();
-      const name = (s?.name || s?.fullName || '').toLowerCase();
-      return !email.includes('skupinska') && !email.includes('dziekan') &&
-             !name.includes('skupińska') && !name.includes('skupinska') &&
-             !name.includes('dziekan');
-    });
+    if (!Array.isArray(list) || list.length === 0) return DEFAULT_FACULTY_SUPERVISORS;
+    return list;
   };
 
   const [supervisors, setSupervisors] = useState(() => {
@@ -100,7 +94,7 @@ export function SettingsProvider({ children }) {
         const orgSaved = localStorage.getItem(getStorageKey('crm_supervisors_config'));
         if (orgSaved) {
           const parsed = JSON.parse(orgSaved);
-          if (Array.isArray(parsed)) {
+          if (Array.isArray(parsed) && parsed.length > 0) {
             setSupervisors(sanitizeSupervisors(parsed));
             return;
           }

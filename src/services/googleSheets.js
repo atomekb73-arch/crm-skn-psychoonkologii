@@ -1,4 +1,5 @@
 import { initialMembers as seedMembers } from '../data/seedMembers.js';
+import { isFacultySupervisor, findMatchingSupervisor } from '../utils/specialRoles.js';
 
 export function extractSheetId(input) {
   if (!input) return '';
@@ -1325,29 +1326,38 @@ export function parseAttendanceLine(rawLine) {
       durationMinutes = 60;
     }
 
+    const matchedSupervisor = findMatchingSupervisor(rawName);
+    const isSupervisor = matchedSupervisor != null || isFacultySupervisor(rawName);
+    const formattedSupervisorName = matchedSupervisor ? (matchedSupervisor.fullName || `${matchedSupervisor.academicTitle || 'dr'} ${matchedSupervisor.name || matchedSupervisor.fullName}`) : rawName;
+
+    const finalRole = isSupervisor ? 'supervisor' : (isExplicitSpeaker ? 'speaker' : (isExplicitGuest ? 'guest' : 'member'));
+
     return {
-      rawName,
+      rawName: isSupervisor ? formattedSupervisorName : rawName,
       joinTime: joinTime || '18:00',
       durationStr: durationStr || `${durationMinutes} min`,
       durationMinutes,
-      extractedIndex,
-      isExplicitGuest,
-      isExplicitSpeaker,
-      role: isExplicitSpeaker ? 'speaker' : (isExplicitGuest ? 'guest' : 'member'),
+      extractedIndex: isSupervisor ? '' : extractedIndex,
+      isExplicitGuest: isSupervisor ? false : isExplicitGuest,
+      isExplicitSpeaker: isSupervisor ? false : isExplicitSpeaker,
+      isSupervisor,
+      role: finalRole,
       isMultiColumn: false,
     };
   } catch (err) {
     console.warn('Błąd parsowania linii w parseAttendanceLine:', rawLine, err);
     const clean = rawLine.replace(/\d{4}-\d{2}-\d{2}.*$/, '').replace(/\d{1,2}:\d{2}.*$/, '').trim() || rawLine;
+    const isSup = isFacultySupervisor(clean);
     return {
       rawName: clean,
       joinTime: '18:00',
       durationStr: '60 min',
       durationMinutes: 60,
       extractedIndex: '',
-      isExplicitGuest: true,
+      isExplicitGuest: !isSup,
       isExplicitSpeaker: false,
-      role: 'guest',
+      isSupervisor: isSup,
+      role: isSup ? 'supervisor' : 'guest',
       isMultiColumn: false,
     };
   }

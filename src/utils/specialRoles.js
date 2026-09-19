@@ -1,28 +1,62 @@
 // ─── Special Roles & Faculty Supervisors for SKN Psychoonkologii ─────────────
 
-export const DEFAULT_FACULTY_SUPERVISORS = [];
+export const DEFAULT_FACULTY_SUPERVISORS = [
+  {
+    id: 'sup_ewa_skupinska',
+    name: 'dr Ewa Skupińska',
+    fullName: 'dr Ewa Skupińska',
+    academicTitle: 'dr',
+    firstName: 'Ewa',
+    lastName: 'Skupińska',
+    email: 'ewa.skupinska@wskz.pl',
+    role: 'Opiekun Naukowy Koła',
+    affiliation: 'Instytut Psychologii WSKZ',
+    aliases: [
+      'Ewa Skupińska',
+      'Ewa Skupinska',
+      'dr Ewa Skupińska',
+      'dr Ewa Skupinska',
+      'mgr Ewa Skupińska',
+      'mgr Ewa Skupinska',
+      'Skupińska Ewa',
+      'Skupinska Ewa',
+    ],
+    isActive: true,
+  },
+  {
+    id: 'sup_martyna_dziekan',
+    name: 'dr Martyna Dziekan',
+    fullName: 'dr Martyna Dziekan',
+    academicTitle: 'dr',
+    firstName: 'Martyna',
+    lastName: 'Dziekan',
+    email: 'martyna.dziekan@wskz.pl',
+    role: 'Opiekun Naukowy Koła',
+    affiliation: 'Instytut Psychologii WSKZ',
+    aliases: [
+      'Martyna Dziekan',
+      'dr Martyna Dziekan',
+      'mgr Martyna Dziekan',
+      'Dziekan Martyna',
+    ],
+    isActive: true,
+  },
+];
 
 export const FACULTY_SUPERVISORS = DEFAULT_FACULTY_SUPERVISORS;
 
 export function getStoredSupervisors() {
-  if (typeof window === 'undefined') return [];
+  if (typeof window === 'undefined') return DEFAULT_FACULTY_SUPERVISORS;
   try {
-    const saved = localStorage.getItem('skn_supervisors_config');
+    const saved = localStorage.getItem('skn_supervisors_config') || localStorage.getItem('crm_supervisors_config');
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed)) {
-        // Filtrujemy zaszłościowych opiekunów z poprzednich instancji
-        return parsed.filter(s => {
-          const email = (s?.email || '').toLowerCase();
-          const name = (s?.name || s?.fullName || '').toLowerCase();
-          return !email.includes('skupinska') && !email.includes('dziekan') &&
-                 !name.includes('skupińska') && !name.includes('skupinska') &&
-                 !name.includes('dziekan');
-        });
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
       }
     }
   } catch {}
-  return [];
+  return DEFAULT_FACULTY_SUPERVISORS;
 }
 
 export const PARTICIPANT_ROLES = {
