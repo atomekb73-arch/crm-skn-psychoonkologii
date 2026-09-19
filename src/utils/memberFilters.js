@@ -29,7 +29,16 @@ export const isMemberInactive = (m) => {
 export const isMemberArchived = (m) => {
   if (!m) return false;
   const status = String(m.statusWeryfikacji || m.status || '').toLowerCase().trim();
-  return status === 'archiwum' || status === 'archived' || status === 'odrzucony' || status === 'czarna lista' || Boolean(m.isArchived);
+  return status === 'archiwum' || status === 'archived' || status === 'odrzucony' || status === 'czarna lista' || Boolean(m.isArchived) || Boolean(m.isHistorical);
+};
+
+export const isFormerOrArchivedMember = (m) => {
+  if (!m) return false;
+  if (m.isHistorical) return true;
+  const status = String(m.statusWeryfikacji || m.status || '').toLowerCase().trim();
+  if (status === 'archiwum' || status === 'archived' || status === 'odrzucony' || status === 'czarna lista' || Boolean(m.isArchived)) return true;
+  if (status === 'nieaktywny' || status === 'resigned' || status === 'rezygnacja' || status === 'inactive' || status === 'były' || status === 'byly') return true;
+  return false;
 };
 
 export const isMemberPending = (m) => {

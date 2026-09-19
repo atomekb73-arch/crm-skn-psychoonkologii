@@ -200,6 +200,20 @@ export default function App() {
   const [isOrgDropdownOpen, setIsOrgDropdownOpen] = useState(false);
   const [reportsTarget, setReportsTarget] = useState({ member: null, docType: 'membership' });
 
+  const allMembersForMeetings = useMemo(() => {
+    const map = new Map();
+    (members || []).forEach(m => {
+      if (m && (m.id || m.index)) map.set(String(m.id || m.index).trim(), m);
+    });
+    (archivedQuarantine || []).forEach(m => {
+      if (m && (m.id || m.index)) {
+        const key = String(m.id || m.index).trim();
+        if (!map.has(key)) map.set(key, m);
+      }
+    });
+    return Array.from(map.values());
+  }, [members, archivedQuarantine]);
+
   const handleNavigateToReports = useCallback((member, docType = 'membership') => {
     setReportsTarget({ member, docType });
     setActiveTab('documentation');
@@ -1735,7 +1749,7 @@ export default function App() {
                   return (
                     <MeetingsTab
                       meetings={meetings}
-                      members={members}
+                      members={allMembersForMeetings}
                       onMarkAttendance={handleMarkAttendance}
                       subcalendars={subcalendars}
                       selectedSubcalendar={selectedSubcalendar}

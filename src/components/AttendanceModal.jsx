@@ -48,6 +48,7 @@ import { useOrg } from '../context/OrgContext';
 import { ACTIVITY_OPTIONS } from '../utils/activityRegistry';
 import { saveMeetingAttendanceToGAS, parseAttendanceLine } from '../services/googleSheets';
 import { getAliasesFromStorage, saveAliasesToStorage } from '../utils/storage';
+import { isFormerOrArchivedMember, isMemberActive } from '../utils/memberFilters';
 
 function resolveInitialParticipants(meeting, members = [], participants = [], threshold = 15, supervisors = null, getStorageKey = (k) => k, aliasesMap = {}) {
   const processParticipant = (p, idx = 0) => {
@@ -58,14 +59,17 @@ function resolveInitialParticipants(meeting, members = [], participants = [], th
     const supervisorFormattedName = matchedSup ? (matchedSup.fullName || `${matchedSup.academicTitle || 'mgr'} ${matchedSup.name}`) : rawName;
 
     // Strict Waterfall matching
-    const matchedMember = (!isSup && !isExplicitSpeaker) ? matchMemberWaterfall(rawName, members, aliasesMap) : null;
+    let matchedMember = (!isSup && !isExplicitSpeaker) ? (p.member || matchMemberWaterfall(p.nrIndeksu || rawName, members, aliasesMap)) : null;
+    if (p.member && p.member.isHistorical && !matchedMember) {
+      matchedMember = p.member;
+    }
     const isMonika = isMonikaLyniewska(rawName) || (matchedMember && isMonikaLyniewska(matchedMember.index || matchedMember.fullName));
 
     let role = p.role || (isSup ? 'supervisor' : (isExplicitSpeaker ? 'speaker' : (matchedMember ? 'member' : 'guest')));
     if (isSup) role = 'supervisor';
     if (isExplicitSpeaker) role = 'speaker';
     if (isMonika && !isSup && !isExplicitSpeaker) role = 'member';
-    if (!isSup && !isExplicitSpeaker && !matchedMember && !isMonika) role = 'guest';
+    if (!isSup && !isExplicitSpeaker && !matchedMember && !isMonika && p.role !== 'member') role = 'guest';
 
     const dur = typeof p.durationMinutes === 'number' ? p.durationMinutes : (parseInt(p.durationMinutes || p.durationStr, 10) || 60);
     const isOver = dur >= threshold;
@@ -75,7 +79,7 @@ function resolveInitialParticipants(meeting, members = [], participants = [], th
     if (role === 'supervisor') status = 'supervisor';
     else if (role === 'speaker') status = 'speaker';
     else if (role === 'guest') status = 'guest';
-    else if (!matchedMember && !isMonika) status = 'unmatched';
+    else if (!matchedMember && !isMonika && role !== 'member') status = 'unmatched';
     else if (!approved) status = 'rejected_short_time';
 
     const finalMember = isSup || role === 'guest' || role === 'speaker'
@@ -99,7 +103,7 @@ function resolveInitialParticipants(meeting, members = [], participants = [], th
       isSpeaker: role === 'speaker',
       isGuest: role === 'guest',
       isExternalGuest: role === 'guest' && !isSup && !isExplicitSpeaker,
-      isEligible: isOver || role === 'speaker' || role === 'supervisor' || role === 'guest',
+      isEligible: isOver || role === 'speaker' || role === 'supervisor' || role === 'guest' || role === 'member',
       manualApproved: approved,
       hasManualOverride: p.hasManualOverride || isSup || isMonika || role === 'speaker',
       activities: Array.isArray(p.activities) ? p.activities : [],
@@ -234,7 +238,8 @@ function MemberAutocomplete({
             filtered.map(m => {
               const name = m.fullName || `${m.firstName} ${m.lastName}`;
               const isSelected = value === m.id || value === m.index;
-              const isActive = m.status === 'active' || !m.status;
+              const isActive = isMemberActive(m);
+              const isFormer = isFormerOrArchivedMember(m);
 
               return (
                 <button
@@ -260,9 +265,11 @@ function MemberAutocomplete({
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 border ${
                     isActive
                       ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : isFormer
+                      ? 'bg-slate-100 text-slate-700 border-slate-300'
                       : 'bg-slate-100 text-slate-500 border-slate-200'
                   }`}>
-                    {isActive ? '🟢 Aktywny' : '⚪ Baza ogólna'}
+                    {isActive ? '🟢 Aktywny' : isFormer ? '📁 Były / Archiwum' : '⚪ Baza'}
                   </span>
                 </button>
               );
@@ -352,7 +359,8 @@ function AddParticipantInput({
             filtered.map(m => {
               const name = m.fullName || `${m.firstName} ${m.lastName}`;
               const isSelected = selectedMember && (selectedMember.id === m.id || selectedMember.index === m.index);
-              const isActive = m.status === 'active' || !m.status;
+              const isActive = isMemberActive(m);
+              const isFormer = isFormerOrArchivedMember(m);
 
               return (
                 <button
@@ -378,15 +386,151 @@ function AddParticipantInput({
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 border ${
                     isActive
                       ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : isFormer
+                      ? 'bg-slate-100 text-slate-700 border-slate-300'
                       : 'bg-slate-100 text-slate-500 border-slate-200'
                   }`}>
-                    {isActive ? '🟢 Członek' : '⚪ Baza'}
+                    {isActive ? '🟢 Członek' : isFormer ? '📁 Były / Archiwum' : '⚪ Baza'}
                   </span>
                 </button>
               );
             })
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Komponent do łączenia gościa/uczestnika: Wybór z bazy SKN LUB Ręczne wprowadzenie numeru indeksu (Wpis historyczny)
+ */
+function LinkMemberBox({
+  participant,
+  members = [],
+  onLinkAlias,
+  onLinkManualIndex,
+  onCancel,
+}) {
+  const [tab, setTab] = useState('db'); // 'db' or 'manual'
+  const [manualIdx, setManualIdx] = useState('');
+  const [manualName, setManualName] = useState(() => participant.rawName || '');
+
+  const handleSubmitManual = (e) => {
+    e.preventDefault();
+    if (!manualIdx.trim()) {
+      alert('Wprowadź numer indeksu studenta.');
+      return;
+    }
+    onLinkManualIndex(participant, manualIdx.trim(), manualName.trim());
+  };
+
+  return (
+    <div className="bg-white border border-indigo-200 rounded-2xl p-3 shadow-lg space-y-2.5 text-xs animate-in fade-in duration-150 z-30">
+      <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+        <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px]">
+          <Link2 size={13} className="text-indigo-600" />
+          <span>Połącz profil: <strong className="text-indigo-700">{participant.rawName}</strong></span>
+        </div>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="text-slate-400 hover:text-slate-700 p-0.5 rounded cursor-pointer"
+        >
+          <X size={13} />
+        </button>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl text-[11px] font-bold">
+        <button
+          type="button"
+          onClick={() => setTab('db')}
+          className={`flex-1 py-1 px-2 rounded-lg transition cursor-pointer text-center ${
+            tab === 'db' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          🔍 Wybierz z bazy SKN
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('manual')}
+          className={`flex-1 py-1 px-2 rounded-lg transition cursor-pointer text-center ${
+            tab === 'manual' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          ✍️ Wpis historyczny (ręczny indeks)
+        </button>
+      </div>
+
+      {tab === 'db' ? (
+        <div className="space-y-1.5 pt-1">
+          <MemberAutocomplete
+            members={members}
+            value=""
+            onChange={val => {
+              if (val) onLinkAlias(participant, val);
+            }}
+            placeholder="Wpisz imię, nazwisko lub indeks..."
+            className="w-full"
+          />
+          <div className="flex justify-between items-center text-[10px] text-slate-400 pt-0.5">
+            <span>Dostępna cała baza SKN (w tym byli członkowie)</span>
+            <button
+              type="button"
+              onClick={onCancel}
+              className="text-slate-500 hover:text-slate-800 font-semibold underline cursor-pointer"
+            >
+              Anuluj
+            </button>
+          </div>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmitManual} className="space-y-2 pt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] font-bold text-slate-700 block mb-0.5">Numer indeksu: *</label>
+              <input
+                type="text"
+                value={manualIdx}
+                onChange={e => setManualIdx(e.target.value)}
+                placeholder="np. 28412"
+                className="w-full text-xs font-mono font-bold border border-indigo-300 rounded-xl px-2.5 py-1.5 bg-white text-slate-900 focus:ring-2 focus:ring-indigo-400 outline-none shadow-2xs"
+                autoFocus
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-700 block mb-0.5">Imię i nazwisko:</label>
+              <input
+                type="text"
+                value={manualName}
+                onChange={e => setManualName(e.target.value)}
+                placeholder="Imię Nazwisko"
+                className="w-full text-xs font-semibold border border-slate-200 rounded-xl px-2.5 py-1.5 bg-white text-slate-900 focus:ring-2 focus:ring-indigo-400 outline-none shadow-2xs"
+              />
+            </div>
+          </div>
+          <p className="text-[10px] text-slate-500 leading-tight">
+            ℹ️ Przypisze numer indeksu osobie spoza obecnego rejestru i zapisze ją w arkuszu z rolą <strong>Członek koła</strong>.
+          </p>
+          <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+            >
+              Anuluj
+            </button>
+            <button
+              type="submit"
+              disabled={!manualIdx.trim()}
+              className="px-3.5 py-1.5 text-[11px] font-bold bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl transition shadow-xs cursor-pointer flex items-center gap-1"
+            >
+              <Check size={12} />
+              <span>Zapisz jako Członek koła</span>
+            </button>
+          </div>
+        </form>
       )}
     </div>
   );
@@ -488,7 +632,7 @@ export default function AttendanceModal({
 
     const updatedAliases = {
       ...aliasesMap,
-      [rawKey]: targetName,
+      [rawKey]: targetMember.index || targetName,
     };
 
     setAliasesMap(updatedAliases);
@@ -500,6 +644,57 @@ export default function AttendanceModal({
         return {
           ...p,
           member: targetMember,
+          role: 'member',
+          isGuest: false,
+          isExternalGuest: false,
+          manualApproved: true,
+          hasManualOverride: true,
+          status: 'approved',
+        };
+      })
+    );
+
+    setLinkingParticipantId(null);
+  };
+
+  // Connect manual index for historical member
+  const handleLinkManualIndex = (participant, manualIndex, manualName = '') => {
+    const cleanIdx = String(manualIndex || '').trim();
+    if (!cleanIdx) {
+      alert('Wprowadź numer indeksu studenta.');
+      return;
+    }
+
+    const cleanName = String(manualName || participant.rawName || '').replace(/^\[.*?\]\s*/, '').trim();
+    const histMember = {
+      id: `hist_${cleanIdx}`,
+      index: cleanIdx,
+      nrIndeksu: cleanIdx,
+      fullName: cleanName,
+      name: cleanName,
+      firstName: cleanName.split(' ')[0] || '',
+      lastName: cleanName.split(' ').slice(1).join(' ') || '',
+      status: 'archived',
+      statusWeryfikacji: 'Archiwum',
+      isArchived: true,
+      isHistorical: true,
+    };
+
+    const rawKey = normalizeDiacritics(participant.rawName).toLowerCase().trim();
+    const updatedAliases = {
+      ...aliasesMap,
+      [rawKey]: cleanIdx,
+    };
+    setAliasesMap(updatedAliases);
+    saveAliasesToStorage(updatedAliases);
+
+    setLocalParticipants(prev =>
+      prev.map(p => {
+        if (p.id !== participant.id) return p;
+        return {
+          ...p,
+          rawName: cleanName,
+          member: histMember,
           role: 'member',
           isGuest: false,
           isExternalGuest: false,
@@ -626,8 +821,9 @@ export default function AttendanceModal({
           ...p,
           role: 'member',
           isGuest: false,
+          isExternalGuest: false,
           manualApproved: isAppr,
-          status: (p.member || isMonikaLyniewska(p.rawName)) ? (isAppr ? 'approved' : 'rejected_short_time') : 'unmatched',
+          status: isAppr ? 'approved' : 'rejected_short_time',
         };
       })
     );
@@ -817,9 +1013,11 @@ export default function AttendanceModal({
 
   // Helper to determine if participant is an approved student member
   const isApprovedStudent = (p) => {
-    if (p.role === 'supervisor' || p.role === 'speaker' || p.role === 'guest' || p.isGuest || p.isExternalGuest) return false;
+    if (p.role === 'supervisor' || isFacultySupervisor(p.rawName)) return false;
+    if (p.role === 'speaker') return false;
+    if (p.role === 'guest' || p.isGuest || p.isExternalGuest) return false;
     const isApproved = p.manualApproved !== undefined ? p.manualApproved : (p.isEligible || p.status === 'approved' || p.status === 'Zaliczona');
-    return isApproved && (!!p.member || isMonikaLyniewska(p.rawName));
+    return isApproved && (p.role === 'member' || !!p.member || isMonikaLyniewska(p.rawName));
   };
 
   // Sorted and Filtered Participants (Strict Polish Alphabetical Order)
@@ -1437,6 +1635,8 @@ export default function AttendanceModal({
                               ? '🎤 Prelegent spotkania'
                               : isGuestRole
                               ? '👤 Gość zewnętrzny'
+                              : p.member && isFormerOrArchivedMember(p.member)
+                              ? (p.member.isHistorical ? '📁 Wpis historyczny' : '📁 Były członek (Archiwum)')
                               : 'Wpis ze spotkania'}
                           </p>
                         </td>
@@ -1475,24 +1675,13 @@ export default function AttendanceModal({
                             </div>
                           ) : isGuestRole ? (
                             linkingParticipantId === p.id ? (
-                              <div className="space-y-1">
-                                <MemberAutocomplete
-                                  members={members}
-                                  value=""
-                                  onChange={val => {
-                                    if (val) handleLinkAlias(p, val);
-                                  }}
-                                  placeholder="Wybierz członka z bazy..."
-                                  className="w-full"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => setLinkingParticipantId(null)}
-                                  className="text-[10px] text-slate-500 hover:text-slate-800 font-semibold underline cursor-pointer"
-                                >
-                                  Anuluj
-                                </button>
-                              </div>
+                              <LinkMemberBox
+                                participant={p}
+                                members={members}
+                                onLinkAlias={handleLinkAlias}
+                                onLinkManualIndex={handleLinkManualIndex}
+                                onCancel={() => setLinkingParticipantId(null)}
+                              />
                             ) : (
                               <div className="flex items-center justify-between gap-2 bg-purple-50 border border-purple-200 p-2 rounded-xl text-purple-900">
                                 <div className="flex items-center gap-2 min-w-0">
@@ -1511,37 +1700,69 @@ export default function AttendanceModal({
                               </div>
                             )
                           ) : p.member ? (
-                            <div className="flex items-center justify-between gap-2 bg-emerald-50/70 border border-emerald-200 p-2 rounded-xl">
-                              <div className="min-w-0">
-                                <p className="font-bold text-slate-800 truncate leading-tight">
-                                  {p.member.fullName || `${p.member.firstName} ${p.member.lastName}`}
-                                </p>
-                                <p className="text-[10px] text-slate-500 font-mono flex items-center gap-1.5 mt-0.5">
-                                  <span>Nr: <strong>{p.member.index}</strong></span>
-                                  {p.member.field && <span>• {p.member.field}</span>}
-                                </p>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => handleUnlinkMember(p.id)}
-                                className="text-[10px] text-slate-400 hover:text-rose-600 font-bold px-1.5 py-0.5 rounded hover:bg-white transition cursor-pointer"
-                                title="Odłącz powiązanie z tym studentem"
-                              >
-                                Rozłącz
-                              </button>
-                            </div>
+                            (() => {
+                              const isFormer = isFormerOrArchivedMember(p.member);
+                              return (
+                                <div className={`flex items-center justify-between gap-2 p-2 rounded-xl border ${
+                                  isFormer
+                                    ? 'bg-slate-100/90 border-slate-300 text-slate-800'
+                                    : 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
+                                }`}>
+                                  <div className="min-w-0">
+                                    <p className="font-bold truncate leading-tight">
+                                      {p.member.fullName || `${p.member.firstName} ${p.member.lastName}`}
+                                    </p>
+                                    <p className="text-[10px] text-slate-500 font-mono flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                      <span>Nr: <strong>{p.member.index}</strong></span>
+                                      {isFormer ? (
+                                        <span className="bg-slate-200 text-slate-700 font-semibold px-1.5 py-0.2 rounded text-[10px]">
+                                          {p.member.isHistorical ? 'Wpis historyczny' : 'Były członek (Archiwum)'}
+                                        </span>
+                                      ) : (
+                                        p.member.field && <span>• {p.member.field}</span>
+                                      )}
+                                    </p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUnlinkMember(p.id)}
+                                    className="text-[10px] text-slate-400 hover:text-rose-600 font-bold px-1.5 py-0.5 rounded hover:bg-white transition cursor-pointer shrink-0"
+                                    title="Odłącz powiązanie z tym studentem"
+                                  >
+                                    Rozłącz
+                                  </button>
+                                </div>
+                              );
+                            })()
                           ) : (
-                            <div className="space-y-1">
-                              <MemberAutocomplete
+                            linkingParticipantId === p.id ? (
+                              <LinkMemberBox
+                                participant={p}
                                 members={members}
-                                value={selectedAssignee[p.id] || ''}
-                                onChange={val => {
-                                  if (val) handleAssignMember(p.id, val);
-                                }}
-                                placeholder="Wybierz studenta (141 osób)..."
-                                className="w-full"
+                                onLinkAlias={handleLinkAlias}
+                                onLinkManualIndex={handleLinkManualIndex}
+                                onCancel={() => setLinkingParticipantId(null)}
                               />
-                            </div>
+                            ) : (
+                              <div className="space-y-1">
+                                <MemberAutocomplete
+                                  members={members}
+                                  value={selectedAssignee[p.id] || ''}
+                                  onChange={val => {
+                                    if (val) handleAssignMember(p.id, val);
+                                  }}
+                                  placeholder="Wybierz studenta (141 osób)..."
+                                  className="w-full"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setLinkingParticipantId(p.id)}
+                                  className="text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold underline cursor-pointer block"
+                                >
+                                  ✍️ Wprowadź numer indeksu ręcznie (Wpis historyczny)
+                                </button>
+                              </div>
+                            )
                           )}
                         </td>
 

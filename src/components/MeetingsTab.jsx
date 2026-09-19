@@ -63,6 +63,7 @@ import {
   saveMeetingOverride,
   getAliasesFromStorage,
 } from '../utils/storage';
+import { isFormerOrArchivedMember } from '../utils/memberFilters';
 
 const normalizeDiacritics = (str) => {
   if (!str) return "";
@@ -2022,9 +2023,16 @@ export default function MeetingsTab({
                             <p className="font-semibold text-slate-800 text-[11px] truncate leading-tight" title={memberName}>
                               {memberName}
                             </p>
-                            <div className="flex items-center gap-1 text-[10px] text-slate-400 font-mono mt-0.5">
+                            <div className="flex items-center gap-1 text-[10px] text-slate-400 font-mono mt-0.5 flex-wrap">
                               {p.member?.index ? (
-                                <span>{p.member.index}</span>
+                                <>
+                                  <span>{p.member.index}</span>
+                                  {isFormerOrArchivedMember(p.member) && (
+                                    <span className="text-slate-600 bg-slate-100 border border-slate-300 px-1 py-0.2 rounded font-sans font-medium text-[9px]">
+                                      {p.member.isHistorical ? 'Wpis hist.' : 'Były członek'}
+                                    </span>
+                                  )}
+                                </>
                               ) : isSup ? (
                                 <span className="text-purple-600 font-sans font-bold">Opiekun</span>
                               ) : isSpeaker ? (
