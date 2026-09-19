@@ -14,7 +14,7 @@ export function extractSheetId(input) {
 const envSheetInput = import.meta.env?.VITE_GOOGLE_SHEET_ID || import.meta.env?.VITE_SHEETS_URL;
 export const SHEET_ID = envSheetInput ? extractSheetId(envSheetInput) : '1HbpVQkKdtKqsg0Ew5d3AigZBq-wvQYmJ-vpSIIWLFpg';
 
-export const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzkeoa_zhkBvLJWG9mq7MhECh2KJILk8CLhV7EBFES46VuwIyZz2tG-Pv4RDe2Sj4Y7/exec";
+export const APPS_SCRIPT_URL = import.meta.env?.VITE_APPS_SCRIPT_URL || "https://script.google.com/macros/s/AKfycbzNmCpDeIdLa_SdWvNio64FPXPxW4ymITAv25m07YcBoE5zMmi-WYbZ-xhZ6e3ZGnYt/exec";
 export const GAS_WEBAPP_URL = APPS_SCRIPT_URL;
 export const GAS_ENDPOINT = APPS_SCRIPT_URL;
 
