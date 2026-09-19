@@ -1002,9 +1002,15 @@ export default function SettingsTab({ members = [], meetings = [] }) {
             {/* End Date & Status */}
             <div className="md:col-span-5 space-y-1">
               <div className="flex items-center justify-between">
-                <label htmlFor="sup-end-date" className="block text-xs font-semibold text-slate-700">
-                  Koniec opieki:
-                </label>
+                {!supIsActive ? (
+                  <label htmlFor="sup-end-date" className="block text-xs font-semibold text-slate-700">
+                    Koniec opieki:
+                  </label>
+                ) : (
+                  <span className="block text-xs font-semibold text-slate-700">
+                    Koniec opieki:
+                  </span>
+                )}
                 <label htmlFor="sup-is-active" className="flex items-center gap-1 text-xs text-emerald-700 font-semibold cursor-pointer">
                   <input
                     id="sup-is-active"
@@ -1231,9 +1237,15 @@ export default function SettingsTab({ members = [], meetings = [] }) {
             {/* End Date / Is Active */}
             <div className="md:col-span-3 space-y-1">
               <div className="flex items-center justify-between">
-                <label htmlFor="tenure-end-date" className="block text-xs font-semibold text-slate-700">
-                  Data zakończenia:
-                </label>
+                {!tenureIsActive ? (
+                  <label htmlFor="tenure-end-date" className="block text-xs font-semibold text-slate-700">
+                    Data zakończenia:
+                  </label>
+                ) : (
+                  <span className="block text-xs font-semibold text-slate-700">
+                    Data zakończenia:
+                  </span>
+                )}
                 <label htmlFor="tenure-is-active" className="flex items-center gap-1 text-xs text-emerald-700 font-semibold cursor-pointer">
                   <input
                     id="tenure-is-active"
@@ -1485,10 +1497,12 @@ export default function SettingsTab({ members = [], meetings = [] }) {
 
                 <div className="space-y-2.5">
                   <div>
-                    <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    <label htmlFor="sender-email" className="text-xs font-semibold text-slate-700 block mb-1">
                       Adres E-mail Koła (Nadawca):
                     </label>
                     <input
+                      id="sender-email"
+                      name="senderEmail"
                       type="email"
                       required
                       value={emailConfig.senderEmail || ''}
@@ -1499,10 +1513,12 @@ export default function SettingsTab({ members = [], meetings = [] }) {
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    <label htmlFor="sender-name" className="text-xs font-semibold text-slate-700 block mb-1">
                       Nazwa Wyświetlana Nadawcy:
                     </label>
                     <input
+                      id="sender-name"
+                      name="senderName"
                       type="text"
                       required
                       value={emailConfig.senderName || ''}
@@ -1513,10 +1529,12 @@ export default function SettingsTab({ members = [], meetings = [] }) {
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    <label htmlFor="reply-to" className="text-xs font-semibold text-slate-700 block mb-1">
                       Adres do Odpowiedzi (Reply-To):
                     </label>
                     <input
+                      id="reply-to"
+                      name="replyTo"
                       type="email"
                       value={emailConfig.replyTo || ''}
                       onChange={(e) => setEmailConfig({ ...emailConfig, replyTo: e.target.value })}
@@ -1541,10 +1559,12 @@ export default function SettingsTab({ members = [], meetings = [] }) {
 
                 <div className="grid grid-cols-3 gap-2.5">
                   <div className="col-span-2">
-                    <label className="text-xs font-semibold text-slate-600 block mb-1">
+                    <label htmlFor="smtp-host" className="text-xs font-semibold text-slate-600 block mb-1">
                       Serwer SMTP (Host):
                     </label>
                     <input
+                      id="smtp-host"
+                      name="smtpHost"
                       type="text"
                       value={emailConfig.smtpHost || ''}
                       onChange={(e) => setEmailConfig({ ...emailConfig, smtpHost: e.target.value })}
@@ -1553,10 +1573,12 @@ export default function SettingsTab({ members = [], meetings = [] }) {
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-slate-600 block mb-1">
+                    <label htmlFor="smtp-port" className="text-xs font-semibold text-slate-600 block mb-1">
                       Port:
                     </label>
                     <input
+                      id="smtp-port"
+                      name="smtpPort"
                       type="text"
                       value={emailConfig.smtpPort || '587'}
                       onChange={(e) => setEmailConfig({ ...emailConfig, smtpPort: e.target.value })}
@@ -1567,11 +1589,13 @@ export default function SettingsTab({ members = [], meetings = [] }) {
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 block mb-1">
+                  <label htmlFor="smtp-pass" className="text-xs font-semibold text-slate-600 block mb-1">
                     Hasło Aplikacji Google / Hasło SMTP:
                   </label>
                   <div className="relative">
                     <input
+                      id="smtp-pass"
+                      name="smtpPass"
                       type={showSmtpPassword ? 'text' : 'password'}
                       value={emailConfig.smtpPassword || ''}
                       onChange={(e) => setEmailConfig({ ...emailConfig, smtpPassword: e.target.value })}
@@ -1593,10 +1617,12 @@ export default function SettingsTab({ members = [], meetings = [] }) {
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">
+                  <label htmlFor="email-footer" className="text-xs font-semibold text-slate-700 block mb-1">
                     Oficjalna Stopka / Podpis Koła:
                   </label>
                   <textarea
+                    id="email-footer"
+                    name="emailFooter"
                     rows={3}
                     value={emailConfig.footerSignature || ''}
                     onChange={(e) => setEmailConfig({ ...emailConfig, footerSignature: e.target.value })}
@@ -1622,10 +1648,12 @@ export default function SettingsTab({ members = [], meetings = [] }) {
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    <label htmlFor="welcome-subject" className="text-xs font-semibold text-slate-700 block mb-1">
                       Domyślny Temat Wiadomości Powitalnej:
                     </label>
                     <input
+                      id="welcome-subject"
+                      name="welcomeSubject"
                       type="text"
                       required
                       value={emailConfig.welcomeSubjectTemplate || ''}
@@ -1637,11 +1665,13 @@ export default function SettingsTab({ members = [], meetings = [] }) {
 
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs font-semibold text-slate-700">
+                      <label htmlFor="welcome-body" className="text-xs font-semibold text-slate-700">
                         Treść Szablonu Powitania:
                       </label>
                     </div>
                     <textarea
+                      id="welcome-body"
+                      name="welcomeBody"
                       rows={10}
                       value={emailConfig.welcomeBodyTemplate || ''}
                       onChange={(e) => setEmailConfig({ ...emailConfig, welcomeBodyTemplate: e.target.value })}
