@@ -450,7 +450,7 @@ function LinkMemberBox({
             tab === 'db' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
           }`}
         >
-          🔍 Wybierz z bazy SKN
+          🔍 Wybierz aktualnego członka
         </button>
         <button
           type="button"
@@ -459,7 +459,7 @@ function LinkMemberBox({
             tab === 'manual' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
           }`}
         >
-          ✍️ Wpis historyczny (ręczny indeks)
+          ✍️ Wpisz indeks historyczny
         </button>
       </div>
 
@@ -471,11 +471,11 @@ function LinkMemberBox({
             onChange={val => {
               if (val) onLinkAlias(participant, val);
             }}
-            placeholder="Wpisz imię, nazwisko lub indeks..."
+            placeholder="Wyszukaj w bazie aktualnych członków..."
             className="w-full"
           />
           <div className="flex justify-between items-center text-[10px] text-slate-400 pt-0.5">
-            <span>Dostępna cała baza SKN (w tym byli członkowie)</span>
+            <span>Dostępna cała baza SKN (w tym archiwalna)</span>
             <button
               type="button"
               onClick={onCancel}
@@ -489,7 +489,7 @@ function LinkMemberBox({
         <form onSubmit={handleSubmitManual} className="space-y-2 pt-1">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
-              <label className="text-[10px] font-bold text-slate-700 block mb-0.5">Numer indeksu: *</label>
+              <label className="text-[10px] font-bold text-slate-700 block mb-0.5">Numer indeksu (historyczny wpis z okresu spotkania): *</label>
               <input
                 type="text"
                 value={manualIdx}
@@ -527,7 +527,7 @@ function LinkMemberBox({
               className="px-3.5 py-1.5 text-[11px] font-bold bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl transition shadow-xs cursor-pointer flex items-center gap-1"
             >
               <Check size={12} />
-              <span>Zapisz jako Członek koła</span>
+              <span>Zatwierdź jako członka koła</span>
             </button>
           </div>
         </form>
@@ -622,6 +622,36 @@ export default function AttendanceModal({
     );
   };
 
+  const { getStorageKey } = useOrg();
+  const prevMeetingKeyRef = React.useRef(null);
+  const wasOpenRef = React.useRef(false);
+
+  // Sync state if modal is opened or props change
+  React.useEffect(() => {
+    if (isOpen && meeting) {
+      const meetingKey = meeting.id || meeting.code || `${meeting.date}_${meeting.topic}`;
+      const isNewOpen = !wasOpenRef.current;
+      const isDifferentMeeting = prevMeetingKeyRef.current !== meetingKey;
+
+      if (isNewOpen || isDifferentMeeting) {
+        prevMeetingKeyRef.current = meetingKey;
+        setActiveFilter('all');
+        setSearchQuery('');
+        const currentAliases = getAliasesFromStorage();
+        setAliasesMap(currentAliases);
+        setLocalParticipants(resolveInitialParticipants(meeting, members, participants, localThreshold, supervisors, getStorageKey, currentAliases));
+      }
+      wasOpenRef.current = true;
+    } else if (!isOpen) {
+      wasOpenRef.current = false;
+      prevMeetingKeyRef.current = null;
+    }
+  }, [isOpen, meeting, participants, members, supervisors, getStorageKey, localThreshold]);
+
+  React.useEffect(() => {
+    setLocalThreshold(minDurationThreshold);
+  }, [minDurationThreshold]);
+
   // Connect guest pseudonym to member profile (Alias Matching)
   const handleLinkAlias = (participant, memberId) => {
     const targetMember = members.find(m => m.id === memberId || m.index === memberId) || getCustomMappedMember(memberId);
@@ -644,9 +674,13 @@ export default function AttendanceModal({
         return {
           ...p,
           member: targetMember,
+          nrIndeksu: targetMember.index || '',
+          rola: 'Członek koła',
           role: 'member',
           isGuest: false,
           isExternalGuest: false,
+          isLinked: true,
+          isCustomHistorical: false,
           manualApproved: true,
           hasManualOverride: true,
           status: 'approved',
@@ -678,6 +712,7 @@ export default function AttendanceModal({
       statusWeryfikacji: 'Archiwum',
       isArchived: true,
       isHistorical: true,
+      isCustomHistorical: true,
     };
 
     const rawKey = normalizeDiacritics(participant.rawName).toLowerCase().trim();
@@ -695,9 +730,13 @@ export default function AttendanceModal({
           ...p,
           rawName: cleanName,
           member: histMember,
+          nrIndeksu: cleanIdx,
+          rola: 'Członek koła',
           role: 'member',
           isGuest: false,
           isExternalGuest: false,
+          isLinked: true,
+          isCustomHistorical: true,
           manualApproved: true,
           hasManualOverride: true,
           status: 'approved',
@@ -707,31 +746,6 @@ export default function AttendanceModal({
 
     setLinkingParticipantId(null);
   };
-
-  // Manual participant add form
-  const [isAddFormOpen, setIsAddFormOpen] = useState(false);
-  const [addRawInput, setAddRawInput] = useState('');
-  const [addSelectedMember, setAddSelectedMember] = useState(null);
-  const [addDuration, setAddDuration] = useState('60');
-  const [addJoinTime, setAddJoinTime] = useState('18:00');
-  const [addRole, setAddRole] = useState('guest');
-
-  const { getStorageKey } = useOrg();
-
-  // Sync state if modal is opened or props change
-  React.useEffect(() => {
-    if (isOpen && meeting) {
-      setActiveFilter('all');
-      setSearchQuery('');
-      const currentAliases = getAliasesFromStorage();
-      setAliasesMap(currentAliases);
-      setLocalParticipants(resolveInitialParticipants(meeting, members, participants, localThreshold, supervisors, getStorageKey, currentAliases));
-    }
-  }, [isOpen, meeting, participants, members, supervisors, getStorageKey]);
-
-  React.useEffect(() => {
-    setLocalThreshold(minDurationThreshold);
-  }, [minDurationThreshold]);
 
   // Recalculate local participants when threshold changes inside modal
   const handleLocalThresholdChange = (val) => {
@@ -841,8 +855,13 @@ export default function AttendanceModal({
         return {
           ...p,
           member: targetMember,
+          nrIndeksu: targetMember.index || '',
+          rola: 'Członek koła',
           role: 'member',
           isGuest: false,
+          isExternalGuest: false,
+          isLinked: true,
+          isCustomHistorical: false,
           manualApproved: true,
           hasManualOverride: true,
           status: 'approved',
@@ -861,12 +880,30 @@ export default function AttendanceModal({
         return {
           ...p,
           member: null,
-          role: 'member',
-          isGuest: false,
-          status: p.manualApproved ? 'approved_unmatched' : 'unmatched',
+          nrIndeksu: '',
+          rola: 'Gość',
+          role: 'guest',
+          isGuest: true,
+          isExternalGuest: true,
+          isLinked: false,
+          isCustomHistorical: false,
+          manualApproved: false,
+          hasManualOverride: true,
+          status: 'guest',
         };
       })
     );
+
+    const pTarget = localParticipants.find(p => p.id === participantId);
+    if (pTarget) {
+      const rawKey = normalizeDiacritics(pTarget.rawName).toLowerCase().trim();
+      if (aliasesMap[rawKey]) {
+        const nextAliases = { ...aliasesMap };
+        delete nextAliases[rawKey];
+        setAliasesMap(nextAliases);
+        saveAliasesToStorage(nextAliases);
+      }
+    }
   };
 
   const handleAddInputChange = (rawVal) => {
@@ -1673,35 +1710,33 @@ export default function AttendanceModal({
                                 <p className="text-[10px] text-amber-700 font-medium">Prelegent / Wykładowca</p>
                               </div>
                             </div>
+                          ) : linkingParticipantId === p.id ? (
+                            <LinkMemberBox
+                              participant={p}
+                              members={members}
+                              onLinkAlias={handleLinkAlias}
+                              onLinkManualIndex={handleLinkManualIndex}
+                              onCancel={() => setLinkingParticipantId(null)}
+                            />
                           ) : isGuestRole ? (
-                            linkingParticipantId === p.id ? (
-                              <LinkMemberBox
-                                participant={p}
-                                members={members}
-                                onLinkAlias={handleLinkAlias}
-                                onLinkManualIndex={handleLinkManualIndex}
-                                onCancel={() => setLinkingParticipantId(null)}
-                              />
-                            ) : (
-                              <div className="flex items-center justify-between gap-2 bg-purple-50 border border-purple-200 p-2 rounded-xl text-purple-900">
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <User size={16} className="text-purple-600 shrink-0" />
-                                  <div className="min-w-0">
-                                    <p className="font-bold text-xs leading-tight truncate">Gość zewnętrzny (brak w bazie SKN)</p>
-                                    <button
-                                      type="button"
-                                      onClick={() => setLinkingParticipantId(p.id)}
-                                      className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 underline cursor-pointer mt-0.5 block text-left"
-                                    >
-                                      🔗 Połącz z członkiem
-                                    </button>
-                                  </div>
+                            <div className="flex items-center justify-between gap-2 bg-purple-50 border border-purple-200 p-2 rounded-xl text-purple-900">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <User size={16} className="text-purple-600 shrink-0" />
+                                <div className="min-w-0">
+                                  <p className="font-bold text-xs leading-tight truncate">Gość zewnętrzny (brak w bazie SKN)</p>
+                                  <button
+                                    type="button"
+                                    onClick={() => setLinkingParticipantId(p.id)}
+                                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 underline cursor-pointer mt-0.5 block text-left"
+                                  >
+                                    🔗 Połącz z członkiem
+                                  </button>
                                 </div>
                               </div>
-                            )
+                            </div>
                           ) : p.member ? (
                             (() => {
-                              const isFormer = isFormerOrArchivedMember(p.member);
+                              const isFormer = isFormerOrArchivedMember(p.member) || p.isCustomHistorical;
                               return (
                                 <div className={`flex items-center justify-between gap-2 p-2 rounded-xl border ${
                                   isFormer
@@ -1713,56 +1748,56 @@ export default function AttendanceModal({
                                       {p.member.fullName || `${p.member.firstName} ${p.member.lastName}`}
                                     </p>
                                     <p className="text-[10px] text-slate-500 font-mono flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                      <span>Nr: <strong>{p.member.index}</strong></span>
+                                      <span>Nr: <strong>{p.member.index || p.nrIndeksu}</strong></span>
                                       {isFormer ? (
                                         <span className="bg-slate-200 text-slate-700 font-semibold px-1.5 py-0.2 rounded text-[10px]">
-                                          {p.member.isHistorical ? 'Wpis historyczny' : 'Były członek (Archiwum)'}
+                                          {p.member.isHistorical || p.isCustomHistorical ? `Wpis historyczny (indeks: ${p.member.index || p.nrIndeksu})` : 'Były członek (Archiwum)'}
                                         </span>
                                       ) : (
                                         p.member.field && <span>• {p.member.field}</span>
                                       )}
                                     </p>
                                   </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleUnlinkMember(p.id)}
-                                    className="text-[10px] text-slate-400 hover:text-rose-600 font-bold px-1.5 py-0.5 rounded hover:bg-white transition cursor-pointer shrink-0"
-                                    title="Odłącz powiązanie z tym studentem"
-                                  >
-                                    Rozłącz
-                                  </button>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => setLinkingParticipantId(p.id)}
+                                      className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold px-1.5 py-0.5 rounded hover:bg-white transition cursor-pointer"
+                                      title="Edytuj powiązanie"
+                                    >
+                                      Edytuj
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUnlinkMember(p.id)}
+                                      className="text-[10px] text-slate-400 hover:text-rose-600 font-bold px-1.5 py-0.5 rounded hover:bg-white transition cursor-pointer"
+                                      title="Odłącz powiązanie z tym studentem"
+                                    >
+                                      Rozłącz
+                                    </button>
+                                  </div>
                                 </div>
                               );
                             })()
                           ) : (
-                            linkingParticipantId === p.id ? (
-                              <LinkMemberBox
-                                participant={p}
+                            <div className="space-y-1">
+                              <MemberAutocomplete
                                 members={members}
-                                onLinkAlias={handleLinkAlias}
-                                onLinkManualIndex={handleLinkManualIndex}
-                                onCancel={() => setLinkingParticipantId(null)}
+                                value={selectedAssignee[p.id] || ''}
+                                onChange={val => {
+                                  if (val) handleAssignMember(p.id, val);
+                                }}
+                                placeholder="Wybierz studenta (141 osób)..."
+                                className="w-full"
                               />
-                            ) : (
-                              <div className="space-y-1">
-                                <MemberAutocomplete
-                                  members={members}
-                                  value={selectedAssignee[p.id] || ''}
-                                  onChange={val => {
-                                    if (val) handleAssignMember(p.id, val);
-                                  }}
-                                  placeholder="Wybierz studenta (141 osób)..."
-                                  className="w-full"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => setLinkingParticipantId(p.id)}
-                                  className="text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold underline cursor-pointer block"
-                                >
-                                  ✍️ Wprowadź numer indeksu ręcznie (Wpis historyczny)
-                                </button>
-                              </div>
-                            )
+                              <button
+                                type="button"
+                                onClick={() => setLinkingParticipantId(p.id)}
+                                className="text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold underline cursor-pointer block"
+                              >
+                                ✍️ Wprowadź numer indeksu ręcznie (Wpis historyczny)
+                              </button>
+                            </div>
                           )}
                         </td>
 
@@ -1803,7 +1838,7 @@ export default function AttendanceModal({
                             </span>
                           ) : isApproved ? (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                              <CheckCircle2 size={11} /> Zaliczona
+                              <CheckCircle2 size={11} /> Zaliczona (+{pointsForMeeting} pkt)
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">

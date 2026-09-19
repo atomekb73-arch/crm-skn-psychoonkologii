@@ -251,6 +251,23 @@ export function matchMemberWaterfall(nameOrIndexOrQuery, members = [], aliasesMa
            normalizeDiacritics(m.fullName || `${m.firstName} ${m.lastName}`).replace(/\s+/g, ' ').toLowerCase().trim() === target
     );
     if (matchByAlias) return matchByAlias;
+
+    // Jeśli alias wskazuje na numer indeksu nieobecny w bieżącym rejestrze (wpis historyczny)
+    const isNumIdx = target.match(/^\d{3,6}$/);
+    if (isNumIdx) {
+      return {
+        id: `hist_${target}`,
+        index: target,
+        nrIndeksu: target,
+        fullName: clean,
+        name: clean,
+        status: 'archived',
+        statusWeryfikacji: 'Archiwum',
+        isArchived: true,
+        isHistorical: true,
+        isCustomHistorical: true,
+      };
+    }
   }
 
   // B) Kolumna J w bazie: m.aliases / m.aliasy
