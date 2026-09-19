@@ -44,6 +44,7 @@ import {
   PARTICIPANT_ROLES,
   detectParticipantRole,
   matchMemberWaterfall,
+  cleanParticipantIdentifier,
 } from '../utils/specialRoles';
 import { useOrg } from '../context/OrgContext';
 import AttendanceModal from './AttendanceModal';
@@ -505,19 +506,30 @@ export default function MeetingsTab({
       } else if (Array.isArray(saved.confirmedIndexes) && saved.confirmedIndexes.length > 0) {
         participants = saved.confirmedIndexes.map((idx, i) => {
           const rawIdxStr = String(idx || '').trim();
-          const isSpk = rawIdxStr.toUpperCase().includes('[SPEAKER]') || rawIdxStr.toLowerCase().includes('speaker') || rawIdxStr.toLowerCase().includes('prelegent');
-          const isSup = isFacultySupervisor(rawIdxStr);
-          const mem = (!isSpk && !isSup) ? members.find(item => String(item.index || '').trim() === rawIdxStr) : null;
-          const cleanName = rawIdxStr.replace(/^\[SPEAKER\]:?\s*/i, '').replace(/^\[GOŚĆ\]:?\s*/i, '').trim();
+          const parsed = cleanParticipantIdentifier(rawIdxStr);
+          const matchedSup = findMatchingSupervisor(parsed.cleanText, supervisors);
+          const isSup = parsed.isSupervisor || matchedSup != null || isFacultySupervisor(parsed.cleanText, supervisors);
+          const isSpk = !isSup && (parsed.isSpeaker || rawIdxStr.toUpperCase().includes('[SPEAKER]') || rawIdxStr.toLowerCase().includes('speaker') || rawIdxStr.toLowerCase().includes('prelegent'));
+
+          let mem = null;
+          if (!isSpk && !isSup) {
+            mem = matchMemberWaterfall(rawIdxStr, members) || (parsed.indexes.length > 0 ? members.find(item => parsed.indexes.includes(String(item.index || item.nrIndeksu || '').trim())) : null);
+          }
+
+          const cleanName = parsed.cleanText;
+          const finalRawName = isSup
+            ? (matchedSup ? (matchedSup.fullName || matchedSup.name) : cleanName)
+            : (mem ? (mem.fullName || `${mem.firstName} ${mem.lastName}`) : cleanName);
 
           return {
             id: `p_saved_${i}_${idx}`,
-            rawName: mem ? (mem.fullName || `${mem.firstName} ${mem.lastName}`) : (cleanName || `Indeks: ${idx}`),
+            rawName: finalRawName,
             joinTime: '18:00',
             durationStr: '60 min',
             durationMinutes: 60,
             member: mem || null,
-            role: isSup ? 'supervisor' : (isSpk ? 'speaker' : 'member'),
+            role: isSup ? 'supervisor' : (isSpk ? 'speaker' : (mem ? 'member' : 'guest')),
+            isSupervisor: isSup,
             isSpeaker: isSpk,
             isGuest: !mem && !isSpk && !isSup,
             isExternalGuest: !mem && !isSpk && !isSup,
@@ -531,19 +543,30 @@ export default function MeetingsTab({
     } else if (Array.isArray(m.attendees) && m.attendees.length > 0) {
       participants = m.attendees.map((idx, i) => {
         const rawIdxStr = String(idx || '').trim();
-        const isSpk = rawIdxStr.toUpperCase().includes('[SPEAKER]') || rawIdxStr.toLowerCase().includes('speaker') || rawIdxStr.toLowerCase().includes('prelegent');
-        const isSup = isFacultySupervisor(rawIdxStr);
-        const mem = (!isSpk && !isSup) ? members.find(item => String(item.index || '').trim() === rawIdxStr) : null;
-        const cleanName = rawIdxStr.replace(/^\[SPEAKER\]:?\s*/i, '').replace(/^\[GOŚĆ\]:?\s*/i, '').trim();
+        const parsed = cleanParticipantIdentifier(rawIdxStr);
+        const matchedSup = findMatchingSupervisor(parsed.cleanText, supervisors);
+        const isSup = parsed.isSupervisor || matchedSup != null || isFacultySupervisor(parsed.cleanText, supervisors);
+        const isSpk = !isSup && (parsed.isSpeaker || rawIdxStr.toUpperCase().includes('[SPEAKER]') || rawIdxStr.toLowerCase().includes('speaker') || rawIdxStr.toLowerCase().includes('prelegent'));
+
+        let mem = null;
+        if (!isSpk && !isSup) {
+          mem = matchMemberWaterfall(rawIdxStr, members) || (parsed.indexes.length > 0 ? members.find(item => parsed.indexes.includes(String(item.index || item.nrIndeksu || '').trim())) : null);
+        }
+
+        const cleanName = parsed.cleanText;
+        const finalRawName = isSup
+          ? (matchedSup ? (matchedSup.fullName || matchedSup.name) : cleanName)
+          : (mem ? (mem.fullName || `${mem.firstName} ${mem.lastName}`) : cleanName);
 
         return {
           id: `p_att_${i}_${idx}`,
-          rawName: mem ? (mem.fullName || `${mem.firstName} ${mem.lastName}`) : (cleanName || `Indeks: ${idx}`),
+          rawName: finalRawName,
           joinTime: '18:00',
           durationStr: '60 min',
           durationMinutes: 60,
           member: mem || null,
-          role: isSup ? 'supervisor' : (isSpk ? 'speaker' : 'member'),
+          role: isSup ? 'supervisor' : (isSpk ? 'speaker' : (mem ? 'member' : 'guest')),
+          isSupervisor: isSup,
           isSpeaker: isSpk,
           isGuest: !mem && !isSpk && !isSup,
           isExternalGuest: !mem && !isSpk && !isSup,

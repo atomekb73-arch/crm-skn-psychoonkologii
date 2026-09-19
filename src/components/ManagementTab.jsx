@@ -25,6 +25,7 @@ import {
   ClipboardList,
   GraduationCap,
   Archive,
+  Tag,
 } from 'lucide-react';
 import { calcFrequency, getFrequencyBadge, getCertificateStatus, getRecordKey } from '../utils/helpers';
 import { calculateCurrentStudyYear } from '../utils/academicYear';
@@ -848,6 +849,22 @@ export default function ManagementTab({
                       {isResigned && (
                         <span className="text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-semibold shrink-0 print:border print:border-slate-400 print:bg-transparent print:text-slate-700 print:text-[8px]">Nieaktywny</span>
                       )}
+                      {(() => {
+                        const rawAliases = m.aliases || m.aliasy || m.alias || '';
+                        const aliasList = Array.isArray(rawAliases)
+                          ? rawAliases
+                          : (typeof rawAliases === 'string' && rawAliases.trim() ? rawAliases.split(/[,;\n]+/).map(a => a.trim()).filter(Boolean) : []);
+                        if (aliasList.length === 0) return null;
+                        return (
+                          <span
+                            className="inline-flex items-center gap-0.5 text-[9px] font-semibold bg-purple-50 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded-md shrink-0 print:hidden cursor-help"
+                            title={`Aliasy Meet (kolumna J): ${aliasList.join(', ')}`}
+                          >
+                            <Tag size={9} className="text-purple-600" />
+                            {aliasList.length === 1 ? aliasList[0] : `${aliasList.length} aliasy`}
+                          </span>
+                        );
+                      })()}
                       {isSingleWordName && (
                         <button
                           onClick={() => setEditingMember(m)}

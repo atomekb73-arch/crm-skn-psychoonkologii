@@ -218,10 +218,70 @@ export function isFacultySupervisor(nameOrEmail, customSupervisors = null) {
 }
 
 /**
+ * Czyści identyfikatory uczestników ze zniekształceń, prefiksów ("Indeks: ") oraz tagów ról ([OPIEKUN]:, [SPEAKER]:, itp.)
+ */
+export function cleanParticipantIdentifier(raw) {
+  if (!raw) {
+    return {
+      cleanText: '',
+      tagRole: null,
+      isSupervisor: false,
+      isSpeaker: false,
+      isGuest: false,
+      indexes: [],
+    };
+  }
+
+  let str = String(raw).trim();
+
+  // 1. Usuń sztuczne prefiksy "Indeks: ", "index: ", "nr: ", "id: "
+  str = str.replace(/^(indeks|index|nr|id)\s*:\s*/i, '').trim();
+
+  let tagRole = null;
+  let isSupervisor = false;
+  let isSpeaker = false;
+  let isGuest = false;
+
+  // 2. Rozpoznaj i wytnij tagi ról w nawiasach kwadratowych
+  const tagMatch = str.match(/^\[(OPIEKUN|SPEAKER|PRELEGENT|GOŚĆ|GOSC|CZŁONEK KOŁA|CZLONEK KOLA|CZŁONEK|CZLONEK|UCZESTNIK)\]:?\s*/i);
+  if (tagMatch) {
+    const tag = tagMatch[1].toUpperCase();
+    if (tag.includes('OPIEKUN')) {
+      tagRole = 'supervisor';
+      isSupervisor = true;
+    } else if (tag.includes('SPEAKER') || tag.includes('PRELEGENT')) {
+      tagRole = 'speaker';
+      isSpeaker = true;
+    } else if (tag.includes('GOŚĆ') || tag.includes('GOSC')) {
+      tagRole = 'guest';
+      isGuest = true;
+    } else if (tag.includes('CZŁONEK') || tag.includes('CZLONEK') || tag.includes('UCZESTNIK')) {
+      tagRole = 'member';
+    }
+    str = str.slice(tagMatch[0].length).trim();
+  }
+
+  // Ponowne czyszczenie z ewentualnych zagnieżdżonych prefiksów (np. "Indeks: [OPIEKUN]: ...")
+  str = str.replace(/^(indeks|index|nr|id)\s*:\s*/i, '').trim();
+
+  // 3. Wyodrębnij wszystkie 3-6 cyfrowe numery indeksów (np. "5764, 11487" -> ["5764", "11487"])
+  const indexes = (str.match(/\b\d{3,6}\b/g) || []).map(s => s.trim());
+
+  return {
+    cleanText: str,
+    tagRole,
+    isSupervisor,
+    isSpeaker,
+    isGuest,
+    indexes,
+  };
+}
+
+/**
  * Rygorystyczny algorytm dopasowywania uczestników z Google Meet (Waterfall Matching):
  * 1. Exact Match (1:1):
  *    - Pełna zgodność „Imię Nazwisko” lub „Nazwisko Imię” (case-insensitive, znormalizowane spacje i diakrytyki)
- *    - Dokładny numer indeksu (np. wyodrębniony z logu lub wpisany)
+ *    - Dokładny numer indeksu (w tym obsługa ciągów wielu indeksów "5764, 11487")
  *    - Pełna zgodność adresu e-mail
  * 2. Alias Match:
  *    - Zgodność ze słownikiem aliasów (aliasesMap)
@@ -231,7 +291,9 @@ export function isFacultySupervisor(nameOrEmail, customSupervisors = null) {
  */
 export function matchMemberWaterfall(nameOrIndexOrQuery, members = [], aliasesMap = {}) {
   if (!nameOrIndexOrQuery || !Array.isArray(members) || members.length === 0) return null;
-  const clean = String(nameOrIndexOrQuery).replace(/^\[.*?\]\s*/, '').trim();
+  
+  const parsed = cleanParticipantIdentifier(nameOrIndexOrQuery);
+  const clean = parsed.cleanText;
   if (!clean || clean.length < 2) return null;
 
   const normQuery = normalizeDiacritics(clean).replace(/\s+/g, ' ').toLowerCase().trim();
@@ -239,16 +301,19 @@ export function matchMemberWaterfall(nameOrIndexOrQuery, members = [], aliasesMa
   // 0. Hardcoded Custom mappings (np. Monika Łyniewska - 34327)
   const customMapped = getCustomMappedMember(clean);
   if (customMapped) {
-    const foundInDb = members.find(m => String(m.index || '').trim() === customMapped.index);
+    const foundInDb = members.find(m => String(m.index || m.nrIndeksu || '').trim() === customMapped.index);
     return foundInDb || customMapped;
   }
 
-  // 1. Exact Index Match (jeśli query zawiera sam 3-6 cyfrowy numer indeksu)
-  const indexMatch = normQuery.match(/\b(\d{3,6})\b/);
-  if (indexMatch) {
-    const extractedNum = indexMatch[1];
-    const memberByIdx = members.find(m => String(m.index || m.nrIndeksu || '').trim() === extractedNum);
-    if (memberByIdx) return memberByIdx;
+  // 1. Exact Index Match (jeśli zapytanie zawiera jeden lub więcej 3-6 cyfrowych numerów indeksu)
+  if (parsed.indexes && parsed.indexes.length > 0) {
+    for (const extractedNum of parsed.indexes) {
+      const memberByIdx = members.find(m => {
+        const mIdx = String(m.index || m.nrIndeksu || '').trim();
+        return mIdx && mIdx === extractedNum;
+      });
+      if (memberByIdx) return memberByIdx;
+    }
   }
 
   // 2. Exact Match (1:1) po Imię + Nazwisko lub Nazwisko + Imię lub E-mail

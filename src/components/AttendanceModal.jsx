@@ -42,28 +42,30 @@ import {
   normalizeDiacritics,
   detectParticipantRole,
   matchMemberWaterfall,
+  cleanParticipantIdentifier,
 } from '../utils/specialRoles';
 import { useSettings } from '../context/SettingsContext';
 import { useOrg } from '../context/OrgContext';
 import { ACTIVITY_OPTIONS } from '../utils/activityRegistry';
-import { saveMeetingAttendanceToGAS, parseAttendanceLine } from '../services/googleSheets';
+import { saveMeetingAttendanceToGAS, parseAttendanceLine, updateAliasesInGAS } from '../services/googleSheets';
 import { getAliasesFromStorage, saveAliasesToStorage } from '../utils/storage';
 import { isFormerOrArchivedMember, isMemberActive } from '../utils/memberFilters';
 
 function resolveInitialParticipants(meeting, members = [], participants = [], threshold = 15, supervisors = null, getStorageKey = (k) => k, aliasesMap = {}) {
   const processParticipant = (p, idx = 0) => {
     const rawName = p.rawName || p.name || String(p);
-    const isExplicitSpeaker = p.isSpeaker || p.role === 'speaker' || String(rawName).toUpperCase().includes('[SPEAKER]') || String(rawName).toLowerCase().includes('speaker') || String(rawName).toLowerCase().includes('prelegent');
-    const matchedSup = findMatchingSupervisor(rawName, supervisors);
-    const isSup = matchedSup != null || isFacultySupervisor(rawName, supervisors);
-    const supervisorFormattedName = matchedSup ? (matchedSup.fullName || `${matchedSup.academicTitle || 'mgr'} ${matchedSup.name}`) : rawName;
+    const parsed = cleanParticipantIdentifier(rawName);
+    const isExplicitSpeaker = p.isSpeaker || p.role === 'speaker' || parsed.isSpeaker || String(rawName).toUpperCase().includes('[SPEAKER]') || String(rawName).toLowerCase().includes('speaker') || String(rawName).toLowerCase().includes('prelegent');
+    const matchedSup = findMatchingSupervisor(parsed.cleanText, supervisors) || findMatchingSupervisor(rawName, supervisors);
+    const isSup = parsed.isSupervisor || matchedSup != null || isFacultySupervisor(parsed.cleanText, supervisors) || isFacultySupervisor(rawName, supervisors);
+    const supervisorFormattedName = matchedSup ? (matchedSup.fullName || `${matchedSup.academicTitle || 'mgr'} ${matchedSup.name}`) : (parsed.cleanText || rawName);
 
     // Strict Waterfall matching
     let matchedMember = (!isSup && !isExplicitSpeaker) ? (p.member || matchMemberWaterfall(p.nrIndeksu || rawName, members, aliasesMap)) : null;
     if (p.member && p.member.isHistorical && !matchedMember) {
       matchedMember = p.member;
     }
-    const isMonika = isMonikaLyniewska(rawName) || (matchedMember && isMonikaLyniewska(matchedMember.index || matchedMember.fullName));
+    const isMonika = isMonikaLyniewska(parsed.cleanText) || isMonikaLyniewska(rawName) || (matchedMember && isMonikaLyniewska(matchedMember.index || matchedMember.fullName));
 
     let role = p.role || (isSup ? 'supervisor' : (isExplicitSpeaker ? 'speaker' : (matchedMember ? 'member' : 'guest')));
     if (isSup) role = 'supervisor';
@@ -86,7 +88,7 @@ function resolveInitialParticipants(meeting, members = [], participants = [], th
       ? null
       : matchedMember;
 
-    const cleanRawName = String(rawName).replace(/^\[SPEAKER\]:?\s*/i, '').replace(/^\[GOŚĆ\]:?\s*/i, '').trim();
+    const cleanRawName = parsed.cleanText;
     const finalRawName = isSup
       ? supervisorFormattedName
       : (finalMember ? (finalMember.fullName || `${finalMember.firstName} ${finalMember.lastName}`) : (cleanRawName || rawName));
@@ -667,6 +669,15 @@ export default function AttendanceModal({
 
     setAliasesMap(updatedAliases);
     saveAliasesToStorage(updatedAliases);
+
+    // Automatyczny zapis nowego aliasu do Google Sheets (kolumna J)
+    const targetIdx = targetMember.index || targetMember.cleanIndex || targetMember.nrIndeksu;
+    const cleanAliasName = cleanParticipantIdentifier(participant.rawName).cleanText || participant.rawName;
+    if (targetIdx && cleanAliasName) {
+      updateAliasesInGAS([{ nrIndeksu: targetIdx, nowyAlias: cleanAliasName }]).catch(err => {
+        console.warn('Błąd synchronizacji aliasu z GAS:', err);
+      });
+    }
 
     setLocalParticipants(prev =>
       prev.map(p => {

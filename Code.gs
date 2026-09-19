@@ -329,6 +329,78 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    // ────────────────────────────────────────────────────────────────────────
+    // 6. AKTUALIZACJA ALIASÓW (aktualizuj_aliasy)
+    // ────────────────────────────────────────────────────────────────────────
+    if (action === "aktualizuj_aliasy") {
+      let sheet = ss.getSheetByName(SHEET_NAME_ZGLOSZENIA);
+      let updatedCount = 0;
+      if (sheet && sheet.getLastRow() > 1) {
+        const aliasList = Array.isArray(payload.aliasy) ? payload.aliasy : [];
+        if (aliasList.length > 0) {
+          const numRows = sheet.getLastRow() - 1;
+          const indexCol = sheet.getRange(2, 2, numRows, 1).getValues(); // Kolumna B (Nr_Indeksu)
+          const aliasCol = sheet.getRange(2, 10, numRows, 1).getValues(); // Kolumna J (Aliasy)
+
+          aliasList.forEach(item => {
+            const targetIdx = String(item.nrIndeksu || '').replace(/\D/g, '').replace(/^0+/, '') || String(item.nrIndeksu || '').trim();
+            const newAlias = String(item.nowyAlias || '').trim();
+            if (!targetIdx || !newAlias) return;
+
+            for (let i = 0; i < indexCol.length; i++) {
+              const rowIdx = String(indexCol[i][0]).replace(/\D/g, '').replace(/^0+/, '') || String(indexCol[i][0]).trim();
+              if (rowIdx === targetIdx) {
+                const currentAliases = String(aliasCol[i][0] || '').trim();
+                const existingList = currentAliases ? currentAliases.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean) : [];
+
+                const exists = existingList.some(a => a.toLowerCase() === newAlias.toLowerCase());
+                if (!exists) {
+                  existingList.push(newAlias);
+                  const updatedStr = existingList.join(', ');
+                  aliasCol[i][0] = updatedStr;
+                  sheet.getRange(i + 2, 10).setValue(updatedStr);
+                  updatedCount++;
+                }
+                break;
+              }
+            }
+          });
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "success",
+        message: `Zaktualizowano aliasy dla ${updatedCount} członków`,
+        updatedCount: updatedCount
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // 7. PUNKTOWA EDYCJA DANYCH CZŁONKA (edytuj_dane_czlonka)
+    // ────────────────────────────────────────────────────────────────────────
+    if (action === "edytuj_dane_czlonka") {
+      let sheet = ss.getSheetByName(SHEET_NAME_ZGLOSZENIA);
+      if (sheet && sheet.getLastRow() > 1) {
+        const targetIdx = String(payload.nrIndeksu || '').replace(/\D/g, '').replace(/^0+/, '') || String(payload.nrIndeksu || '').trim();
+        const numRows = sheet.getLastRow() - 1;
+        const indexCol = sheet.getRange(2, 2, numRows, 1).getValues(); // Kolumna B
+
+        for (let i = 0; i < indexCol.length; i++) {
+          const rowIdx = String(indexCol[i][0]).replace(/\D/g, '').replace(/^0+/, '') || String(indexCol[i][0]).trim();
+          if (rowIdx === targetIdx) {
+            const rowIndex = i + 2;
+            if (payload.imieNazwisko !== undefined) sheet.getRange(rowIndex, 3).setValue(String(payload.imieNazwisko).trim());
+            if (payload.email !== undefined) sheet.getRange(rowIndex, 4).setValue(String(payload.email).trim());
+            if (payload.telefon !== undefined) sheet.getRange(rowIndex, 5).setValue(String(payload.telefon).trim());
+            if (payload.kierunek !== undefined) sheet.getRange(rowIndex, 6).setValue(String(payload.kierunek).trim());
+            if (payload.aliasy !== undefined) sheet.getRange(rowIndex, 10).setValue(String(payload.aliasy).trim());
+            break;
+          }
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({ status: "success" }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     return ContentService.createTextOutput(JSON.stringify({
       status: "error",
       message: `Nieznana akcja: ${action}`

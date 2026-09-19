@@ -1,5 +1,5 @@
 import { initialMembers as seedMembers } from '../data/seedMembers.js';
-import { isFacultySupervisor, findMatchingSupervisor } from '../utils/specialRoles.js';
+import { isFacultySupervisor, findMatchingSupervisor, cleanParticipantIdentifier } from '../utils/specialRoles.js';
 
 export function extractSheetId(input) {
   if (!input) return '';
@@ -216,6 +216,28 @@ export async function editMemberInGAS({ nrIndeksu, imieNazwisko, email, telefon,
     telefon: String(telefon || '').trim(),
     kierunek: String(kierunek || '').trim(),
     aliasy: String(aliasy || '').trim()
+  };
+
+  return await sendToGAS(payload);
+}
+
+/**
+ * Aktualizuje / dopisuje nowe aliasy dla członków koła w arkuszu Rejestr_Zgloszen (kolumna J).
+ * @param {Array<{nrIndeksu: string, nowyAlias: string}>} aliasesList
+ */
+export async function updateAliasesInGAS(aliasesList) {
+  if (!Array.isArray(aliasesList) || aliasesList.length === 0) return { ok: true, status: 'skipped' };
+
+  const validAliases = aliasesList.map(item => ({
+    nrIndeksu: String(item.nrIndeksu || item.index || '').replace(/\D/g, '').replace(/^0+/, '') || String(item.nrIndeksu || item.index || '').trim(),
+    nowyAlias: String(item.nowyAlias || item.alias || item.name || '').trim()
+  })).filter(item => item.nrIndeksu && item.nowyAlias);
+
+  if (validAliases.length === 0) return { ok: true, status: 'skipped' };
+
+  const payload = {
+    action: "aktualizuj_aliasy",
+    aliasy: validAliases
   };
 
   return await sendToGAS(payload);
@@ -1406,7 +1428,14 @@ export async function fetchMeetingSheetAttendance(meetingCode, sheetId = SHEET_I
           const nameStr = String(item.name || item.fullName || '').trim();
           const rolaStr = String(item.rola || '').trim().toLowerCase();
 
-          const isExplicitSpeaker =
+          const parsedIdx = cleanParticipantIdentifier(idxStr);
+          const parsedName = cleanParticipantIdentifier(nameStr);
+          const matchedSup = findMatchingSupervisor(parsedName.cleanText) || findMatchingSupervisor(parsedIdx.cleanText);
+          const isSup = parsedIdx.isSupervisor || parsedName.isSupervisor || matchedSup != null || isFacultySupervisor(parsedName.cleanText) || isFacultySupervisor(parsedIdx.cleanText);
+
+          const isExplicitSpeaker = !isSup && (
+            parsedIdx.isSpeaker ||
+            parsedName.isSpeaker ||
             idxStr.toUpperCase().includes('[SPEAKER]') ||
             idxStr.toLowerCase().includes('speaker') ||
             idxStr.toLowerCase().includes('prelegent') ||
@@ -1415,9 +1444,12 @@ export async function fetchMeetingSheetAttendance(meetingCode, sheetId = SHEET_I
             nameStr.toLowerCase().includes('prelegent') ||
             rolaStr.includes('speaker') ||
             rolaStr.includes('prelegent') ||
-            rolaStr.includes('specjalny');
+            rolaStr.includes('specjalny')
+          );
 
-          const isExplicitGuest = !isExplicitSpeaker && (
+          const isExplicitGuest = !isSup && !isExplicitSpeaker && (
+            parsedIdx.isGuest ||
+            parsedName.isGuest ||
             idxStr.includes('[GOŚĆ]') ||
             idxStr.includes('GOSC') ||
             nameStr.includes('[GOŚĆ]') ||
@@ -1427,30 +1459,40 @@ export async function fetchMeetingSheetAttendance(meetingCode, sheetId = SHEET_I
           );
 
           let matchedMember = null;
-          if (!isExplicitGuest && !isExplicitSpeaker && Array.isArray(members) && members.length > 0) {
-            const cleanIdx = normalizeIndex(idxStr);
+          if (!isSup && !isExplicitGuest && !isExplicitSpeaker && Array.isArray(members) && members.length > 0) {
+            const cleanIdx = normalizeIndex(parsedIdx.cleanText);
             matchedMember = members.find(m => {
               if (!m) return false;
               if (cleanIdx && normalizeIndex(m.index) === cleanIdx) return true;
-              if (nameStr && (m.fullName === nameStr || normalizeDiacritics(m.fullName) === normalizeDiacritics(nameStr))) return true;
+              if (parsedIdx.indexes && parsedIdx.indexes.includes(String(m.index || m.nrIndeksu || '').trim())) return true;
+              if (parsedName.cleanText && (m.fullName === parsedName.cleanText || normalizeDiacritics(m.fullName) === normalizeDiacritics(parsedName.cleanText))) return true;
               return false;
             });
           }
 
-          let cleanNameStr = nameStr.replace(/^\[SPEAKER\]:?\s*/i, '').replace(/^\[GOŚĆ\]:?\s*/i, '').trim();
-          let cleanIdxStr = idxStr.replace(/^\[SPEAKER\]:?\s*/i, '').replace(/^\[GOŚĆ\]:?\s*/i, '').trim();
+          let cleanNameStr = parsedName.cleanText;
+          let cleanIdxStr = parsedIdx.cleanText;
 
-          let finalName = matchedMember
-            ? (matchedMember.fullName || `${matchedMember.firstName} ${matchedMember.lastName}`)
-            : (cleanNameStr || cleanIdxStr || (isExplicitSpeaker ? 'Prelegent' : 'Uczestnik'));
+          let finalName = isSup
+            ? (matchedSup ? (matchedSup.fullName || matchedSup.name) : (cleanNameStr || cleanIdxStr || 'Opiekun Koła'))
+            : (matchedMember
+              ? (matchedMember.fullName || `${matchedMember.firstName} ${matchedMember.lastName}`)
+              : (cleanNameStr || cleanIdxStr || (isExplicitSpeaker ? 'Prelegent' : 'Uczestnik')));
 
-          let finalIndex = (isExplicitGuest || isExplicitSpeaker) ? '' : (matchedMember?.index || (cleanIdxStr && !cleanIdxStr.includes('GOŚĆ') && !cleanIdxStr.includes('SPEAKER') ? cleanIdxStr : ''));
-          let finalRole = isExplicitSpeaker ? 'Prelegent' : (isExplicitGuest ? 'Gość' : (item.rola || matchedMember?.role || (finalIndex ? 'Członek koła' : 'Gość')));
+          let finalIndex = (isSup || isExplicitGuest || isExplicitSpeaker)
+            ? ''
+            : (matchedMember?.index || (cleanIdxStr && !cleanIdxStr.includes('GOŚĆ') && !cleanIdxStr.includes('SPEAKER') && cleanIdxStr.match(/^\d{3,6}$/) ? cleanIdxStr : ''));
+
+          let finalRole = isSup
+            ? 'supervisor'
+            : (isExplicitSpeaker ? 'speaker' : (isExplicitGuest ? 'guest' : (item.rola || matchedMember?.role || (finalIndex ? 'member' : 'guest'))));
 
           let formattedRawName = finalName;
-          if (isExplicitSpeaker) {
+          if (isSup) {
+            formattedRawName = finalName;
+          } else if (isExplicitSpeaker) {
             formattedRawName = `[SPEAKER]: ${finalName}`;
-          } else if (finalRole === 'Gość' || isExplicitGuest) {
+          } else if (finalRole === 'guest' || isExplicitGuest) {
             formattedRawName = finalName.startsWith('[GOŚĆ]') ? finalName : `[GOŚĆ]: ${finalName}`;
           } else if (finalIndex && !finalName.includes(finalIndex)) {
             formattedRawName = `${finalName} (${finalIndex})`;
@@ -1462,10 +1504,11 @@ export async function fetchMeetingSheetAttendance(meetingCode, sheetId = SHEET_I
             fullName: finalName,
             index: finalIndex,
             email: matchedMember?.email || item.email || '',
-            role: isExplicitSpeaker ? 'speaker' : (finalRole === 'Gość' || isExplicitGuest ? 'guest' : 'member'),
+            role: isSup ? 'supervisor' : (isExplicitSpeaker ? 'speaker' : (finalRole === 'guest' || isExplicitGuest ? 'guest' : 'member')),
+            isSupervisor: isSup,
             isSpeaker: isExplicitSpeaker,
-            isGuest: isExplicitGuest,
-            manualApproved: isExplicitSpeaker || isExplicitGuest || !!matchedMember,
+            isGuest: !isSup && !isExplicitSpeaker && (finalRole === 'guest' || isExplicitGuest),
+            manualApproved: isSup || isExplicitSpeaker || isExplicitGuest || !!matchedMember,
             joinTime: item.dataSpotkania || '18:00',
             durationStr: '60 min',
             durationMinutes: 60,
