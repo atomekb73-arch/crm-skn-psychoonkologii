@@ -14,7 +14,11 @@ export function extractSheetId(input) {
 const envSheetInput = import.meta.env?.VITE_GOOGLE_SHEET_ID || import.meta.env?.VITE_SHEETS_URL;
 export const SHEET_ID = envSheetInput ? extractSheetId(envSheetInput) : '1HbpVQkKdtKqsg0Ew5d3AigZBq-wvQYmJ-vpSIIWLFpg';
 
-export const APPS_SCRIPT_URL = import.meta.env?.VITE_APPS_SCRIPT_URL || "https://script.google.com/macros/s/AKfycbzNmCpDeIdLa_SdWvNio64FPXPxW4ymITAv25m07YcBoE5zMmi-WYbZ-xhZ6e3ZGnYt/exec";
+export const APPS_SCRIPT_URL =
+  import.meta.env?.VITE_GAS_URL ||
+  import.meta.env?.VITE_APPS_SCRIPT_URL ||
+  import.meta.env?.REACT_APP_GAS_URL ||
+  "https://script.google.com/macros/s/AKfycbxnoZwAlLHYDRr4R8iKGfyA0OGH7fiPSJTGL4m5PZsG6HQFwOALIZnDIW_mrphW8Djq/exec";
 export const GAS_WEBAPP_URL = APPS_SCRIPT_URL;
 export const GAS_ENDPOINT = APPS_SCRIPT_URL;
 
@@ -59,6 +63,21 @@ export async function fetchGasData() {
     return data;
   } catch (err) {
     console.warn("Błąd pobierania danych z GAS pobierz_dane:", err);
+    return null;
+  }
+}
+
+/**
+ * Wykonuje test połączenia ping z backendem Google Apps Script (GET ?action=ping).
+ */
+export async function pingGAS() {
+  try {
+    const res = await fetch(`${GAS_WEBAPP_URL}?action=ping`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return data;
+  } catch (err) {
+    console.warn("Błąd ping do GAS:", err);
     return null;
   }
 }
