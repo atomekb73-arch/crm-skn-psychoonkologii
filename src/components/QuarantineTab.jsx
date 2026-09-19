@@ -118,6 +118,7 @@ export default function QuarantineTab({
   members = [],
   quarantine = [],
   archivedQuarantine = [],
+  meetings = [],
   onApprove,
   onBulkApprove,
   onArchive,
@@ -558,6 +559,7 @@ export default function QuarantineTab({
         isOpen={!!editingMember}
         onClose={() => setEditingMember(null)}
         allMembers={members}
+        meetings={meetings}
         onSave={(updated) => {
           if (onSaveMember) onSaveMember(updated);
         }}

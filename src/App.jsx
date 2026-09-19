@@ -39,7 +39,7 @@ import { materials, initialMembers, initialMeetings } from './data/mockData';
 import { getRecordKey } from './utils/helpers';
 import { getAcademicYearKey } from './utils/academicYear';
 import { getCanonicalMeetingsForOrg, filterLegitimateMeetings } from './utils/canonicalMeetings';
-import { getMeetingType, calculateCategorizedFrequency } from './utils/meetingTypes';
+import { getMeetingType, calculateCategorizedFrequency, isMeetingEligibleForDenominator } from './utils/meetingTypes';
 import { isMemberActive, isMemberGuest, isMemberInactive, isMemberArchived, hasMailingConsent } from './utils/memberFilters';
 import {
   createOrgSnapshot,
@@ -1447,10 +1447,10 @@ export default function App() {
     const isSknSeks = currentOrg?.id === 'skn_seksuologii';
 
     const conductedMandatory = safeMeetings.filter(
-      meet => meet && !meet.isUpcoming && getMeetingType(meet, customMeetingTypes) === 'mandatory'
+      meet => isMeetingEligibleForDenominator(meet, customMeetingTypes)
     );
     const plannedMandatory = safeMeetings.filter(
-      meet => meet && getMeetingType(meet, customMeetingTypes) === 'mandatory'
+      meet => isMeetingEligibleForDenominator(meet, customMeetingTypes)
     );
     const dynamicMandatoryTotal = conductedMandatory.length > 0
       ? conductedMandatory.length
@@ -1700,6 +1700,7 @@ export default function App() {
                         members={members}
                         quarantine={quarantine}
                         archivedQuarantine={archivedQuarantine}
+                        meetings={meetings}
                         onApprove={handleApprove}
                         onBulkApprove={handleBulkApprove}
                         onArchive={handleArchive}
@@ -1751,6 +1752,7 @@ export default function App() {
                       members={members}
                       quarantine={quarantine}
                       archivedQuarantine={archivedQuarantine}
+                      meetings={meetings}
                       onApprove={handleApprove}
                       onBulkApprove={handleBulkApprove}
                       onArchive={handleArchive}

@@ -75,15 +75,6 @@ export default function Navbar({
             >
               <Icon size={16} className={isActive ? 'text-indigo-600' : 'text-slate-600'} />
               <span>{tab.label}</span>
-
-              {/* Quarantine / Pending Count Badge on Członkowie tab */}
-              {tab.id === 'members' && pendingCount > 0 && (
-                <span className={`px-2 py-0.5 rounded-full text-[10.5px] font-extrabold shadow-xs transition-colors ${
-                  isActive ? 'bg-amber-500 text-white' : 'bg-amber-100 text-amber-900 border border-amber-300'
-                }`}>
-                  {pendingCount}
-                </span>
-              )}
             </button>
           );
         })}
@@ -124,7 +115,7 @@ export default function Navbar({
               <ShieldAlert size={13} className={membersSubTab === 'quarantine' || activeTab === 'quarantine' ? 'text-amber-600' : 'text-slate-600'} />
               <span>Kwarantanna & Zgłoszenia</span>
               {pendingCount > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-amber-500 text-white">
+                <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5 text-[11px] font-semibold leading-none text-white bg-amber-500 rounded-full select-none translate-y-[1px]">
                   {pendingCount}
                 </span>
               )}

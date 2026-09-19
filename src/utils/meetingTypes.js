@@ -134,9 +134,98 @@ export function getMeetingType(meeting, customTypes = {}) {
 }
 
 /**
+ * Sprawdza, czy spotkanie kwalifikuje się do mianownika frekwencji (bazy wymaganych spotkań).
+ * Warunki:
+ * 1. Nie jest to spotkanie nadchodzące (isUpcoming === false).
+ * 2. Jeśli zdefiniowano ręczny przełącznik countsInFrequency / includeInFrequency:
+ *    - false -> bezwzględnie wykluczone
+ *    - true -> wliczone do mianownika
+ * 3. Jeśli brak ręcznego przełącznika:
+ *    - Typ spotkania musi mieć countsTowardsDenominator: true (domyślnie 'mandatory').
+ *      Spotkania 'internal' (zarząd), 'optional' (otwarte) i 'trigger_warning' są wykluczone.
+ *    - Spotkanie MUSI posiadać zarejestrowaną/zweryfikowaną listę obecności (attendanceCount > 0 lub wpisy w ewidencji / localStorage).
+ */
+export function isMeetingEligibleForDenominator(meeting, customTypes = {}, ewidencja = null) {
+  if (!meeting) return false;
+  if (meeting.isUpcoming) return false;
+
+  // 1. Sprawdź czy spotkanie ma manualny override flagi countsInFrequency / includeInFrequency
+  if (meeting.countsInFrequency !== undefined && meeting.countsInFrequency !== null) {
+    return Boolean(meeting.countsInFrequency);
+  }
+  if (meeting.includeInFrequency !== undefined && meeting.includeInFrequency !== null) {
+    return Boolean(meeting.includeInFrequency);
+  }
+
+  // 2. Sprawdź typ spotkania (tylko Obowiązkowe countsTowardsDenominator: true)
+  const type = getMeetingType(meeting, customTypes);
+  const typeConfig = MEETING_TYPES[type];
+  if (!typeConfig || !typeConfig.countsTowardsDenominator) {
+    return false;
+  }
+
+  // 3. Spotkanie MUSI posiadać zarejestrowaną frekwencję (attendanceCount > 0 / attendees > 0)
+  if (meeting.attendanceCount !== undefined && meeting.attendanceCount !== null) {
+    return Number(meeting.attendanceCount) > 0;
+  }
+  if (meeting.attendeesCount !== undefined && meeting.attendeesCount !== null) {
+    return Number(meeting.attendeesCount) > 0;
+  }
+  if (Array.isArray(meeting.attendees) && meeting.attendees.length > 0) {
+    return true;
+  }
+  if (Array.isArray(meeting.participantRecords) && meeting.participantRecords.length > 0) {
+    return true;
+  }
+
+  // 4. Sprawdź ewidencja jeśli dostępna
+  const cleanCode = String(meeting.code || meeting.id || '').replace(/[\[\]]/g, '').trim().toUpperCase();
+  if (Array.isArray(ewidencja) && ewidencja.length > 0 && cleanCode) {
+    const hasEwidencja = ewidencja.some(e => {
+      const eCode = String(e.kodSpotkania || e.meetingCode || '').replace(/[\[\]]/g, '').trim().toUpperCase();
+      return eCode === cleanCode;
+    });
+    if (hasEwidencja) return true;
+  }
+
+  // 5. Sprawdź w localStorage czy istnieją zapisane obecności dla tego spotkania
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const keys = [
+        `crm_attendance_${meeting.id}`,
+        `crm_attendance_${meeting.date}`,
+        meeting.code ? `crm_attendance_${meeting.code}` : null,
+      ].filter(Boolean);
+
+      for (const k of keys) {
+        const raw = localStorage.getItem(k);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed) {
+            if (typeof parsed.confirmedCount === 'number' && parsed.confirmedCount > 0) return true;
+            if (Array.isArray(parsed.confirmedIndexes) && parsed.confirmedIndexes.length > 0) return true;
+            if (Array.isArray(parsed.attendees) && parsed.attendees.length > 0) return true;
+            if (Array.isArray(parsed) && parsed.length > 0) return true;
+          }
+        }
+      }
+    } catch {}
+  }
+
+  return false;
+}
+
+/**
  * Wylicza frekwencję członka na podstawie skategoryzowanych i zakończonych spotkań
  */
-export function calculateCategorizedFrequency(memberOrIndex, meetings = [], customTypes = {}, fallbackPresent = 0, fallbackAbsent = 0) {
+export function calculateCategorizedFrequency(
+  memberOrIndex,
+  meetings = [],
+  customTypes = {},
+  fallbackPresent = 0,
+  fallbackAbsent = 0,
+  ewidencja = null
+) {
   const safeMeetings = Array.isArray(meetings) ? meetings : [];
 
   // Wyodrębnij identyfikatory członka
@@ -161,14 +250,19 @@ export function calculateCategorizedFrequency(memberOrIndex, meetings = [], cust
     }
   });
   const conductedMeetings = Array.from(uniqueConductedMap.values());
-  const conductedCount = conductedMeetings.length;
+
+  // Mianownik frekwencji: TYLKO spotkania spełniające warunki isMeetingEligibleForDenominator
+  const eligibleMandatoryMeetings = conductedMeetings.filter(m =>
+    isMeetingEligibleForDenominator(m, customTypes, ewidencja)
+  );
+  const mandatoryTotal = eligibleMandatoryMeetings.length;
 
   const attendedMeetingCodes = new Set();
   let presentMandatory = 0;
   let optionalBonus = 0;
 
   conductedMeetings.forEach(m => {
-    const type = getMeetingType(m, customTypes);
+    const isEligibleMandatory = isMeetingEligibleForDenominator(m, customTypes, ewidencja);
     const meetCode = String(m.code || m.id || m.date || '').trim();
     let isPresent = false;
 
@@ -259,7 +353,7 @@ export function calculateCategorizedFrequency(memberOrIndex, meetings = [], cust
     if (isPresent) {
       if (!attendedMeetingCodes.has(meetCode)) {
         attendedMeetingCodes.add(meetCode);
-        if (type === 'mandatory') {
+        if (isEligibleMandatory) {
           presentMandatory++;
         } else {
           optionalBonus++;
@@ -268,37 +362,37 @@ export function calculateCategorizedFrequency(memberOrIndex, meetings = [], cust
     }
   });
 
-  const presentCount = attendedMeetingCodes.size;
+  const totalAttended = attendedMeetingCodes.size;
 
-  // Jeśli brak spotkań w harmonogramie, a podano wartości początkowe
-  if (conductedCount === 0) {
-    const p = typeof fallbackPresent === 'number' && !isNaN(fallbackPresent) ? fallbackPresent : 0;
+  // Jeśli brak spotkań w harmonogramie kwalifikujących się do mianownika
+  if (mandatoryTotal === 0) {
+    const p = typeof fallbackPresent === 'number' && !isNaN(fallbackPresent) ? fallbackPresent : totalAttended;
     const a = typeof fallbackAbsent === 'number' && !isNaN(fallbackAbsent) ? fallbackAbsent : 0;
     const total = p + a;
-    const freq = total > 0 ? Math.min(100, Math.round((p / total) * 100)) : 0;
+    const freq = total > 0 ? Math.min(100, Math.round((p / total) * 100)) : 100;
     return {
       freq,
       present: p,
       absent: a,
       presentMandatory: p,
-      mandatoryTotal: total,
+      mandatoryTotal: total > 0 ? total : 12,
       optionalBonus: 0,
       totalAttended: p,
-      conductedTotal: total,
+      conductedTotal: conductedMeetings.length,
     };
   }
 
-  const absentCount = Math.max(0, conductedCount - presentCount);
-  const freq = conductedCount > 0 ? Math.min(100, Math.round((presentCount / conductedCount) * 100)) : 0;
+  const absentCount = Math.max(0, mandatoryTotal - presentMandatory);
+  const freq = mandatoryTotal > 0 ? Math.min(100, Math.round((presentMandatory / mandatoryTotal) * 100)) : 100;
 
   return {
     freq: isNaN(freq) ? 0 : freq,
-    present: presentCount,
+    present: presentMandatory,
     absent: absentCount,
     presentMandatory,
-    mandatoryTotal: conductedCount,
+    mandatoryTotal,
     optionalBonus,
-    totalAttended: presentCount,
-    conductedTotal: conductedCount,
+    totalAttended: presentMandatory + optionalBonus,
+    conductedTotal: conductedMeetings.length,
   };
 }

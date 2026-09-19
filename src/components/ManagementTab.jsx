@@ -30,7 +30,7 @@ import {
 import { calcFrequency, getFrequencyBadge, getCertificateStatus, getRecordKey } from '../utils/helpers';
 import { calculateCurrentStudyYear } from '../utils/academicYear';
 import { getMeetingType } from '../utils/meetingTypes';
-import { calculateCategorizedFrequency } from '../utils/meetingTypes';
+import { calculateCategorizedFrequency, isMeetingEligibleForDenominator } from '../utils/meetingTypes';
 import { useSettings } from '../context/SettingsContext';
 import { useOrg } from '../context/OrgContext';
 import { getOfficialMemberRecord, getMemberStats, activityRegistry } from '../utils/activityRegistry';
@@ -85,12 +85,12 @@ export default function ManagementTab({
     const isSknSeks = currentOrg?.id === 'skn_seksuologii';
     const safeMeetings = Array.isArray(meetings) ? meetings : [];
 
-    // Dynamicznie wyznacz liczbę spotkań obowiązkowych dla organizacji (np. 1 dla SKN Psychoonkologii)
+    // Dynamicznie wyznacz liczbę spotkań obowiązkowych dla organizacji
     const conductedMandatory = safeMeetings.filter(
-      meet => meet && !meet.isUpcoming && getMeetingType(meet, customMeetingTypes) === 'mandatory'
+      meet => isMeetingEligibleForDenominator(meet, customMeetingTypes)
     );
     const plannedMandatory = safeMeetings.filter(
-      meet => meet && getMeetingType(meet, customMeetingTypes) === 'mandatory'
+      meet => isMeetingEligibleForDenominator(meet, customMeetingTypes)
     );
     const dynamicMandatoryTotal = conductedMandatory.length > 0
       ? conductedMandatory.length
@@ -526,6 +526,7 @@ export default function ManagementTab({
         isOpen={!!editingMember}
         onClose={() => setEditingMember(null)}
         allMembers={members}
+        meetings={meetings}
         onSave={(updated) => {
           if (onSaveMember) onSaveMember(updated);
         }}

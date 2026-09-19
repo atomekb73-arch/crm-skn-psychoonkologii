@@ -202,6 +202,7 @@ function MemberAutocomplete({
             setQuery(e.target.value);
             if (!isOpen) setIsOpen(true);
           }}
+          onKeyDown={e => e.stopPropagation()}
           onFocus={() => {
             setIsOpen(true);
             setQuery('');
@@ -328,6 +329,7 @@ function AddParticipantInput({
             onChange(e.target.value);
             if (!isOpen) setIsOpen(true);
           }}
+          onKeyDown={e => e.stopPropagation()}
           onFocus={() => setIsOpen(true)}
           onBlur={() => setTimeout(() => setIsOpen(false), 240)}
           placeholder={placeholder}
@@ -496,6 +498,7 @@ function LinkMemberBox({
                 type="text"
                 value={manualIdx}
                 onChange={e => setManualIdx(e.target.value)}
+                onKeyDown={e => e.stopPropagation()}
                 placeholder="np. 28412"
                 className="w-full text-xs font-mono font-bold border border-indigo-300 rounded-xl px-2.5 py-1.5 bg-white text-slate-900 focus:ring-2 focus:ring-indigo-400 outline-none shadow-2xs"
                 autoFocus
@@ -507,6 +510,7 @@ function LinkMemberBox({
                 type="text"
                 value={manualName}
                 onChange={e => setManualName(e.target.value)}
+                onKeyDown={e => e.stopPropagation()}
                 placeholder="Imię Nazwisko"
                 className="w-full text-xs font-semibold border border-slate-200 rounded-xl px-2.5 py-1.5 bg-white text-slate-900 focus:ring-2 focus:ring-indigo-400 outline-none shadow-2xs"
               />
@@ -1308,6 +1312,7 @@ export default function AttendanceModal({
             <textarea
               value={pasteRawText}
               onChange={e => setPasteRawText(e.target.value)}
+              onKeyDown={e => e.stopPropagation()}
               rows={5}
               placeholder="Wklej logi z Google Meet (np. 'Imię Nazwisko', '18:00', '45 min' lub format CSV)..."
               className="w-full text-xs font-mono border border-indigo-200 rounded-xl p-3 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-y shadow-inner"
@@ -1380,6 +1385,7 @@ export default function AttendanceModal({
                   max="300"
                   value={addDuration}
                   onChange={e => setAddDuration(e.target.value)}
+                  onKeyDown={e => e.stopPropagation()}
                   placeholder="Minuty"
                   className="w-12 text-center font-bold text-slate-800 outline-none"
                 />
@@ -1515,6 +1521,7 @@ export default function AttendanceModal({
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
+              onKeyDown={e => e.stopPropagation()}
               placeholder="Filtruj po nazwisku, indeksie lub tekście z Meet..."
               className="w-full pl-9 pr-4 py-1.5 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300"
             />
