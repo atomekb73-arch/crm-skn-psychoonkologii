@@ -860,7 +860,7 @@ export function MembersRegistryTemplate({
   const showStatus = columnVisibility.status !== false;
 
   return (
-    <div className="doc-a4-sheet bg-white text-slate-900 font-sans p-8 sm:p-10 relative flex flex-col justify-between border border-slate-300 shadow-xl max-w-[850px] min-h-[1050px] mx-auto my-0 select-text print:p-0 print:border-none print:shadow-none">
+    <div className="doc-a4-sheet doc-multipage bg-white text-slate-900 font-sans p-8 sm:p-10 relative flex flex-col justify-between border border-slate-300 shadow-xl max-w-[850px] min-h-[1050px] mx-auto my-0 select-text print:p-0 print:border-none print:shadow-none">
       {/* Nagłówek */}
       <div className="border-b-2 border-slate-900 pb-3">
         <div className="flex items-baseline justify-between">
@@ -892,7 +892,7 @@ export function MembersRegistryTemplate({
       </div>
 
       {/* Tabela członków */}
-      <div className="border border-slate-200 rounded-lg overflow-hidden text-[9.5px] flex-1 mb-4">
+      <div className="border border-slate-200 rounded-lg overflow-visible text-[9.5px] mb-4 print:border-none">
         <table className="w-full text-left border-collapse">
           <thead className="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
             <tr>
@@ -932,7 +932,7 @@ export function MembersRegistryTemplate({
               const isPassed = Number(freq) >= 50;
 
               return (
-                <tr key={i} className="hover:bg-slate-50 break-inside-avoid">
+                <tr key={i} className="hover:bg-slate-50 break-inside-avoid page-break-inside-avoid">
                   {showLp && <td className="py-0.5 px-1.5 text-center text-slate-400 font-mono">{i + 1}</td>}
                   {showName && <td className="py-0.5 px-2 font-medium text-slate-900">{name}</td>}
                   {showIndex && <td className="py-0.5 px-2 text-center font-mono">{cleanIndex}</td>}
@@ -964,13 +964,15 @@ export function MembersRegistryTemplate({
       </p>
 
       {/* Dynamiczne Podpisy */}
-      <DocumentSignaturesBlock
-        activeSupervisors={activeSupervisors}
-        orgShortName={orgShortName}
-        orgUnit={orgUnit}
-        chairpersonTitle="Zarząd Koła Naukowego"
-        chairpersonSub={`Sekretarz / Przewodniczący ${orgShortName}`}
-      />
+      <div className="mt-6 pt-2 break-inside-avoid page-break-inside-avoid">
+        <DocumentSignaturesBlock
+          activeSupervisors={activeSupervisors}
+          orgShortName={orgShortName}
+          orgUnit={orgUnit}
+          chairpersonTitle="Zarząd Koła Naukowego"
+          chairpersonSub={`Sekretarz / Przewodniczący ${orgShortName}`}
+        />
+      </div>
     </div>
   );
 }

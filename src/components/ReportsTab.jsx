@@ -594,8 +594,9 @@ export default function ReportsTab({
             margin: 0;
           }
           html, body {
-            height: 297mm;
-            overflow: hidden;
+            height: auto !important;
+            min-height: 100% !important;
+            overflow: visible !important;
             background: #ffffff !important;
           }
           body * {
@@ -610,13 +611,13 @@ export default function ReportsTab({
             left: 0 !important;
             top: 0 !important;
             width: 210mm !important;
-            height: 297mm !important;
-            max-height: 297mm !important;
+            height: auto !important;
+            max-height: none !important;
             margin: 0 !important;
             padding: 0 !important;
             box-shadow: none !important;
             border: none !important;
-            overflow: hidden !important;
+            overflow: visible !important;
             background: #ffffff !important;
           }
           .certificate-page {
@@ -631,6 +632,26 @@ export default function ReportsTab({
             padding: 8mm 10mm !important;
             box-sizing: border-box !important;
             overflow: hidden !important;
+          }
+          .doc-multipage {
+            height: auto !important;
+            max-height: none !important;
+            min-height: 0 !important;
+            overflow: visible !important;
+            display: block !important;
+            box-shadow: none !important;
+            border: none !important;
+            padding: 8mm 10mm !important;
+          }
+          .doc-multipage table {
+            width: 100% !important;
+          }
+          .doc-multipage thead {
+            display: table-header-group !important;
+          }
+          .doc-multipage tr {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
           .doc-a4-sheet input {
             border: none !important;
