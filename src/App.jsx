@@ -1695,18 +1695,22 @@ export default function App() {
         )}
 
         {/* Tabs */}
-        {(!loading || members.length > 0 || quarantine.length > 0) && (
-          <ErrorBoundary>
+        {(!loading || (members && members.length > 0) || (quarantine && quarantine.length > 0)) && (
+          <ErrorBoundary
+            key={activeTab}
+            resetKey={`${activeTab}_${membersSubTab}_${documentationSubTab}_${settingsToolsSubTab}`}
+            onNavigateFallback={() => setActiveTab('members')}
+          >
             {(() => {
               switch (activeTab) {
                 case 'members':
                   if (membersSubTab === 'quarantine') {
                     return (
                       <QuarantineTab
-                        members={members}
-                        quarantine={quarantine}
-                        archivedQuarantine={archivedQuarantine}
-                        meetings={meetings}
+                        members={members || []}
+                        quarantine={quarantine || []}
+                        archivedQuarantine={archivedQuarantine || []}
+                        meetings={meetings || []}
                         onApprove={handleApprove}
                         onBulkApprove={handleBulkApprove}
                         onArchive={handleArchive}
@@ -1716,16 +1720,16 @@ export default function App() {
                         onPermanentDeleteArchive={handlePermanentDeleteArchive}
                         onSaveMember={handleSaveMember}
                         onAddMember={handleAddMember}
-                        pendingSyncCount={pendingSyncCount}
+                        pendingSyncCount={pendingSyncCount || 0}
                         onBatchSyncMembers={handleBatchSyncMembers}
                       />
                     );
                   }
                   return (
                     <ManagementTab
-                      members={members}
-                      meetings={meetings}
-                      dorobekList={dorobekList}
+                      members={members || []}
+                      meetings={meetings || []}
+                      dorobekList={dorobekList || []}
                       isLoading={loading}
                       onToggleStatus={handleToggleStatus}
                       onRevertToQuarantine={handleRevertToQuarantine}
@@ -1740,9 +1744,9 @@ export default function App() {
                 case 'management':
                   return (
                     <ManagementTab
-                      members={members}
-                      meetings={meetings}
-                      dorobekList={dorobekList}
+                      members={members || []}
+                      meetings={meetings || []}
+                      dorobekList={dorobekList || []}
                       isLoading={loading}
                       onToggleStatus={handleToggleStatus}
                       onRevertToQuarantine={handleRevertToQuarantine}
@@ -1757,10 +1761,10 @@ export default function App() {
                 case 'quarantine':
                   return (
                     <QuarantineTab
-                      members={members}
-                      quarantine={quarantine}
-                      archivedQuarantine={archivedQuarantine}
-                      meetings={meetings}
+                      members={members || []}
+                      quarantine={quarantine || []}
+                      archivedQuarantine={archivedQuarantine || []}
+                      meetings={meetings || []}
                       onApprove={handleApprove}
                       onBulkApprove={handleBulkApprove}
                       onArchive={handleArchive}
@@ -1770,7 +1774,7 @@ export default function App() {
                       onPermanentDeleteArchive={handlePermanentDeleteArchive}
                       onSaveMember={handleSaveMember}
                       onAddMember={handleAddMember}
-                      pendingSyncCount={pendingSyncCount}
+                      pendingSyncCount={pendingSyncCount || 0}
                       onBatchSyncMembers={handleBatchSyncMembers}
                     />
                   );
@@ -1778,10 +1782,10 @@ export default function App() {
                 case 'meetings':
                   return (
                     <MeetingsTab
-                      meetings={meetings}
-                      members={allMembersForMeetings}
+                      meetings={meetings || []}
+                      members={allMembersForMeetings || []}
                       onMarkAttendance={handleMarkAttendance}
-                      subcalendars={subcalendars}
+                      subcalendars={subcalendars || []}
                       selectedSubcalendar={selectedSubcalendar}
                       onSubcalendarChange={handleSubcalendarChange}
                       onRefreshMeetings={() => loadMeetings()}
@@ -1800,24 +1804,24 @@ export default function App() {
                   }
                   return (
                     <ReportsTab
-                      members={members}
-                      meetings={meetings}
-                      dorobekList={dorobekList}
+                      members={members || []}
+                      meetings={meetings || []}
+                      dorobekList={dorobekList || []}
                       academicYear={academicYear}
-                      initialMember={reportsTarget.member}
-                      initialDocType={reportsTarget.docType}
+                      initialMember={reportsTarget?.member || null}
+                      initialDocType={reportsTarget?.docType || 'membership'}
                     />
                   );
 
                 case 'reports':
                   return (
                     <ReportsTab
-                      members={members}
-                      meetings={meetings}
-                      dorobekList={dorobekList}
+                      members={members || []}
+                      meetings={meetings || []}
+                      dorobekList={dorobekList || []}
                       academicYear={academicYear}
-                      initialMember={reportsTarget.member}
-                      initialDocType={reportsTarget.docType}
+                      initialMember={reportsTarget?.member || null}
+                      initialDocType={reportsTarget?.docType || 'membership'}
                     />
                   );
 
@@ -1832,9 +1836,9 @@ export default function App() {
                   if (settingsToolsSubTab === 'tools') {
                     return (
                       <ToolsTab
-                        members={members}
-                        materials={materials}
-                        meetings={meetings}
+                        members={members || []}
+                        materials={materials || []}
+                        meetings={meetings || []}
                         onBulkMarkGraduates={handleBulkMarkGraduates}
                         onBulkArchiveGraduates={handleBulkArchiveGraduates}
                       />
@@ -1842,25 +1846,25 @@ export default function App() {
                   }
                   return (
                     <SettingsTab
-                      members={members}
-                      meetings={meetings}
+                      members={members || []}
+                      meetings={meetings || []}
                     />
                   );
 
                 case 'settings':
                   return (
                     <SettingsTab
-                      members={members}
-                      meetings={meetings}
+                      members={members || []}
+                      meetings={meetings || []}
                     />
                   );
 
                 case 'tools':
                   return (
                     <ToolsTab
-                      members={members}
-                      materials={materials}
-                      meetings={meetings}
+                      members={members || []}
+                      materials={materials || []}
+                      meetings={meetings || []}
                       onBulkMarkGraduates={handleBulkMarkGraduates}
                       onBulkArchiveGraduates={handleBulkArchiveGraduates}
                     />
@@ -1869,9 +1873,9 @@ export default function App() {
                 default:
                   return (
                     <ManagementTab
-                      members={members}
-                      meetings={meetings}
-                      dorobekList={dorobekList}
+                      members={members || []}
+                      meetings={meetings || []}
+                      dorobekList={dorobekList || []}
                       isLoading={loading}
                       onToggleStatus={handleToggleStatus}
                       onRevertToQuarantine={handleRevertToQuarantine}
