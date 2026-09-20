@@ -127,12 +127,42 @@ export default function ReportsTab({
   members = [],
   meetings = [],
   dorobekList = [],
+  ewidencjaList: propEwidencjaList = null,
+  customMeetingTypes: propCustomMeetingTypes = null,
   academicYear = '2025/2026',
   initialMember = null,
   initialDocType = 'membership',
 }) {
-  const { currentOrg } = useOrg();
+  const { currentOrg, getStorageKey } = useOrg();
   const isSknSeks = currentOrg?.id === 'skn_seksuologii';
+
+  const customMeetingTypes = useMemo(() => {
+    if (propCustomMeetingTypes && Object.keys(propCustomMeetingTypes).length > 0) {
+      return propCustomMeetingTypes;
+    }
+    try {
+      const key = getStorageKey ? getStorageKey('crm_meeting_types') : 'crm_meeting_types';
+      return JSON.parse(localStorage.getItem(key) || '{}');
+    } catch {
+      return {};
+    }
+  }, [propCustomMeetingTypes, getStorageKey]);
+
+  // Read ewidencja list from prop or storage
+  const ewidencjaList = useMemo(() => {
+    if (Array.isArray(propEwidencjaList) && propEwidencjaList.length > 0) {
+      return propEwidencjaList;
+    }
+    if (typeof window === 'undefined') return [];
+    try {
+      const raw = localStorage.getItem('crm_ewidencja') || localStorage.getItem('crm_ewidencja_obecnosci');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  }, [propEwidencjaList]);
 
   const [selectedDocType, setSelectedDocType] = useState(initialDocType || 'membership');
   const [searchQuery, setSearchQuery] = useState('');

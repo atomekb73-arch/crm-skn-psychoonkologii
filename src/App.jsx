@@ -1801,6 +1801,7 @@ export default function App() {
                       members={members}
                       meetings={meetings}
                       dorobekList={dorobekList}
+                      academicYear={academicYear}
                       initialMember={reportsTarget.member}
                       initialDocType={reportsTarget.docType}
                     />
@@ -1812,6 +1813,7 @@ export default function App() {
                       members={members}
                       meetings={meetings}
                       dorobekList={dorobekList}
+                      academicYear={academicYear}
                       initialMember={reportsTarget.member}
                       initialDocType={reportsTarget.docType}
                     />
