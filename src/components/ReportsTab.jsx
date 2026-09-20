@@ -269,7 +269,16 @@ export default function ReportsTab({
   });
 
   // ── Issued Documents Registry State (Ewidencja Wydanych Aktów) ───────────
-  const [issuedRegistry, setIssuedRegistry] = useState(() => getIssuedDocumentsRegistry(currentOrg?.id || 'skn-psychoonkologia'));
+  const [issuedRegistry, setIssuedRegistry] = useState(() => {
+    try {
+      const reg = getIssuedDocumentsRegistry(currentOrg?.id || 'skn-psychoonkologia');
+      if (Array.isArray(reg) && reg.length > 0) return reg;
+      const legacy = localStorage.getItem('crm_ewidencja_zaswiadczen');
+      return legacy ? JSON.parse(legacy) : (Array.isArray(reg) ? reg : []);
+    } catch {
+      return [];
+    }
+  });
   const [isRegistryOpen, setIsRegistryOpen] = useState(false);
   const [registrySearchQuery, setRegistrySearchQuery] = useState('');
   const [registryTypeFilter, setRegistryTypeFilter] = useState('all');
@@ -289,12 +298,12 @@ export default function ReportsTab({
 
   useEffect(() => {
     if (currentOrg?.id) {
-      setIssuedRegistry(getIssuedDocumentsRegistry(currentOrg.id));
+      setIssuedRegistry(getIssuedDocumentsRegistry(currentOrg.id) || []);
     }
   }, [currentOrg?.id]);
 
   const filteredRegistry = useMemo(() => {
-    return issuedRegistry.filter(entry => {
+    return (issuedRegistry || []).filter(entry => {
       if (!entry) return false;
       const matchesType = registryTypeFilter === 'all' || entry.type === registryTypeFilter;
       if (!matchesType) return false;
@@ -973,7 +982,7 @@ export default function ReportsTab({
                 <ClipboardList size={14} className="text-indigo-400" />
                 <span>📑 Ewidencja Wydanych Aktów</span>
                 <span className="px-1.5 py-0.2 rounded-full bg-indigo-500/30 text-indigo-300 text-[10px] font-mono border border-indigo-400/30">
-                  {issuedRegistry.length}
+                  {(issuedRegistry || []).length}
                 </span>
               </button>
 
