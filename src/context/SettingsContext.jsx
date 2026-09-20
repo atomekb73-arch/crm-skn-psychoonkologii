@@ -65,9 +65,9 @@ import { ACTIVITY_OPTIONS, HISTORICAL_MEMBER_ACTIVITIES, getMemberPointsSum } fr
 /**
  * Oblicza sumaryczny licznik punktów aktywności dla studenta
  */
-export function calculateMemberPoints(member, meetings = [], customTypes = {}, weights = DEFAULT_POINT_WEIGHTS) {
+export function calculateMemberPoints(member, meetings = [], customTypes = {}, weights = DEFAULT_POINT_WEIGHTS, dorobekList = []) {
   if (!member) return 0;
-  return getMemberPointsSum(member, meetings, weights);
+  return getMemberPointsSum(member, meetings, weights, dorobekList);
 }
 
 const SettingsContext = createContext();
@@ -138,73 +138,54 @@ export function SettingsProvider({ children }) {
 
   const saveSupervisorsList = (newList) => {
     setSupervisors(newList);
-    try {
-      if (currentOrg) {
+    if (currentOrg?.id) {
+      updateOrganization(currentOrg.id, { supervisors: newList });
+      try {
         localStorage.setItem(getStorageKey('crm_supervisors_config'), JSON.stringify(newList));
-        localStorage.setItem(`crm_psychoonkologia_${currentOrg.id}_settings`, JSON.stringify({ supervisors: newList }));
-        updateOrganization(currentOrg.id, { supervisors: newList });
-      }
-      localStorage.setItem('skn_supervisors_config', JSON.stringify(newList));
-    } catch {}
+      } catch {}
+    }
   };
 
-  const addSupervisor = (sup) => {
-    const academicTitle = sup.academicTitle || 'mgr';
-    const fullName = sup.fullName || `${academicTitle} ${sup.name}`;
-    const newEntry = {
-      id: sup.id || `sup_${Date.now()}`,
-      academicTitle,
-      name: sup.name,
-      fullName,
-      affiliation: sup.affiliation || 'Instytut Psychologii WSKZ',
-      role: sup.role || 'Opiekun Naukowy Koła',
-      email: sup.email || '',
-      startDate: sup.startDate || '2025-10-01',
-      endDate: sup.isActive ? '' : (sup.endDate || ''),
-      isActive: sup.isActive !== undefined ? sup.isActive : true,
-      aliases: [
-        sup.name.toLowerCase(),
-        `${academicTitle.toLowerCase()} ${sup.name.toLowerCase()}`,
-        ...(sup.aliases || []),
-      ],
+  const addSupervisor = (supData) => {
+    const newSup = {
+      id: `sup_${Date.now()}`,
+      academicTitle: supData.academicTitle || 'mgr',
+      name: supData.name || '',
+      fullName: `${supData.academicTitle || 'mgr'} ${supData.name || ''}`.trim(),
+      roleLabel: supData.roleLabel || 'Opiekun Naukowy Koła',
+      isFaculty: true,
+      isActive: true,
     };
-    const updated = [...supervisors.filter(s => s.id !== newEntry.id), newEntry];
-    saveSupervisorsList(updated);
-    return updated;
+    saveSupervisorsList([...supervisors, newSup]);
   };
 
-  const updateSupervisor = (id, updatedFields) => {
+  const updateSupervisor = (supId, updatedFields) => {
     const updated = supervisors.map(s => {
-      if (s.id === id) {
-        const merged = { ...s, ...updatedFields };
-        const academicTitle = merged.academicTitle || 'mgr';
-        merged.fullName = merged.fullName || `${academicTitle} ${merged.name}`;
-        return merged;
-      }
-      return s;
+      if (s.id !== supId) return s;
+      const title = updatedFields.academicTitle !== undefined ? updatedFields.academicTitle : s.academicTitle;
+      const name = updatedFields.name !== undefined ? updatedFields.name : s.name;
+      return {
+        ...s,
+        ...updatedFields,
+        academicTitle: title,
+        name,
+        fullName: `${title || 'mgr'} ${name || ''}`.trim(),
+      };
     });
     saveSupervisorsList(updated);
-    return updated;
   };
 
-  const deleteSupervisor = (id) => {
-    const updated = supervisors.filter(s => s.id !== id);
-    saveSupervisorsList(updated);
-    return updated;
+  const deleteSupervisor = (supId) => {
+    const filtered = supervisors.filter(s => s.id !== supId);
+    saveSupervisorsList(filtered);
   };
 
   const resetSupervisors = () => {
-    saveSupervisorsList([]);
-    try {
-      localStorage.removeItem('skn_supervisors_config');
-      if (currentOrg) {
-        localStorage.removeItem(getStorageKey('crm_supervisors_config'));
-      }
-    } catch {}
+    saveSupervisorsList(DEFAULT_FACULTY_SUPERVISORS);
   };
 
   const getActiveSupervisors = () => {
-    return supervisors.filter(s => s.isActive);
+    return supervisors.filter(s => s.isActive !== false);
   };
 
   return (
@@ -222,7 +203,7 @@ export function SettingsProvider({ children }) {
         engagementScale: ENGAGEMENT_SCALE,
         getEngagementScaleLevel,
         evaluateCertificateEligibility,
-        calculateMemberPoints: (m, meetings, customTypes) => calculateMemberPoints(m, meetings, customTypes, weights),
+        calculateMemberPoints: (m, meetings, customTypes, dorobekList) => calculateMemberPoints(m, meetings, customTypes, weights, dorobekList),
       }}
     >
       {children}
@@ -247,7 +228,7 @@ export function useSettings() {
       engagementScale: ENGAGEMENT_SCALE,
       getEngagementScaleLevel,
       evaluateCertificateEligibility,
-      calculateMemberPoints: (m, meetings, customTypes) => calculateMemberPoints(m, meetings, customTypes, DEFAULT_POINT_WEIGHTS),
+      calculateMemberPoints: (m, meetings, customTypes, dorobekList) => calculateMemberPoints(m, meetings, customTypes, DEFAULT_POINT_WEIGHTS, dorobekList),
     };
   }
   return ctx;

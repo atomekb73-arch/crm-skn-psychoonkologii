@@ -18,7 +18,7 @@ export const APPS_SCRIPT_URL =
   import.meta.env?.VITE_GAS_URL ||
   import.meta.env?.VITE_APPS_SCRIPT_URL ||
   import.meta.env?.REACT_APP_GAS_URL ||
-  "https://script.google.com/macros/s/AKfycbxnoZwAlLHYDRr4R8iKGfyA0OGH7fiPSJTGL4m5PZsG6HQFwOALIZnDIW_mrphW8Djq/exec";
+  "https://script.google.com/macros/s/AKfycbw989Pzd1qDhRvM6_oRgVZtcVInIw31lgcG-mL_YGJgBRnXTJnSFoUlkH7nMvyeeVge/exec";
 export const GAS_WEBAPP_URL = APPS_SCRIPT_URL;
 export const GAS_ENDPOINT = APPS_SCRIPT_URL;
 
@@ -876,6 +876,9 @@ export async function fetchAllData(sheetId = SHEET_ID) {
       if (gasData && Array.isArray(gasData.decyzjeKwarantanny)) {
         gasDecyzje = gasData.decyzjeKwarantanny;
       }
+      let gasDorobekRaw = (gasData && Array.isArray(gasData.dorobek)) ? gasData.dorobek : [];
+      let gasEwidencjaRaw = (gasData && Array.isArray(gasData.ewidencja)) ? gasData.ewidencja : [];
+
       if (gasData && gasData.ewidencja && Array.isArray(gasData.ewidencja)) {
         gasData.ewidencja.forEach(item => {
           const rawCode = String(item.kodSpotkania || '').trim();
@@ -889,6 +892,9 @@ export async function fetchAllData(sheetId = SHEET_ID) {
             fullName: String(item.name || item.fullName || item.nrIndeksu || '').trim(),
             rola: String(item.rola || (item.nrIndeksu ? 'Członek koła' : 'Gość')).trim(),
             email: item.email || '',
+            kodSpotkania: rawCode,
+            punkty: typeof item.punkty === 'number' ? item.punkty : (parseInt(item.punkty, 10) || 0),
+            opisAktywnosci: String(item.opisAktywnosci || item.opis || '').trim(),
             joinTime: item.dataSpotkania || '18:00',
             durationStr: '60 min',
             durationMinutes: 60,

@@ -234,54 +234,119 @@ export function getOfficialMemberRecord(memberOrIndex) {
 /**
  * Oblicza łączne punkty studenta ze wszystkich źródeł
  */
-export function getMemberPointsSum(member, meetings = [], weights = {}) {
+export function getMemberPointsSum(member, meetings = [], weights = {}, dorobekList = []) {
   if (!member) return 0;
   const isSknu = typeof member === 'object' && (member.id?.startsWith('sknu_') || member.fromSheet?.includes('SKNU'));
-  const cleanIdx = normalizeStudentIndex(member.index || member.indexNumber || member.cleanIndex);
+  const isSknSeks = typeof member === 'object' && (member.orgId === 'skn_seksuologii' || member.fromSheet?.includes('Seksuologia'));
+  const cleanIdx = normalizeStudentIndex(member.index || member.indexNumber || member.cleanIndex || member.nrIndeksu);
+  const cleanEmail = String(member.email || '').trim().toLowerCase();
+  const cleanName = String(member.fullName || `${member.firstName || ''} ${member.lastName || ''}`).trim().toLowerCase();
+
   let pts = 0;
 
-  // 1. Sprawdź autorytatywny rejestr oficjalny (tylko dla Seksuologii)
-  if (!isSknu) {
+  // 1. Sprawdź autorytatywny rejestr oficjalny (dla Seksuologii) lub bezpośrednie punkty profilowe
+  if (isSknSeks) {
     const official = OFFICIAL_MEMBERS_MASTER_REGISTRY[cleanIdx];
     if (official && typeof official.points === 'number') {
       pts = official.points;
-    } else if (typeof member.points === 'number' && member.points > 0) {
-      pts = member.points;
-    } else if (typeof member.initialPoints === 'number' && member.initialPoints > 0) {
-      pts = member.initialPoints;
-    } else if (typeof member.present === 'number' && member.present > 0) {
-      pts = member.present;
     }
-  } else {
-    pts = typeof member.points === 'number' ? member.points : 0;
   }
 
-  // 2. Dodaj punkty z nowo przypisanych w sesji aktywności ze spotkań (localStorage)
-  if (typeof window !== 'undefined') {
-    meetings.forEach(m => {
-      if (m.isUpcoming) return;
-      const meetingKey = `crm_attendance_${m.id || m.date}`;
-      try {
-        const savedRaw = localStorage.getItem(meetingKey);
-        if (savedRaw) {
-          const savedData = JSON.parse(savedRaw);
-          const attendees = savedData.attendees || [];
-          const matched = attendees.find(att => {
-            const attIdx = normalizeStudentIndex(att.member?.index || att.index);
-            if (cleanIdx && attIdx === cleanIdx) return true;
-            if (member.fullName && att.rawName && att.rawName.toLowerCase().includes(member.lastName?.toLowerCase() || '')) return true;
-            return false;
-          });
+  if (pts === 0) {
+    if (typeof member.points === 'number' && member.points > 0) {
+      pts = member.points;
+    } else if (typeof member.punkty === 'number' && member.punkty > 0) {
+      pts = member.punkty;
+    } else if (typeof member.initialPoints === 'number' && member.initialPoints > 0) {
+      pts = member.initialPoints;
+    }
+  }
 
-          if (matched) {
-            const activities = Array.isArray(matched.activities) ? matched.activities : [];
-            activities.forEach(actId => {
-              const w = weights[actId];
-              pts += (w?.points || ACTIVITY_OPTIONS.find(o => o.id === actId)?.points || 0);
+  // 2. Punkty stałe / dorobek / zarząd z tablicy dorobek
+  if (Array.isArray(dorobekList) && dorobekList.length > 0) {
+    dorobekList.forEach(item => {
+      if (!item) return;
+      const itemIdx = normalizeStudentIndex(item.nrIndeksu || item.index);
+      const itemEmail = String(item.email || '').trim().toLowerCase();
+      const itemPts = typeof item.punkty === 'number' ? item.punkty : (typeof item.points === 'number' ? item.points : (parseInt(item.punkty || item.points, 10) || 0));
+
+      const isMatch = (cleanIdx && itemIdx && cleanIdx === itemIdx) || (cleanEmail && itemEmail && cleanEmail === itemEmail);
+      if (isMatch) {
+        pts += itemPts;
+      }
+    });
+  }
+
+  // 3. Punkty ze spotkań (ewidencja obecności i zdefiniowane punkty / aktywności)
+  if (Array.isArray(meetings)) {
+    const seenMeetingCodes = new Set();
+    meetings.forEach(m => {
+      if (!m || m.isUpcoming) return;
+      const meetCode = String(m.code || m.id || m.date || '').toUpperCase().trim();
+      const attendees = Array.isArray(m.attendees) ? m.attendees : (Array.isArray(m.participantRecords) ? m.participantRecords : []);
+
+      attendees.forEach(att => {
+        if (!att) return;
+        const attIdx = normalizeStudentIndex(typeof att === 'object' ? (att.member?.index || att.index || att.nrIndeksu) : att);
+        const attEmail = String(typeof att === 'object' ? (att.email || att.member?.email || '') : '').trim().toLowerCase();
+        const attName = String(typeof att === 'object' ? (att.fullName || att.rawName || att.name || '') : '').trim().toLowerCase();
+
+        const isMatch = (cleanIdx && attIdx && cleanIdx === attIdx) ||
+                        (cleanEmail && attEmail && cleanEmail === attEmail) ||
+                        (cleanName && attName && (cleanName === attName || attName.includes(cleanName)));
+
+        if (isMatch) {
+          if (typeof att === 'object') {
+            if (typeof att.punkty === 'number' && att.punkty > 0) {
+              pts += att.punkty;
+            } else if (typeof att.points === 'number' && att.points > 0) {
+              pts += att.points;
+            } else {
+              const activities = Array.isArray(att.activities) ? att.activities : [];
+              if (activities.length > 0) {
+                activities.forEach(actId => {
+                  const w = weights[actId];
+                  pts += (w?.points || ACTIVITY_OPTIONS.find(o => o.id === actId)?.points || 0);
+                });
+              } else if (!seenMeetingCodes.has(meetCode) && pts === 0) {
+                pts += 1;
+              }
+            }
+          } else if (!seenMeetingCodes.has(meetCode) && pts === 0) {
+            pts += 1;
+          }
+          seenMeetingCodes.add(meetCode);
+        }
+      });
+
+      // Sprawdź localStorage dla zapisanych obecności sesyjnych
+      if (typeof window !== 'undefined') {
+        const meetingKey = `crm_attendance_${m.id || m.date}`;
+        try {
+          const savedRaw = localStorage.getItem(meetingKey);
+          if (savedRaw) {
+            const savedData = JSON.parse(savedRaw);
+            const savedAttendees = Array.isArray(savedData) ? savedData : (savedData.attendees || []);
+            savedAttendees.forEach(att => {
+              const attIdx = normalizeStudentIndex(att.member?.index || att.index || att.nrIndeksu);
+              const attEmail = String(att.email || att.member?.email || '').trim().toLowerCase();
+              const isMatch = (cleanIdx && attIdx && cleanIdx === attIdx) || (cleanEmail && attEmail && cleanEmail === attEmail);
+
+              if (isMatch) {
+                if (typeof att.punkty === 'number' && att.punkty > 0) {
+                  pts += att.punkty;
+                } else {
+                  const activities = Array.isArray(att.activities) ? att.activities : [];
+                  activities.forEach(actId => {
+                    const w = weights[actId];
+                    pts += (w?.points || ACTIVITY_OPTIONS.find(o => o.id === actId)?.points || 0);
+                  });
+                }
+              }
             });
           }
-        }
-      } catch {}
+        } catch {}
+      }
     });
   }
 

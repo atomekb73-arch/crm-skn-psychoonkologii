@@ -126,6 +126,7 @@ const DOCUMENT_CATEGORIES = [
 export default function ReportsTab({
   members = [],
   meetings = [],
+  dorobekList = [],
   academicYear = '2025/2026',
   initialMember = null,
   initialDocType = 'membership',
@@ -454,11 +455,14 @@ export default function ReportsTab({
 
   const memberPoints = useMemo(() => {
     if (!selectedMember) return 0;
-    if (!isSknSeks) {
-      return typeof selectedMember.points === 'number' ? selectedMember.points : 0;
-    }
-    return calculateMemberPoints ? calculateMemberPoints(selectedMember, meetings, {}, weights) : (selectedMember.points || 0);
-  }, [selectedMember, isSknSeks, meetings, weights, calculateMemberPoints]);
+    const calc = calculateMemberPoints ? calculateMemberPoints(selectedMember, meetings, {}, dorobekList) : 0;
+    const cleanIndexNum = Number(String(selectedMember.index || selectedMember.indexNumber || selectedMember.cleanIndex || '').replace(/\D/g, ''));
+    const rawPoints = selectedMember.points !== undefined && selectedMember.points !== null ? Number(selectedMember.points) : null;
+    const parsedPoints = (rawPoints !== null && !isNaN(rawPoints) && rawPoints > 0 && (!cleanIndexNum || rawPoints !== cleanIndexNum))
+      ? rawPoints
+      : calc;
+    return parsedPoints || 0;
+  }, [selectedMember, meetings, weights, calculateMemberPoints, dorobekList]);
 
 
   const currentDocNumber = useMemo(() => {

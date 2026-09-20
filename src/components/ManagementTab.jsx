@@ -44,6 +44,7 @@ import CertificateModal from './CertificateModal';
 export default function ManagementTab({
   members = [],
   meetings = [],
+  dorobekList = [],
   isLoading = false,
   onToggleStatus,
   onRevertToQuarantine,
@@ -202,13 +203,13 @@ export default function ManagementTab({
     if (!m) return 0;
     const cleanIndexNum = Number(String(m.index || m.indexNumber || m.cleanIndex || '').replace(/\D/g, ''));
 
-    // Oblicz punkty ze zintegrowanego rejestru aktywności i wag
-    const calc = calculateMemberPoints ? calculateMemberPoints(m, meetings, {}, weights) : 0;
+    // Oblicz punkty ze zintegrowanego rejestru aktywności, wag i dorobku
+    const calc = calculateMemberPoints ? calculateMemberPoints(m, meetings, {}, dorobekList) : 0;
     const validCalc = (typeof calc === 'number' && (!cleanIndexNum || calc !== cleanIndexNum)) ? calc : 0;
 
     // Surowe punkty z obiektu (zabezpieczone przed podstawieniem numeru indeksu)
     const rawPoints = m.points !== undefined && m.points !== null ? Number(m.points) : null;
-    const parsedPoints = (rawPoints !== null && !isNaN(rawPoints) && (!cleanIndexNum || rawPoints !== cleanIndexNum))
+    const parsedPoints = (rawPoints !== null && !isNaN(rawPoints) && rawPoints > 0 && (!cleanIndexNum || rawPoints !== cleanIndexNum))
       ? rawPoints
       : validCalc;
 

@@ -145,6 +145,7 @@ export default function App() {
   const [approvedKeys, setApprovedKeys] = useState([]);
   const [archivedRowIds, setArchivedRowIds] = useState([]);
   const [resignedKeys, setResignedKeys] = useState([]);
+  const [dorobekList, setDorobekList]   = useState([]);
 
   // Teamup Meetings State & Academic Year Filter
   const [meetings, setMeetings]     = useState(initialMeetings || []);
@@ -517,6 +518,9 @@ export default function App() {
       setMembers(activeAndGeneralMembers);
       setQuarantine(pendingQuarantineList);
       setArchivedQuarantine(archiveQuarantineList);
+      if (sheetsData.dorobek && Array.isArray(sheetsData.dorobek)) {
+        setDorobekList(sheetsData.dorobek);
+      }
 
       // Sync & merge correspondence log from Ewidencja_Poczty if present in Google Sheets
       if (sheetsData.mailLog && Array.isArray(sheetsData.mailLog) && sheetsData.mailLog.length > 0 && currentOrg?.id) {
@@ -1719,6 +1723,7 @@ export default function App() {
                     <ManagementTab
                       members={members}
                       meetings={meetings}
+                      dorobekList={dorobekList}
                       isLoading={loading}
                       onToggleStatus={handleToggleStatus}
                       onRevertToQuarantine={handleRevertToQuarantine}
@@ -1735,6 +1740,7 @@ export default function App() {
                     <ManagementTab
                       members={members}
                       meetings={meetings}
+                      dorobekList={dorobekList}
                       isLoading={loading}
                       onToggleStatus={handleToggleStatus}
                       onRevertToQuarantine={handleRevertToQuarantine}
@@ -1794,6 +1800,7 @@ export default function App() {
                     <ReportsTab
                       members={members}
                       meetings={meetings}
+                      dorobekList={dorobekList}
                       initialMember={reportsTarget.member}
                       initialDocType={reportsTarget.docType}
                     />
@@ -1804,6 +1811,7 @@ export default function App() {
                     <ReportsTab
                       members={members}
                       meetings={meetings}
+                      dorobekList={dorobekList}
                       initialMember={reportsTarget.member}
                       initialDocType={reportsTarget.docType}
                     />
@@ -1859,6 +1867,7 @@ export default function App() {
                     <ManagementTab
                       members={members}
                       meetings={meetings}
+                      dorobekList={dorobekList}
                       isLoading={loading}
                       onToggleStatus={handleToggleStatus}
                       onRevertToQuarantine={handleRevertToQuarantine}
