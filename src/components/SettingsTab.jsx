@@ -48,6 +48,8 @@ import {
   Eye,
   EyeOff,
   AtSign,
+  ExternalLink,
+  FolderOpen,
 } from 'lucide-react';
 import { useSettings, DEFAULT_POINT_WEIGHTS } from '../context/SettingsContext';
 import { useOrg } from '../context/OrgContext';
