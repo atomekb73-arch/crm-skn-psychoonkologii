@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, startTransition } from 'react';
 import {
   Microscope,
   BookOpen,
@@ -130,18 +130,25 @@ export default function ResearchTab() {
     }
   }, [currentOrg.id, researchStorageKey]);
 
-  // Save items to localStorage
+  // Save items to localStorage asynchronously to prevent main thread blocking
   const saveItems = (newItems) => {
     setItems(newItems);
-    try {
-      localStorage.setItem(researchStorageKey, JSON.stringify(newItems));
-    } catch (e) {
-      console.error('Błąd zapisu dorobku:', e);
-    }
+    setTimeout(() => {
+      try {
+        localStorage.setItem(researchStorageKey, JSON.stringify(newItems));
+      } catch (e) {
+        console.error('Błąd zapisu dorobku:', e);
+      }
+    }, 0);
   };
 
-  // UI States
+  // UI States & Non-blocking Transitions
   const [activeSubTab, setActiveSubTab] = useState('All'); // 'All' | 'Publication' | 'Conference' | 'Project'
+  const handleSelectSubTab = (tab) => {
+    startTransition(() => {
+      setActiveSubTab(tab);
+    });
+  };
 
   // ── Resizable Sidebar State (clamped min/max, persistent in localStorage) ──
   const [sidebarWidth, setSidebarWidth] = useState(() => {
@@ -194,6 +201,12 @@ export default function ResearchTab() {
     };
   }, [isResizing, sidebarWidth]);
   const [searchQuery, setSearchQuery] = useState('');
+  const handleSearchChange = (e) => {
+    const val = e.target.value;
+    startTransition(() => {
+      setSearchQuery(val);
+    });
+  };
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [isPrintPreview, setIsPrintPreview] = useState(false);
@@ -407,8 +420,8 @@ export default function ResearchTab() {
         {/* ── LEFT SIDEBAR: PIONOWY PANEL PODSUMOWAŃ I NAWIGACJI ─────────────── */}
         <div
           ref={sidebarContainerRef}
-          className="w-full lg:shrink-0 flex flex-col space-y-3 pr-0 lg:pr-3 pb-4 lg:pb-0 print:hidden"
-          style={{ width: typeof window !== 'undefined' && window.innerWidth >= 1024 ? sidebarWidth : '100%' }}
+          className="w-full lg:shrink-0 flex flex-col space-y-3 pr-0 lg:pr-3 pb-4 lg:pb-0 print:hidden min-h-[520px]"
+          style={{ width: typeof window !== 'undefined' && window.innerWidth >= 1024 ? sidebarWidth : '100%', minHeight: '520px' }}
         >
           {/* Section Header */}
           <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs space-y-2">
@@ -421,7 +434,7 @@ export default function ResearchTab() {
               {/* All Items Tile */}
               <button
                 type="button"
-                onClick={() => setActiveSubTab('All')}
+                onClick={() => handleSelectSubTab('All')}
                 className={`h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 rounded-xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
                   activeSubTab === 'All'
                     ? 'bg-indigo-50/90 border-2 border-indigo-500 text-indigo-950 shadow-xs'
@@ -457,7 +470,7 @@ export default function ResearchTab() {
               {/* 1. Publikacje naukowe */}
               <button
                 type="button"
-                onClick={() => setActiveSubTab('Publication')}
+                onClick={() => handleSelectSubTab('Publication')}
                 className={`h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 rounded-xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
                   activeSubTab === 'Publication'
                     ? 'bg-indigo-50/90 border-2 border-indigo-500 text-indigo-950 shadow-xs'
@@ -495,7 +508,7 @@ export default function ResearchTab() {
               {/* 2. Wystąpienia & Referaty */}
               <button
                 type="button"
-                onClick={() => setActiveSubTab('Conference')}
+                onClick={() => handleSelectSubTab('Conference')}
                 className={`h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 rounded-xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
                   activeSubTab === 'Conference'
                     ? 'bg-amber-50/90 border-2 border-amber-500 text-amber-950 shadow-xs'
@@ -533,7 +546,7 @@ export default function ResearchTab() {
               {/* 3. Projekty badawcze */}
               <button
                 type="button"
-                onClick={() => setActiveSubTab('Project')}
+                onClick={() => handleSelectSubTab('Project')}
                 className={`h-[68px] min-h-[68px] max-h-[68px] px-3.5 py-2.5 rounded-xl w-full flex items-center justify-between transition-all select-none cursor-pointer text-left ${
                   activeSubTab === 'Project'
                     ? 'bg-sky-50/90 border-2 border-sky-500 text-sky-950 shadow-xs'
@@ -635,7 +648,7 @@ export default function ResearchTab() {
               <div className="flex items-center gap-1.5 flex-wrap">
                 <button
                   type="button"
-                  onClick={() => setActiveSubTab('All')}
+                  onClick={() => handleSelectSubTab('All')}
                   className={`h-9 px-3.5 rounded-lg text-xs font-medium transition-all flex items-center cursor-pointer ${
                     activeSubTab === 'All'
                       ? 'bg-indigo-50/90 text-indigo-950 border-2 border-indigo-500 shadow-xs'
@@ -653,7 +666,7 @@ export default function ResearchTab() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setActiveSubTab('Publication')}
+                  onClick={() => handleSelectSubTab('Publication')}
                   className={`h-9 px-3.5 rounded-lg text-xs font-medium transition-all flex items-center cursor-pointer ${
                     activeSubTab === 'Publication'
                       ? 'bg-indigo-50/90 text-indigo-950 border-2 border-indigo-500 shadow-xs'
@@ -671,7 +684,7 @@ export default function ResearchTab() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setActiveSubTab('Conference')}
+                  onClick={() => handleSelectSubTab('Conference')}
                   className={`h-9 px-3.5 rounded-lg text-xs font-medium transition-all flex items-center cursor-pointer ${
                     activeSubTab === 'Conference'
                       ? 'bg-amber-50/90 text-amber-950 border-2 border-amber-500 shadow-xs'
@@ -689,7 +702,7 @@ export default function ResearchTab() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setActiveSubTab('Project')}
+                  onClick={() => handleSelectSubTab('Project')}
                   className={`h-9 px-3.5 rounded-lg text-xs font-medium transition-all flex items-center cursor-pointer ${
                     activeSubTab === 'Project'
                       ? 'bg-sky-50/90 text-sky-950 border-2 border-sky-500 shadow-xs'
@@ -714,14 +727,14 @@ export default function ResearchTab() {
                   <input
                     type="text"
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={handleSearchChange}
                     placeholder="Szukaj po tytule, autorze..."
                     className="w-full h-9 pl-8 pr-7 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white transition"
                   />
                   {searchQuery && (
                     <button
                       type="button"
-                      onClick={() => setSearchQuery('')}
+                      onClick={() => handleSearchChange({ target: { value: '' } })}
                       className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                     >
                       <X size={12} />
@@ -741,7 +754,7 @@ export default function ResearchTab() {
             </div>
 
             {/* Full Items List / Table */}
-            <div className="space-y-2.5 pt-1">
+            <div className="space-y-2.5 pt-1 min-h-[460px]">
               {filteredItems.length === 0 ? (
                 <div className="py-12 text-center text-slate-400 italic bg-slate-50 rounded-xl border border-slate-200">
                   Brak pozycji dorobku naukowego w wybranym filtrze.

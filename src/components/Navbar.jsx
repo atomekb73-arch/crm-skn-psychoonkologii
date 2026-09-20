@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { startTransition } from 'react';
 import {
   Users,
   Calendar,
@@ -44,10 +44,12 @@ export default function Navbar({
 
   // Safe handler for main tab click
   const handleMainTabClick = (tabId) => {
-    setActiveTab(tabId);
-    if (tabId === 'members') setMembersSubTab('management');
-    if (tabId === 'documentation' && !documentationSubTab) setDocumentationSubTab('reports');
-    if (tabId === 'settings_tools' && !settingsToolsSubTab) setSettingsToolsSubTab('settings');
+    startTransition(() => {
+      setActiveTab(tabId);
+      if (tabId === 'members') setMembersSubTab('management');
+      if (tabId === 'documentation' && !documentationSubTab) setDocumentationSubTab('reports');
+      if (tabId === 'settings_tools' && !settingsToolsSubTab) setSettingsToolsSubTab('settings');
+    });
   };
 
   // Determine current active main tab for rendering sub-bars

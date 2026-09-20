@@ -90,7 +90,9 @@ export default function App() {
     }
   });
   const setActiveTab = useCallback((tab) => {
-    setActiveTabState(tab);
+    startTransition(() => {
+      setActiveTabState(tab);
+    });
     try {
       sessionStorage.setItem('crm_psychoonkologia_active_tab', tab);
     } catch {}
