@@ -71,6 +71,15 @@ export default function CertificateModal({
       {/* ── CSS Print Styles for Exact A4 Output ── */}
       <style>{`
         @media print {
+          @page {
+            size: A4 portrait;
+            margin: 0;
+          }
+          html, body {
+            height: 297mm;
+            overflow: hidden;
+            background: #ffffff !important;
+          }
           body * {
             visibility: hidden !important;
           }
@@ -82,24 +91,39 @@ export default function CertificateModal({
             position: absolute !important;
             left: 0 !important;
             top: 0 !important;
-            width: 100% !important;
+            width: 210mm !important;
+            height: 297mm !important;
+            max-height: 297mm !important;
             margin: 0 !important;
             padding: 0 !important;
             box-shadow: none !important;
             border: none !important;
+            overflow: hidden !important;
+            background: #ffffff !important;
+          }
+          .certificate-page {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            page-break-after: avoid !important;
+            break-after: avoid !important;
+            width: 210mm !important;
+            height: 296mm !important;
+            max-height: 296mm !important;
+            margin: 0 !important;
+            padding: 8mm 10mm !important;
+            box-sizing: border-box !important;
+            overflow: hidden !important;
           }
           .doc-a4-sheet {
             box-shadow: none !important;
             border: none !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            min-height: 100vh !important;
+            width: 210mm !important;
+            max-width: 210mm !important;
+            height: 296mm !important;
+            max-height: 296mm !important;
             margin: 0 !important;
-            padding: 12mm 10mm !important;
-          }
-          @page {
-            size: A4 portrait;
-            margin: 8mm 6mm;
+            padding: 8mm 10mm !important;
+            box-sizing: border-box !important;
           }
         }
       `}</style>

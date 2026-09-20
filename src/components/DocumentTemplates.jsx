@@ -458,43 +458,43 @@ export function BoardCertificateTemplate({
   const fieldName = member?.field || 'Psychologia';
 
   return (
-    <div className="doc-a4-sheet bg-white text-slate-900 font-sans p-10 sm:p-12 relative flex flex-col justify-between border border-indigo-300/80 shadow-xl max-w-[800px] min-h-[1050px] mx-auto my-0 select-text">
+    <div className="doc-a4-sheet certificate-page bg-white text-slate-900 font-sans p-8 sm:p-10 relative flex flex-col justify-between border border-indigo-300/80 shadow-xl w-full max-w-[210mm] min-h-[296mm] max-h-[296mm] mx-auto my-0 select-text break-inside-avoid page-break-inside-avoid overflow-hidden print:m-0 print:p-8 print:shadow-none print:border-none box-border">
       {/* Ozdobna podwójna ramka */}
-      <div className="absolute inset-4 border border-indigo-200 pointer-events-none rounded-lg" />
-      <div className="absolute inset-5 border-2 border-indigo-900/30 pointer-events-none rounded-md" />
+      <div className="absolute inset-3 sm:inset-4 border border-indigo-200 pointer-events-none rounded-lg" />
+      <div className="absolute inset-4 sm:inset-5 border-2 border-indigo-900/30 pointer-events-none rounded-md" />
 
       {/* Nagłówek */}
-      <div className="relative z-10 text-center border-b-2 border-indigo-900 pb-5">
-        <div className="flex items-center justify-between text-xs text-slate-500 font-medium tracking-wider uppercase mb-2">
+      <div className="relative z-10 text-center border-b-2 border-indigo-900 pb-3 sm:pb-4">
+        <div className="flex items-center justify-between text-[11px] sm:text-xs text-slate-500 font-medium tracking-wider uppercase mb-1 sm:mb-2">
           <span>WYŻSZA SZKOŁA KSZTAŁCENIA ZAWODOWEGO</span>
           <span>{orgUnit.toUpperCase()}</span>
         </div>
-        <div className="inline-flex items-center justify-center gap-2 mb-1">
-          <Building2 className="text-indigo-900 w-7 h-7" />
-          <h1 className="text-xl font-bold tracking-tight text-indigo-950 uppercase font-sans">
+        <div className="inline-flex items-center justify-center gap-2 mb-0.5">
+          <Building2 className="text-indigo-900 w-6 h-6 sm:w-7 sm:h-7" />
+          <h1 className="text-lg sm:text-xl font-bold tracking-tight text-indigo-950 uppercase font-sans">
             {orgName}
           </h1>
         </div>
-        <p className="text-xs text-slate-600 font-medium tracking-wide">
+        <p className="text-[11px] sm:text-xs text-slate-600 font-medium tracking-wide">
           Kadencja Zarządu Koła • Rok Akademicki {academicYear}
         </p>
       </div>
 
       {/* Tytuł */}
-      <div className="relative z-10 text-center my-6">
-        <span className="text-[10.5px] font-bold uppercase tracking-widest text-indigo-700 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-200">
+      <div className="relative z-10 text-center my-3 sm:my-4">
+        <span className="text-[10px] sm:text-[10.5px] font-bold uppercase tracking-widest text-indigo-700 bg-indigo-50 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full border border-indigo-200">
           Uchwała Walnego Zebrania Członków
         </span>
-        <h2 className="text-2xl font-bold text-slate-900 tracking-tight mt-3 uppercase">
+        <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight mt-2 sm:mt-2.5 uppercase">
           Zaświadczenie o Pełnieniu Funkcji w Zarządzie
         </h2>
-        <p className="text-xs text-slate-500 mt-1 font-mono">
+        <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 font-mono">
           Nr aktu: <span className="font-bold text-slate-800">{docNumber}</span>
         </p>
       </div>
 
       {/* Treść */}
-      <div className="relative z-10 space-y-4 text-xs leading-relaxed text-slate-800 text-justify">
+      <div className="relative z-10 space-y-2.5 sm:space-y-3 text-xs leading-relaxed text-slate-800 text-justify">
         <p className="indent-4">
           Niniejszym zaświadcza się, że Pan/Pani{' '}
           <strong className="text-slate-950 text-sm font-bold border-b border-slate-400 pb-0.5 px-1">{studentName}</strong>,{' '}
@@ -503,23 +503,23 @@ export function BoardCertificateTemplate({
           pełnił/a z wyboru funkcję:
         </p>
 
-        <div className="my-4 p-4 rounded-xl bg-indigo-50/70 border border-indigo-200 text-center">
-          <span className="text-[10.5px] font-bold uppercase text-indigo-700 tracking-widest block">Oficjalna Funkcja w Zarządzie</span>
-          <span className="text-xl font-bold text-indigo-950 mt-1 block">{boardRole}</span>
-          <span className="text-xs text-slate-600 mt-1 block">w okresie kadencji: {termDates}</span>
+        <div className="my-2 sm:my-2.5 py-2.5 px-4 rounded-xl bg-indigo-50/70 border border-indigo-200 text-center">
+          <span className="text-[10px] sm:text-[10.5px] font-bold uppercase text-indigo-700 tracking-widest block">Oficjalna Funkcja w Zarządzie</span>
+          <span className="text-lg sm:text-xl font-bold text-indigo-950 mt-0.5 block">{boardRole}</span>
+          <span className="text-[11px] sm:text-xs text-slate-600 mt-0.5 block">w okresie kadencji: {termDates}</span>
         </div>
 
-        <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200 text-[11px] space-y-1.5">
+        <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-[10.5px] sm:text-[11px] leading-relaxed space-y-1">
           <p className="font-bold text-slate-900">Zakres zrealizowanych obowiązków statutowych:</p>
           {isEditing ? (
             <textarea
               rows={3}
               value={customDuties || `• Kierowanie bieżącą działalnością naukową i organizacyjną ${orgName}.\n• Koordynacja ogólnopolskich spotkań naukowych, warsztatów merytorycznych i sesji dyskusyjnych.\n• Nadzór nad realizacją projektów badawczych i przygotowaniem publikacji naukowych.\n• Reprezentowanie Koła przed Władzami Uczelni, Dziekanatem oraz jednostkami zewnętrznymi.`}
               onChange={(e) => onUpdateDuties(e.target.value)}
-              className="w-full p-2 bg-white border border-indigo-300 rounded text-[11px] font-sans text-slate-800 focus:outline-none"
+              className="w-full p-2 bg-white border border-indigo-300 rounded text-[10.5px] font-sans text-slate-800 focus:outline-none"
             />
           ) : (
-            <ul className="list-disc list-inside text-slate-700 space-y-1 pl-1">
+            <ul className="list-disc list-inside text-slate-700 space-y-0.5 pl-1 leading-relaxed">
               {(customDuties || `Kierowanie bieżącą działalnością naukową i organizacyjną ${orgName}.\nKoordynacja ogólnopolskich spotkań naukowych, warsztatów merytorycznych i sesji dyskusyjnych.\nNadzór nad realizacją projektów badawczych i przygotowaniem publikacji naukowych.\nReprezentowanie Koła przed Władzami Uczelni, Dziekanatem oraz jednostkami zewnętrznymi.`)
                 .split('\n')
                 .filter(Boolean)
@@ -540,7 +540,7 @@ export function BoardCertificateTemplate({
         chairpersonSub={orgUnit}
       />
 
-      <div className="flex items-center justify-between text-[9px] text-slate-400 pt-2 border-t border-slate-100 font-mono">
+      <div className="flex items-center justify-between text-[9px] text-slate-400 pt-1.5 border-t border-slate-100 font-mono">
         <span>Wyższa Szkoła Kształcenia Zawodowego</span>
         <span>Warszawa, {formatPolishDate(docDate)}</span>
       </div>
