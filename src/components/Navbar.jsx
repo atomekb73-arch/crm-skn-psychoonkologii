@@ -1,10 +1,10 @@
-import React, { startTransition } from 'react';
+import React, { useState, useEffect, useMemo, useTransition, startTransition } from 'react';
 
 const safeStartTransition = (fn) => {
-  if (typeof startTransition === 'function') {
-    startTransition(fn);
-  } else if (typeof React !== 'undefined' && typeof React.startTransition === 'function') {
+  if (typeof React !== 'undefined' && typeof React.startTransition === 'function') {
     React.startTransition(fn);
+  } else if (typeof startTransition === 'function') {
+    startTransition(fn);
   } else {
     fn();
   }

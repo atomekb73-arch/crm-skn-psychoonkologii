@@ -546,6 +546,8 @@ export default function ManagementTab({
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
             <input
+              id="member-search-input"
+              name="memberSearch"
               type="text"
               placeholder="Szukaj po nazwisku, nr indeksu lub emailu…"
               value={query}
