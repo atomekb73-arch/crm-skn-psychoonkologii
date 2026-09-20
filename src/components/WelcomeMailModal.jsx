@@ -250,10 +250,10 @@ export default function WelcomeMailModal({
     const dateStr = now.toISOString().split('T')[0];
 
     // Determine prefix based on org
-    const orgCode = orgId.includes('seks') ? 'SEKS' : orgId.includes('uzal') || orgId.includes('sknu') ? 'SKNU' : 'PSY';
-    const entryId = `KANC/${orgCode}/OUT/${nextNum}/${year}`;
+    const orgCode = orgId.includes('seks') ? 'SEKS' : orgId.includes('uzal') || orgId.includes('sknu') ? 'SKNU' : 'SKN-PO';
+    const entryId = orgCode === 'SKN-PO' ? `SKN-PO/DK/OUT/${nextNum}/${year}` : `KANC/${orgCode}/OUT/${nextNum}/${year}`;
 
-    const senderFull = `${emailConfig.senderName || 'Zarząd SKN'} <${emailConfig.senderEmail || 'skn@wskz.pl'}>`;
+    const senderFull = `${emailConfig.senderName || 'Zarząd SKN Psychoonkologii WSKZ'} <${emailConfig.senderEmail || 'skn.psychoonkologia@wskz.pl'}>`;
     const recipientFull = `${recipientFullName} <${recipientEmail}>`;
 
     const newEntry = {
@@ -265,7 +265,7 @@ export default function WelcomeMailModal({
       subject: subjectText,
       summary: bodyText.slice(0, 350) + (bodyText.length > 350 ? '...' : ''),
       status: 'Zarejestrowane / Wysłane',
-      fromSheet: 'Ewidencja_Poczty',
+      fromSheet: 'Dziennik_Korespondencji',
       notes: `Wygenerowano z szablonu [${EMAIL_TEMPLATES[selectedTemplateKey]?.name || 'Powiadomienie'}] w CRM`,
       createdAt: now.toISOString(),
     };

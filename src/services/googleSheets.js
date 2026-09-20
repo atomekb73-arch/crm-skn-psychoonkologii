@@ -1594,20 +1594,24 @@ export async function fetchMailRegistryFromSheet(sheetId = SHEET_ID) {
       const col8 = cellStr(c[8]);
 
       // Sprawdź czy to wiersz nagłówka
-      const isHeader = /sygnatura|data|kierunek|nadawca|odbiorca|temat|lp\./i.test(`${col0} ${col1} ${col2} ${col5}`);
+      const isHeader = /sygnatura|data|kierunek|nadawca|odbiorca|temat|lp\.|znacznik|sygnatura sprawy/i.test(`${col0} ${col1} ${col2} ${col5}`);
       if (isHeader && idx === 0) return;
 
       // Ochrona przed zaciągnięciem wierszy rekrutacyjnych z Rejestru Zgłoszeń
-      const combinedText = `${col0} ${col1} ${col2} ${col3} ${col4} ${col5}`.toLowerCase();
+      const combinedText = `${col0} ${col1} ${col2} ${col3} ${col4} ${col5} ${col6}`.toLowerCase();
       if (
         combinedText.includes('date(') ||
         combinedText.includes('zgłoszenie do koła') ||
         combinedText.includes('status_weryfikacji') ||
-        combinedText.includes('rejestr_zgloszen')
+        combinedText.includes('rejestr_zgloszen') ||
+        combinedText.includes('kierunek studiów') ||
+        combinedText.includes('rok studiów') ||
+        combinedText.includes('numer albumu') ||
+        combinedText.includes('zgłoszenie członkowskie')
       ) {
         return;
       }
-      if (col0.startsWith('Date(') || (col0.match(/\d{4}-\d{2}-\d{2}/) && col1.includes('@') && !col2.toUpperCase().includes('IN') && !col2.toUpperCase().includes('OUT'))) {
+      if (col0.startsWith('Date(') || (col0.match(/^\d{4}-\d{2}-\d{2}/) && col1.includes('@') && !col2.toUpperCase().includes('IN') && !col2.toUpperCase().includes('OUT'))) {
         return;
       }
 
@@ -1620,7 +1624,7 @@ export async function fetchMailRegistryFromSheet(sheetId = SHEET_ID) {
       const dirCandidate = (col2 || '').toUpperCase();
       const direction = (dirCandidate.includes('OUT') || dirCandidate.includes('WYCHOD')) ? 'OUT' : 'IN';
 
-      const id = col0 || `KANC/PSY/${direction}/${String(idx + 1).padStart(2, '0')}/2026`;
+      const id = col0 || `SKN-PO/DK/${direction}/${String(idx + 1).padStart(2, '0')}/2026`;
       const sender = col3 || (direction === 'OUT' ? 'Zarząd SKN Psychoonkologii WSKZ' : 'Dziekanat WNS WSKZ');
       const recipient = col4 || (direction === 'IN' ? 'Zarząd SKN Psychoonkologii WSKZ' : 'Władze WSKZ');
       const subject = col5 || col6 || 'Pismo urzędowe';
@@ -1651,7 +1655,7 @@ export async function fetchMailRegistryFromSheet(sheetId = SHEET_ID) {
 }
 
 /**
- * Generuje sformatowane dane tabelaryczne (TSV / CSV) gotowe do wklejenia lub zapisu w zakładce Ewidencja_Poczty.
+ * Generuje sformatowane dane tabelaryczne (TSV / CSV) gotowe do wklejenia lub zapisu w zakładce Dziennik_Korespondencji.
  */
 export function formatCorrespondenceForSheet(entries = []) {
   const headers = ['Sygnatura', 'Data', 'Kierunek', 'Nadawca', 'Odbiorca', 'Temat', 'Streszczenie / Treść', 'Status', 'Hash / Sygnatura cyfrowa'];
@@ -1672,12 +1676,13 @@ export function formatCorrespondenceForSheet(entries = []) {
 }
 
 /**
- * Rejestruje pismo / korespondencję w centralnej ewidencji Google Apps Script (zakładka Ewidencja_Poczty).
+ * Rejestruje pismo / korespondencję w centralnej ewidencji Google Apps Script (zakładka Dziennik_Korespondencji).
  * POST action: "zarejestruj_pismo"
  */
 export async function registerCorrespondenceToGAS(entry, orgId) {
   return await sendToGAS({
     action: "zarejestruj_pismo",
+    tabName: "Dziennik_Korespondencji",
     orgId: orgId || 'skn-psychoonkologia',
     id: entry.id,
     direction: entry.direction,

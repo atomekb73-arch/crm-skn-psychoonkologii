@@ -493,7 +493,8 @@ export default function DocumentsRepositoryTab() {
   };
 
   const handleOpenMailModal = (entryToEdit = null) => {
-    const orgTag = currentOrg?.id === 'sknu' ? 'SKNU' : (currentOrg?.id?.includes('psycho') ? 'PSY' : (currentOrg?.tag || 'PSY'));
+    const isPsycho = !currentOrg?.id || currentOrg?.id?.includes('psycho');
+    const orgTag = currentOrg?.id === 'sknu' ? 'SKNU' : (currentOrg?.id?.includes('seks') ? 'SEKS' : 'SKN-PO');
     const year = new Date().getFullYear().toString();
     if (entryToEdit) {
       setMailForm({
@@ -505,9 +506,15 @@ export default function DocumentsRepositoryTab() {
     } else {
       const nextNum = String(correspondenceLog.length + 1).padStart(2, '0');
       const senderDefault = 'Dziekanat WNS WSKZ <dziekanat@wskz.pl>';
-      const recipientDefault = `Zarząd ${currentOrg?.shortName || 'SKN Psychoonkologii'} <skn.psychoonkologia@student.wskz.pl>`;
+      const recipientDefault = isPsycho
+        ? 'Zarząd SKN Psychoonkologii WSKZ <skn.psychoonkologia@wskz.pl>'
+        : `Zarząd ${currentOrg?.shortName || currentOrg?.name} <${currentOrg?.email || 'skn@wskz.pl'}>`;
+      const defaultId = isPsycho
+        ? `SKN-PO/DK/IN/${nextNum}/${year}`
+        : `KANC/${orgTag}/IN/${nextNum}/${year}`;
+
       setMailForm({
-        id: `KANC/${orgTag}/IN/${nextNum}/${year}`,
+        id: defaultId,
         direction: 'IN',
         date: new Date().toISOString().slice(0, 10),
         sender: senderDefault,
@@ -527,11 +534,15 @@ export default function DocumentsRepositoryTab() {
 
   const handleParseMail = () => {
     if (!rawMailText.trim()) return;
-    const orgTag = currentOrg?.id === 'sknu' ? 'SKNU' : (currentOrg?.id?.includes('psycho') ? 'PSY' : (currentOrg?.tag || 'PSY'));
-    const parsed = parseRawEmailText(rawMailText, orgTag);
+    const isPsycho = !currentOrg?.id || currentOrg?.id?.includes('psycho');
+    const orgTag = currentOrg?.id === 'sknu' ? 'SKNU' : (currentOrg?.id?.includes('seks') ? 'SEKS' : 'SKN-PO');
+    const parsed = parseRawEmailText(rawMailText, isPsycho ? 'SKN Psychoonkologii' : orgTag);
     const year = parsed.date ? parsed.date.slice(0, 4) : new Date().getFullYear().toString();
     const nextNum = String(correspondenceLog.length + 1).padStart(2, '0');
-    const suggestedId = `KANC/${orgTag}/${parsed.direction || 'IN'}/${nextNum}/${year}`;
+    const direction = parsed.direction || 'IN';
+    const suggestedId = isPsycho
+      ? `SKN-PO/DK/${direction}/${nextNum}/${year}`
+      : `KANC/${orgTag}/${direction}/${nextNum}/${year}`;
 
     const dupCheck = checkDuplicateCorrespondence(parsed, correspondenceLog);
     if (dupCheck.isDuplicate) {
@@ -542,7 +553,7 @@ export default function DocumentsRepositoryTab() {
 
     setMailForm({
       id: suggestedId,
-      direction: parsed.direction || 'IN',
+      direction: direction,
       date: parsed.date || new Date().toISOString().slice(0, 10),
       sender: parsed.sender || '',
       recipient: parsed.recipient || '',

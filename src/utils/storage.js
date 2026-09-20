@@ -874,7 +874,37 @@ export function getCorrespondenceLog(orgId) {
 
   const stored = getOrgStorage(cleanId, 'correspondence_log', null);
   if (stored && Array.isArray(stored)) {
-    return stored;
+    // Sanitize any corrupt or recruitment records (e.g. from Rejestr_Zgloszen or Form timestamps)
+    const sanitized = stored.filter((item) => {
+      if (!item) return false;
+      const id = String(item.id || '').trim();
+      const subject = String(item.subject || '').trim();
+      const sender = String(item.sender || '').trim();
+      const recipient = String(item.recipient || '').trim();
+      const summary = String(item.summary || '').trim();
+      const combined = `${id} ${subject} ${sender} ${recipient} ${summary}`.toLowerCase();
+
+      // Filter out Google Forms / recruitment poll rows
+      if (
+        id.startsWith('Date(') ||
+        combined.includes('date(') ||
+        combined.includes('rejestr_zgloszen') ||
+        combined.includes('status_weryfikacji') ||
+        combined.includes('zgłoszenie do koła') ||
+        combined.includes('kierunek studiów') ||
+        combined.includes('rok studiów') ||
+        combined.includes('numer albumu') ||
+        (id.match(/^\d{4}-\d{2}-\d{2}/) && sender.includes('@') && !item.direction)
+      ) {
+        return false;
+      }
+      return true;
+    });
+
+    if (sanitized.length !== stored.length) {
+      setOrgStorage(cleanId, 'correspondence_log', sanitized);
+    }
+    return sanitized;
   }
 
   // Initialize with defaults if empty
