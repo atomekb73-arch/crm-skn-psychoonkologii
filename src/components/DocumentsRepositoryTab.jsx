@@ -52,6 +52,8 @@ import {
   registerCorrespondenceToGAS,
   updateCorrespondenceStatusInGAS,
   deleteCorrespondenceFromGAS,
+  syncAktyWithGoogleSheets,
+  fetchAktyFromGAS,
 } from '../services/googleSheets';
 import { OfficialCorrespondenceProtocolTemplate } from './DocumentTemplates';
 import { getStoredSupervisors } from '../utils/specialRoles';
@@ -649,6 +651,50 @@ export default function DocumentsRepositoryTab() {
   }, [documents, selectedCategory, searchQuery]);
 
   const [previewFileId, setPreviewFileId] = useState(null);
+  const [isSyncingAkty, setIsSyncingAkty] = useState(false);
+  const [aktySyncStatus, setAktySyncStatus] = useState(null);
+
+  const handleSyncAkty = async () => {
+    try {
+      setIsSyncingAkty(true);
+      setAktySyncStatus(null);
+      await syncAktyWithGoogleSheets(documents, currentOrg?.id || 'skn-psychoonkologia');
+
+      // Odświeżenie danych z chmury jeśli arkusz posiada wpisy:
+      try {
+        const cloudAkty = await fetchAktyFromGAS();
+        if (cloudAkty && cloudAkty.status === 'success' && Array.isArray(cloudAkty.akty) && cloudAkty.akty.length > 0) {
+          const merged = [...documents];
+          cloudAkty.akty.forEach(ca => {
+            const idx = merged.findIndex(m => (m.code && m.code === ca.code) || (m.sygnatura && m.sygnatura === ca.sygnatura));
+            if (idx >= 0) {
+              merged[idx] = { ...merged[idx], ...ca };
+            } else {
+              merged.push(ca);
+            }
+          });
+          saveDocuments(merged);
+        }
+      } catch (cloudErr) {
+        console.warn('Błąd odświeżania aktów z chmury:', cloudErr);
+      }
+
+      setAktySyncStatus({
+        type: 'success',
+        message: 'Pomyślnie zsynchronizowano akty prawne z arkuszem Google!',
+      });
+      setTimeout(() => setAktySyncStatus(null), 5000);
+    } catch (err) {
+      console.error('Błąd podczas synchronizacji aktów:', err);
+      setAktySyncStatus({
+        type: 'error',
+        message: 'Wystąpił błąd podczas synchronizacji aktów z arkuszem.',
+      });
+      setTimeout(() => setAktySyncStatus(null), 5000);
+    } finally {
+      setIsSyncingAkty(false);
+    }
+  };
 
   const extractDriveFileId = (urlOrId) => {
     if (!urlOrId) return null;
@@ -1282,6 +1328,27 @@ export default function DocumentsRepositoryTab() {
           {activeModuleTab === 'repository' && (
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
               
+              {/* Akty Sync Banner / Alert if applicable */}
+              {aktySyncStatus && (
+                <div className={`p-3 rounded-xl border text-xs flex items-center justify-between transition-all ${
+                  aktySyncStatus.type === 'success'
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    : 'bg-amber-50 border-amber-200 text-amber-800'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <Sparkles size={14} className="shrink-0" />
+                    <span>{aktySyncStatus.message}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAktySyncStatus(null)}
+                    className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+
               {/* Top Toolbar (Filters, Search, Actions) */}
               <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5">
                 {/* Category Tabs */}
@@ -1338,9 +1405,9 @@ export default function DocumentsRepositoryTab() {
                   })}
                 </div>
 
-                {/* Search Box & Quick Add Button */}
-                <div className="flex items-center gap-2 flex-1 lg:max-w-md justify-end">
-                  <div className="relative flex-1">
+                {/* Search Box & Quick Action Buttons */}
+                <div className="flex items-center gap-2 flex-1 lg:max-w-xl justify-end">
+                  <div className="relative flex-1 min-w-[160px]">
                     <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                       type="text"
@@ -1359,6 +1426,26 @@ export default function DocumentsRepositoryTab() {
                       </button>
                     )}
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={handleSyncAkty}
+                    disabled={isSyncingAkty}
+                    className="bg-amber-500 hover:bg-amber-600 text-white font-medium text-xs sm:text-sm px-4 py-2 rounded-xl flex items-center gap-2 shadow-sm transition-all disabled:opacity-50 cursor-pointer shrink-0"
+                    title="Zsynchronizuj zarejestrowane akty z arkuszem Google"
+                  >
+                    {isSyncingAkty ? (
+                      <>
+                        <span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full"></span>
+                        <span>Synchronizowanie aktów...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>⚡</span>
+                        <span>Zsynchronizuj akty z bazą koła</span>
+                      </>
+                    )}
+                  </button>
 
                   <button
                     onClick={handleOpenAddModal}

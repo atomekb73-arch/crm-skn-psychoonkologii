@@ -1839,5 +1839,53 @@ export async function deleteCorrespondenceFromGAS(id, orgId) {
   });
 }
 
+/**
+ * Synchronizuje listę aktów prawno-organizacyjnych z arkuszem Google (Rejestr_Aktow).
+ * POST action: "zarejestruj_akt"
+ */
+export async function syncAktyWithGoogleSheets(aktyList, orgId) {
+  const formattedAkty = (Array.isArray(aktyList) ? aktyList : []).map(akt => ({
+    sygnatura: akt.code || akt.sygnatura || '',
+    tytul: akt.title || akt.tytul || '',
+    kategoria: akt.category || akt.kategoria || 'Uchwały Zarządu',
+    data: akt.date || akt.data || '',
+    linkDrive: akt.linkDrive || akt.driveUrl || '',
+    status: akt.status || 'Obowiązujący',
+    notatka: akt.description || akt.notatka || '',
+    timestamp: akt.timestamp || new Date().toISOString(),
+  }));
+
+  console.log("[sendToGAS] Wysyłam żądanie POST (action: zarejestruj_akt)", formattedAkty);
+
+  try {
+    const result = await sendToGAS({
+      action: "zarejestruj_akt",
+      tabName: "Rejestr_Aktow",
+      orgId: orgId || 'skn-psychoonkologia',
+      akty: formattedAkty,
+    });
+    return { success: true, result };
+  } catch (error) {
+    console.error("[sendToGAS] Błąd synchronizacji aktów:", error);
+    throw error;
+  }
+}
+
+/**
+ * Pobiera zarejestrowane akty prawne z backendu GAS (GET ?action=pobierz_akty).
+ */
+export async function fetchAktyFromGAS() {
+  try {
+    const res = await fetch(`${GAS_WEBAPP_URL}?action=pobierz_akty`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return data;
+  } catch (err) {
+    console.warn("Błąd pobierania aktów z GAS pobierz_akty:", err);
+    return null;
+  }
+}
+
+
 
 

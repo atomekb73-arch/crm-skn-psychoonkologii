@@ -89,6 +89,38 @@ function doGet(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
+    if (action === "pobierz_akty") {
+      var sheet = ss.getSheetByName("Rejestr_Aktow") || ss.getSheetByName("Repozytorium_Aktow");
+      var akty = [];
+      if (sheet && sheet.getLastRow() > 1) {
+        var values = sheet.getRange(2, 1, sheet.getLastRow() - 1, Math.max(8, sheet.getLastColumn())).getValues();
+        akty = values.map(function(r) {
+          return {
+            id: 'doc_' + String(r[0] || '').replace(/[^a-zA-Z0-9_-]/g, '_'),
+            sygnatura: String(r[0] || '').trim(),
+            code: String(r[0] || '').trim(),
+            tytul: String(r[1] || '').trim(),
+            title: String(r[1] || '').trim(),
+            kategoria: String(r[2] || '').trim(),
+            category: String(r[2] || '').trim(),
+            data: String(r[3] || '').trim(),
+            date: String(r[3] || '').trim(),
+            linkDrive: String(r[4] || '').trim(),
+            driveUrl: String(r[4] || '').trim(),
+            status: String(r[5] || 'Obowiązujący').trim(),
+            notatka: String(r[6] || '').trim(),
+            description: String(r[6] || '').trim(),
+            timestamp: String(r[7] || '').trim(),
+          };
+        });
+      }
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "success",
+        count: akty.length,
+        akty: akty
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     return ContentService.createTextOutput(JSON.stringify({
       status: "success",
       message: "SKN Psychoonkologii WSKZ GAS API Ready"
@@ -398,6 +430,56 @@ function doPost(e) {
         }
       }
       return ContentService.createTextOutput(JSON.stringify({ status: "success" }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // 8. REJESTRACJA I SYNCHRONIZACJA AKTÓW (zarejestruj_akt)
+    // ────────────────────────────────────────────────────────────────────────
+    if (action === "zarejestruj_akt") {
+      var sheet = ss.getSheetByName("Rejestr_Aktow") 
+                  || ss.getSheetByName("Repozytorium_Aktow");
+      if (!sheet) {
+        sheet = ss.insertSheet("Rejestr_Aktow");
+        sheet.appendRow(["Sygnatura", "Tytuł / Przedmiot", "Kategoria", "Data", "Link Drive", "Status", "Notatka", "Data Rejestracji"]);
+      }
+      
+      var akty = Array.isArray(payload.akty) ? payload.akty : (payload.akt ? [payload.akt] : [payload]);
+      
+      // Aktualizacja istniejącego aktu po sygnaturze lub dopisanie nowego:
+      var existingData = sheet.getDataRange().getValues();
+      akty.forEach(function(akt) {
+        var rowIndex = -1;
+        var sygnatura = String(akt.sygnatura || akt.code || '').trim();
+        if (!sygnatura) return;
+
+        for (var i = 1; i < existingData.length; i++) {
+          if (String(existingData[i][0]).trim() === sygnatura) {
+            rowIndex = i + 1;
+            break;
+          }
+        }
+        
+        var rowValues = [
+          sygnatura,
+          String(akt.tytul || akt.title || '').trim(),
+          String(akt.kategoria || akt.category || 'Uchwały Zarządu').trim(),
+          String(akt.data || akt.date || '').trim(),
+          String(akt.linkDrive || akt.driveUrl || '').trim(),
+          String(akt.status || "Obowiązujący").trim(),
+          String(akt.notatka || akt.description || '').trim(),
+          String(akt.timestamp || new Date().toISOString()).trim()
+        ];
+        
+        if (rowIndex > 0) {
+          sheet.getRange(rowIndex, 1, 1, rowValues.length).setValues([rowValues]);
+        } else {
+          sheet.appendRow(rowValues);
+          existingData.push(rowValues);
+        }
+      });
+      
+      return ContentService.createTextOutput(JSON.stringify({ status: "success", count: akty.length }))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
