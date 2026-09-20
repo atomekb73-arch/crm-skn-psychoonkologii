@@ -61,7 +61,7 @@ export default function Navbar({
   return (
     <div className="space-y-3 print:hidden">
       {/* ── Main 5 Condensed Navigation Bar ───────────────────────────────── */}
-      <div className="w-full flex items-center gap-1.5 justify-start overflow-x-auto py-1.5 px-2 bg-slate-200 border border-slate-300 rounded-2xl shadow-xs">
+      <div className="w-full flex items-center gap-1.5 justify-start overflow-x-auto h-12 min-h-[48px] px-2 bg-slate-200 border border-slate-300 rounded-2xl shadow-xs shrink-0">
         {MAIN_TABS.map((tab) => {
           const Icon = tab.icon;
           const isActive = isMainTabActive(tab);
@@ -69,13 +69,13 @@ export default function Navbar({
             <button
               key={tab.id}
               onClick={() => handleMainTabClick(tab.id)}
-              className={`flex items-center gap-2 text-xs md:text-sm px-3.5 py-2 rounded-xl transition-all whitespace-nowrap cursor-pointer ${
+              className={`flex items-center gap-2 text-xs md:text-sm px-3.5 py-2 rounded-xl transition-colors duration-150 whitespace-nowrap cursor-pointer font-semibold ${
                 isActive
-                  ? 'bg-white text-slate-950 shadow-sm border border-slate-300 font-bold'
-                  : 'text-slate-700 hover:text-slate-950 hover:bg-slate-300/70 font-semibold hover:font-bold'
+                  ? 'bg-white text-slate-950 shadow-xs border border-slate-300'
+                  : 'text-slate-700 hover:text-slate-950 hover:bg-slate-300/70'
               }`}
             >
-              <Icon size={16} className={isActive ? 'text-indigo-600' : 'text-slate-600'} />
+              <Icon size={16} className={`w-4 h-4 shrink-0 ${isActive ? 'text-indigo-600' : 'text-slate-600'}`} />
               <span>{tab.label}</span>
             </button>
           );
@@ -86,35 +86,39 @@ export default function Navbar({
 
       {/* Sub-bar for Członkowie with inline compact metrics */}
       {currentTab === 'members' && (
-        <div className="flex items-center justify-between gap-3 w-full flex-wrap xl:flex-nowrap animate-in fade-in duration-150">
-          <div className="flex items-center gap-1 bg-slate-200 p-1 rounded-xl w-fit border border-slate-300 shadow-2xs shrink-0">
+        <div className="flex items-center justify-between gap-3 w-full flex-wrap xl:flex-nowrap animate-in fade-in duration-150 h-10 min-h-[40px]">
+          <div className="flex items-center gap-1 bg-slate-200 p-1 rounded-xl w-fit border border-slate-300 shadow-2xs shrink-0 h-10 min-h-[40px]">
             <button
               onClick={() => {
-                setActiveTab('members');
-                setMembersSubTab('management');
+                startTransition(() => {
+                  setActiveTab('members');
+                  setMembersSubTab('management');
+                });
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg text-xs transition-colors duration-150 cursor-pointer flex items-center gap-1.5 font-semibold ${
                 membersSubTab === 'management' || activeTab === 'management'
-                  ? 'bg-white text-indigo-950 shadow-xs font-bold'
-                  : 'text-slate-700 hover:text-slate-950 hover:bg-slate-300/60 font-semibold hover:font-bold'
+                  ? 'bg-white text-indigo-950 shadow-xs'
+                  : 'text-slate-700 hover:text-slate-950 hover:bg-slate-300/60'
               }`}
             >
-              <Users size={13} className={membersSubTab === 'management' || activeTab === 'management' ? 'text-indigo-600' : 'text-slate-600'} />
+              <Users size={13} className={`w-3.5 h-3.5 shrink-0 ${membersSubTab === 'management' || activeTab === 'management' ? 'text-indigo-600' : 'text-slate-600'}`} />
               <span>Główna lista członków</span>
             </button>
 
             <button
               onClick={() => {
-                setActiveTab('members');
-                setMembersSubTab('quarantine');
+                startTransition(() => {
+                  setActiveTab('members');
+                  setMembersSubTab('quarantine');
+                });
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg text-xs transition-colors duration-150 cursor-pointer flex items-center gap-1.5 font-semibold ${
                 membersSubTab === 'quarantine' || activeTab === 'quarantine'
-                  ? 'bg-white text-amber-950 shadow-xs font-bold'
-                  : 'text-slate-700 hover:text-slate-950 hover:bg-slate-300/60 font-semibold hover:font-bold'
+                  ? 'bg-white text-amber-950 shadow-xs'
+                  : 'text-slate-700 hover:text-slate-950 hover:bg-slate-300/60'
               }`}
             >
-              <ShieldAlert size={13} className={membersSubTab === 'quarantine' || activeTab === 'quarantine' ? 'text-amber-600' : 'text-slate-600'} />
+              <ShieldAlert size={13} className={`w-3.5 h-3.5 shrink-0 ${membersSubTab === 'quarantine' || activeTab === 'quarantine' ? 'text-amber-600' : 'text-slate-600'}`} />
               <span>Kwarantanna & Zgłoszenia</span>
               {pendingCount > 0 && (
                 <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5 text-[11px] font-semibold leading-none text-white bg-amber-500 rounded-full select-none translate-y-[1px]">
@@ -126,7 +130,7 @@ export default function Navbar({
 
           {/* Compact 4 Metric Badges in single row */}
           {membersMetrics && (
-            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0 ml-auto">
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0 ml-auto h-9 min-h-[36px]">
               {/* 1) Aktywni */}
               <div className="bg-slate-100/90 border border-slate-300 rounded-xl px-2.5 py-1 flex items-center gap-1.5 h-9 shadow-2xs">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
@@ -158,34 +162,38 @@ export default function Navbar({
 
       {/* Sub-bar for Dokumentacja */}
       {currentTab === 'documentation' && (
-        <div className="flex items-center gap-1 bg-slate-200 p-1 rounded-xl w-fit border border-slate-300 shadow-2xs animate-in fade-in duration-150">
+        <div className="flex items-center gap-1 bg-slate-200 p-1 rounded-xl w-fit border border-slate-300 shadow-2xs animate-in fade-in duration-150 h-10 min-h-[40px] shrink-0">
           <button
             onClick={() => {
-              setActiveTab('documentation');
-              setDocumentationSubTab('reports');
+              startTransition(() => {
+                setActiveTab('documentation');
+                setDocumentationSubTab('reports');
+              });
             }}
-            className={`px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg text-xs transition-colors duration-150 cursor-pointer flex items-center gap-1.5 font-semibold ${
               documentationSubTab === 'reports' || activeTab === 'reports'
-                ? 'bg-white text-indigo-950 shadow-xs font-bold'
-                : 'text-slate-700 hover:text-slate-950 hover:bg-slate-300/60 font-semibold hover:font-bold'
+                ? 'bg-white text-indigo-950 shadow-xs'
+                : 'text-slate-700 hover:text-slate-950 hover:bg-slate-300/60'
             }`}
           >
-            <FileText size={13} className={documentationSubTab === 'reports' || activeTab === 'reports' ? 'text-indigo-600' : 'text-slate-600'} />
+            <FileText size={13} className={`w-3.5 h-3.5 shrink-0 ${documentationSubTab === 'reports' || activeTab === 'reports' ? 'text-indigo-600' : 'text-slate-600'}`} />
             <span>Certyfikaty & Sprawozdania</span>
           </button>
 
           <button
             onClick={() => {
-              setActiveTab('documentation');
-              setDocumentationSubTab('documents');
+              startTransition(() => {
+                setActiveTab('documentation');
+                setDocumentationSubTab('documents');
+              });
             }}
-            className={`px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg text-xs transition-colors duration-150 cursor-pointer flex items-center gap-1.5 font-semibold ${
               documentationSubTab === 'documents' || activeTab === 'documents' || activeTab === 'repository'
-                ? 'bg-white text-indigo-950 shadow-xs font-bold'
-                : 'text-slate-700 hover:text-slate-950 hover:bg-slate-300/60 font-semibold hover:font-bold'
+                ? 'bg-white text-indigo-950 shadow-xs'
+                : 'text-slate-700 hover:text-slate-950 hover:bg-slate-300/60'
             }`}
           >
-            <FolderKanban size={13} className={documentationSubTab === 'documents' || activeTab === 'documents' || activeTab === 'repository' ? 'text-indigo-600' : 'text-slate-600'} />
+            <FolderKanban size={13} className={`w-3.5 h-3.5 shrink-0 ${documentationSubTab === 'documents' || activeTab === 'documents' || activeTab === 'repository' ? 'text-indigo-600' : 'text-slate-600'}`} />
             <span>Rejestr Uchwał & Statut</span>
           </button>
         </div>
@@ -193,34 +201,38 @@ export default function Navbar({
 
       {/* Sub-bar for Ustawienia & Narzędzia */}
       {currentTab === 'settings_tools' && (
-        <div className="flex items-center gap-1 bg-slate-200 p-1 rounded-xl w-fit border border-slate-300 shadow-2xs animate-in fade-in duration-150">
+        <div className="flex items-center gap-1 bg-slate-200 p-1 rounded-xl w-fit border border-slate-300 shadow-2xs animate-in fade-in duration-150 h-10 min-h-[40px] shrink-0">
           <button
             onClick={() => {
-              setActiveTab('settings_tools');
-              setSettingsToolsSubTab('settings');
+              startTransition(() => {
+                setActiveTab('settings_tools');
+                setSettingsToolsSubTab('settings');
+              });
             }}
-            className={`px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg text-xs transition-colors duration-150 cursor-pointer flex items-center gap-1.5 font-semibold ${
               settingsToolsSubTab === 'settings' || activeTab === 'settings'
-                ? 'bg-white text-indigo-950 shadow-xs font-bold'
-                : 'text-slate-700 hover:text-slate-950 hover:bg-slate-300/60 font-semibold hover:font-bold'
+                ? 'bg-white text-indigo-950 shadow-xs'
+                : 'text-slate-700 hover:text-slate-950 hover:bg-slate-300/60'
             }`}
           >
-            <Settings size={13} className={settingsToolsSubTab === 'settings' || activeTab === 'settings' ? 'text-indigo-600' : 'text-slate-600'} />
+            <Settings size={13} className={`w-3.5 h-3.5 shrink-0 ${settingsToolsSubTab === 'settings' || activeTab === 'settings' ? 'text-indigo-600' : 'text-slate-600'}`} />
             <span>Konfiguracja Koła</span>
           </button>
 
           <button
             onClick={() => {
-              setActiveTab('settings_tools');
-              setSettingsToolsSubTab('tools');
+              startTransition(() => {
+                setActiveTab('settings_tools');
+                setSettingsToolsSubTab('tools');
+              });
             }}
-            className={`px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg text-xs transition-colors duration-150 cursor-pointer flex items-center gap-1.5 font-semibold ${
               settingsToolsSubTab === 'tools' || activeTab === 'tools'
-                ? 'bg-white text-indigo-950 shadow-xs font-bold'
-                : 'text-slate-700 hover:text-slate-950 hover:bg-slate-300/60 font-semibold hover:font-bold'
+                ? 'bg-white text-indigo-950 shadow-xs'
+                : 'text-slate-700 hover:text-slate-950 hover:bg-slate-300/60'
             }`}
           >
-            <Wrench size={13} className={settingsToolsSubTab === 'tools' || activeTab === 'tools' ? 'text-indigo-600' : 'text-slate-600'} />
+            <Wrench size={13} className={`w-3.5 h-3.5 shrink-0 ${settingsToolsSubTab === 'tools' || activeTab === 'tools' ? 'text-indigo-600' : 'text-slate-600'}`} />
             <span>Narzędzia & Mailing</span>
           </button>
         </div>

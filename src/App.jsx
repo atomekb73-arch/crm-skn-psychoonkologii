@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, startTransition } from 'react';
 import {
   LayoutDashboard,
   ShieldAlert,
@@ -1537,7 +1537,7 @@ export default function App() {
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <header className="border-b border-slate-100 bg-white/80 backdrop-blur-sm sticky top-0 z-30 print:hidden">
-        <div className="w-[98vw] max-w-[1850px] mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
+        <div className="w-[98vw] max-w-[1850px] mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4 h-16 min-h-[64px]">
 
           {/* Logo & Multi-Tenant Organization Switcher */}
           <div className="flex items-center gap-3 shrink-0 relative">
@@ -1666,7 +1666,7 @@ export default function App() {
       )}
 
       {/* ── Main Content Area ───────────────────────────────────────────────── */}
-      <main className="w-[98vw] max-w-[1850px] mx-auto px-4 sm:px-6 py-4 space-y-6">
+      <main className="w-[98vw] max-w-[1850px] mx-auto px-4 sm:px-6 py-4 space-y-6 contain-layout min-h-[calc(100vh-80px)]">
 
         {/* Navigation Bar with Condensed 5 Tabs and Sub-Tabs */}
         <Navbar
