@@ -781,11 +781,18 @@ export default function MeetingsTab({
         const name = p.member?.fullName || p.fullName || p.rawName || '';
         const isSup = p.role === 'supervisor' || isFacultySupervisor(p.rawName);
         const isSpk = p.role === 'speaker' || p.role === 'prelegent' || String(p.rawName || '').toUpperCase().includes('[SPEAKER]');
-        const rola = isSup ? 'Opiekun' : (isSpk ? 'Prelegent' : (p.isGuest ? 'Gość' : (nrIndeksu ? 'Członek koła' : 'Gość')));
+        const zrodlo = 'Google Meet';
+        const punkty = 1;
+        const opisAktywnosci = 'Obecność na spotkaniu naukowym';
         return {
           nrIndeksu: String(nrIndeksu).trim(),
           name: String(name).trim(),
-          rola: String(rola).trim()
+          rola: String(rola).trim(),
+          zrodlo,
+          punkty,
+          points: punkty,
+          opisAktywnosci,
+          opis: opisAktywnosci,
         };
       })
       .filter(p => p.nrIndeksu || p.name);

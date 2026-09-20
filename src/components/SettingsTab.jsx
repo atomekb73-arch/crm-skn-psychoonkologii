@@ -272,10 +272,10 @@ export default function SettingsTab({ members = [], meetings = [] }) {
       title: `Przywracanie migawki: ${snapshot.formattedDate}`,
       message: `Czy na pewno chcesz cofnąć stan koła "${currentOrg?.shortName || currentOrg?.name}" do punktu z dnia ${snapshot.formattedDate}? Wszystkie późniejsze zmiany zostaną zastąpione.`,
       type: 'warning',
-      onConfirm: () => {
+      onConfirm: async () => {
         try {
           setIsProcessingBackup(true);
-          const res = restoreOrgSnapshot(orgId, snapshot.key);
+          const res = await restoreOrgSnapshot(orgId, snapshot.key);
           setSnapshots(getOrgSnapshots(orgId));
           setBackupFeedback({
             type: 'success',

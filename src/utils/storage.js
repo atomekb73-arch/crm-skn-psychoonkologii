@@ -454,20 +454,26 @@ export function createOrgSnapshot(orgId, reason = 'Automatyczna migawka') {
     data: snapshotData,
   };
 
-  // 1. Zapisz w IndexedDB (brak limitu 5MB)
+  // 1. Zapisz pełny zrzut w IndexedDB (brak ograniczeń 5MB)
   saveSnapshotIDB(payload);
 
-  // 2. Zapisz w localStorage z bezpieczną obsługą QuotaExceededError
+  // 2. W localStorage trzymaj WYŁĄCZNIE lekkie metadane (ochrona przed QuotaExceededError)
+  const metadataOnly = {
+    key: snapshotKey,
+    orgId: cleanId,
+    timestamp: now,
+    isoDate: payload.isoDate,
+    formattedDate: payload.formattedDate,
+    reason,
+    keysCount: payload.keysCount,
+    hasIDB: true,
+    data: null,
+  };
+
   try {
-    localStorage.setItem(snapshotKey, JSON.stringify(payload));
+    localStorage.setItem(snapshotKey, JSON.stringify(metadataOnly));
   } catch (err) {
-    console.warn('[Snapshot] Storage quota exceeded for full payload, storing metadata only:', err);
-    try {
-      const metadataOnly = { ...payload, data: null, hasIDB: true };
-      localStorage.setItem(snapshotKey, JSON.stringify(metadataOnly));
-    } catch (e2) {
-      console.warn('[Snapshot] Cannot write metadata to localStorage:', e2);
-    }
+    console.warn('[Snapshot] Cannot write metadata to localStorage:', err);
   }
 
   // Prune older snapshots beyond MAX_SNAPSHOTS_PER_ORG
@@ -587,51 +593,51 @@ export async function restoreOrgSnapshotAsync(orgId, snapshotKey) {
   };
 }
 
-export function restoreOrgSnapshot(orgId, snapshotKey) {
-  if (typeof window === 'undefined' || !orgId || !snapshotKey) {
-    throw new Error('Brak wymaganych parametrów do przywrócenia migawki.');
-  }
-  const cleanId = String(orgId).trim().toLowerCase();
+export async function restoreOrgSnapshot(orgId, snapshotKey) {
+  return await restoreOrgSnapshotAsync(orgId, snapshotKey);
+}
 
-  const raw = localStorage.getItem(snapshotKey);
-  if (!raw) {
-    throw new Error('Nie odnaleziono wybranej migawki w pamięci lokalnej.');
-  }
-
-  let snapshot;
+/**
+ * Oczyszcza localStorage ze starych, ciężkich zrzutów JSON w kluczach crm_snap_,
+ * przenosząc je do IndexedDB i zastępując lekkimi metadanymi, odzyskując miejsce w pamięci.
+ */
+export async function cleanupLegacyLocalStorageSnapshots() {
+  if (typeof window === 'undefined') return;
   try {
-    snapshot = JSON.parse(raw);
-  } catch {
-    throw new Error('Uszkodzony format wybranej migawki.');
-  }
-
-  if (!snapshot.data || typeof snapshot.data !== 'object') {
-    throw new Error('Migawka nie zawiera prawidłowych danych.');
-  }
-
-  // Create temporary safety snapshot
-  try {
-    createOrgSnapshot(cleanId, 'Automatyczny punkt przed rollbackiem');
-  } catch {}
-
-  // Clear and restore
-  clearOrgWorkspace(cleanId);
-  let restored = 0;
-  Object.keys(snapshot.data).forEach((key) => {
-    try {
-      const val = snapshot.data[key];
-      localStorage.setItem(key, typeof val === 'string' ? val : JSON.stringify(val));
-      restored++;
-    } catch (e) {
-      console.error(`[Snapshot Restore] Błąd przywracania ${key}:`, e);
+    const snapKeys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('crm_snap_')) {
+        snapKeys.push(k);
+      }
     }
-  });
 
-  return {
-    success: true,
-    keysRestored: restored,
-    snapshotDate: snapshot.formattedDate,
-  };
+    for (const k of snapKeys) {
+      try {
+        const raw = localStorage.getItem(k);
+        if (!raw) continue;
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.data && typeof parsed.data === 'object' && Object.keys(parsed.data).length > 0) {
+          // Zapisz do IDB jeśli jeszcze tam nie ma
+          await saveSnapshotIDB(parsed);
+          // Zastąp w localStorage lekkimi metadanymi
+          const light = { ...parsed, data: null, hasIDB: true };
+          localStorage.setItem(k, JSON.stringify(light));
+        }
+      } catch (e) {
+        console.warn(`[Cleanup Snapshot Error on ${k}]`, e);
+      }
+    }
+  } catch (err) {
+    console.warn('[Cleanup Snapshots Error]', err);
+  }
+}
+
+// Uruchomienie czyszczenia w tle przy ładowaniu modułu
+if (typeof window !== 'undefined') {
+  setTimeout(() => {
+    cleanupLegacyLocalStorageSnapshots();
+  }, 1000);
 }
 
 /**

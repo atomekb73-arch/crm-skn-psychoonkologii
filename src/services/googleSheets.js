@@ -115,34 +115,111 @@ export async function changeStudentStatusInGAS({ nrIndeksu, nowyStatus = "Aktywn
 
 /**
  * Zapisuje frekwencję danego spotkania w centralnej bazie Google Apps Script (zakładka Ewidencja_Obecnosci).
- * Przesyła obiekt { nrIndeksu, name, rola } dla każdego uczestnika (członek, gość, opiekun, prelegent).
+ * Przesyła pełny 7-kolumnowy obiekt { nrIndeksu, name, rola, zrodlo, punkty, opisAktywnosci } dla każdego uczestnika.
  */
 export async function saveMeetingAttendanceToGAS({ kodSpotkania, dataSpotkania, obecnosci }) {
   const listToSave = Array.isArray(obecnosci) ? obecnosci : [];
+  const cleanCode = String(kodSpotkania || "M00").trim();
+  const cleanDate = String(dataSpotkania || new Date().toISOString().slice(0, 10)).trim();
+
   const payload = {
     action: "zapisz_obecnosci",
-    kodSpotkania: String(kodSpotkania || "M00").trim(),
-    dataSpotkania: String(dataSpotkania || new Date().toISOString().slice(0, 10)).trim(),
+    kodSpotkania: cleanCode,
+    dataSpotkania: cleanDate,
     obecnosci: listToSave.map(item => {
       if (typeof item === 'string') {
+        const nrIndeksu = item.trim();
         return {
-          nrIndeksu: item.trim(),
-          name: item.trim(),
-          rola: 'Uczestnik'
+          nrIndeksu,
+          name: nrIndeksu,
+          rola: 'Uczestnik',
+          zrodlo: 'Google Meet',
+          punkty: 1,
+          points: 1,
+          opisAktywnosci: 'Obecność na spotkaniu naukowym',
+          opis: 'Obecność na spotkaniu naukowym',
         };
       }
       const nrIndeksu = String(item.nrIndeksu || item.index || '').trim();
       const name = String(item.name || item.fullName || item.rawName || nrIndeksu).trim();
       const rola = String(item.rola || item.role || (nrIndeksu ? 'Członek koła' : 'Gość')).trim();
+      const zrodlo = String(item.zrodlo || item.source || 'Google Meet').trim();
+      const punkty = typeof item.punkty === 'number' ? item.punkty : (typeof item.points === 'number' ? item.points : 1);
+      const opisAktywnosci = String(item.opisAktywnosci || item.description || item.opis || 'Obecność na spotkaniu naukowym').trim();
+
       return {
         nrIndeksu,
         name,
-        rola
+        rola,
+        zrodlo,
+        punkty,
+        points: punkty,
+        opisAktywnosci,
+        opis: opisAktywnosci,
       };
     }).filter(item => item.nrIndeksu || item.name)
   };
 
   return await sendToGAS(payload);
+}
+
+/**
+ * Zapisuje osiągnięcie / pozycję dorobku w arkuszu "Rejestr_Dorobku" w Google Apps Script.
+ * POST action: "zapisz_dorobek"
+ */
+export async function saveMeritEntryToGAS(entry, orgId = 'skn-psychoonkologia') {
+  return await sendToGAS({
+    action: "zapisz_dorobek",
+    tabName: "Rejestr_Dorobku",
+    orgId: orgId || 'skn-psychoonkologia',
+    entry: {
+      id: entry.id || `dor_${Date.now()}`,
+      nrIndeksu: String(entry.nrIndeksu || entry.index || '').trim(),
+      name: String(entry.name || entry.fullName || '').trim(),
+      email: String(entry.email || '').trim(),
+      rodzajAktywnosci: String(entry.rodzajAktywnosci || entry.type || 'Inne').trim(),
+      tytulOsiagniecia: String(entry.tytulOsiagniecia || entry.title || '').trim(),
+      data: String(entry.data || entry.date || new Date().toISOString().slice(0, 10)).trim(),
+      punkty: typeof entry.punkty === 'number' ? entry.punkty : (parseInt(entry.punkty || entry.points, 10) || 0),
+      opis: String(entry.opis || entry.description || '').trim(),
+      link: String(entry.link || entry.url || '').trim(),
+      status: String(entry.status || 'Zatwierdzone').trim(),
+    }
+  });
+}
+
+/**
+ * Zapisuje punkty stałe / funkcyjne członków Zarządu Koła w arkuszu "Rejestr_Dorobku".
+ * POST action: "zapisz_punkty_zarzadu"
+ */
+export async function saveBoardPointsToGAS(boardList = [], orgId = 'skn-psychoonkologia') {
+  return await sendToGAS({
+    action: "zapisz_punkty_zarzadu",
+    tabName: "Rejestr_Dorobku",
+    orgId: orgId || 'skn-psychoonkologia',
+    entries: boardList.map(item => ({
+      nrIndeksu: String(item.nrIndeksu || item.index || '').trim(),
+      name: String(item.name || item.fullName || '').trim(),
+      email: String(item.email || '').trim(),
+      funkcja: String(item.funkcja || item.role || item.position || 'Członek Zarządu').trim(),
+      punkty: typeof item.punkty === 'number' ? item.punkty : (parseInt(item.punkty || item.points, 10) || 30),
+      rokAkademicki: String(item.rokAkademicki || item.academicYear || '2025/2026').trim(),
+      dataWpisu: new Date().toISOString().slice(0, 10),
+    }))
+  });
+}
+
+/**
+ * Usuwa pozycję dorobku z arkusza "Rejestr_Dorobku" w Google Apps Script.
+ * POST action: "usun_dorobek"
+ */
+export async function deleteMeritEntryFromGAS(entryId, orgId = 'skn-psychoonkologia') {
+  return await sendToGAS({
+    action: "usun_dorobek",
+    tabName: "Rejestr_Dorobku",
+    orgId: orgId || 'skn-psychoonkologia',
+    id: entryId,
+  });
 }
 
 /**
