@@ -553,6 +553,10 @@ export function calculateMemberStats(
     meetingPoints += p;
   });
 
+  if (meetingPoints === 0 && totalAttended > 0) {
+    meetingPoints = totalAttended * 1;
+  }
+
   let activeDorobek = explicitDorobek || settings?.dorobek || null;
   if (!activeDorobek && typeof window !== 'undefined' && window.localStorage) {
     try {
@@ -638,6 +642,16 @@ export function calculateMemberStats(
     });
   }
 
+  if (tenurePoints === 0 && typeof memberOrIndex === 'object' && memberOrIndex !== null) {
+    const directRole = String(memberOrIndex.role || memberOrIndex.funkcja || memberOrIndex.boardRole || '').trim();
+    if (directRole && directRole !== 'Uczestnik' && directRole !== 'Członek Koła' && directRole !== 'Członek') {
+      const matchedWeight = BOARD_ROLE_MONTHLY_WEIGHTS[directRole] || (directRole.toLowerCase().includes('przewodnicz') ? 3 : (directRole.toLowerCase().includes('zarząd') || directRole.toLowerCase().includes('zarzad') ? 3 : 0));
+      if (matchedWeight > 0) {
+        tenurePoints = matchedWeight * 1;
+      }
+    }
+  }
+
   let rawMemberPoints = 0;
   if (typeof memberOrIndex === 'object' && memberOrIndex !== null) {
     const rawP = Number(memberOrIndex.points || memberOrIndex.initialPoints || memberOrIndex.punkty);
@@ -649,8 +663,8 @@ export function calculateMemberStats(
 
   const totalPoints = Math.max(0, meetingPoints + meritPoints + tenurePoints + rawMemberPoints);
 
-  const displayPercentage = (totalAttended === 0 && zeroAttendanceDisplay === 'NEUTRAL_DASH')
-    ? '—'
+  const displayPercentage = (baseDenominator === 0 && totalAttended === 0)
+    ? (zeroAttendanceDisplay === 'NEUTRAL_DASH' ? '—' : '0%')
     : `${isNaN(freq) ? 0 : freq}%`;
 
   const displayRatio = `${attendedRelevant} / ${baseDenominator}`;

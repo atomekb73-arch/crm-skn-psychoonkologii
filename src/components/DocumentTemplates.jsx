@@ -169,12 +169,22 @@ export function MembershipCertificateTemplate({
   const orgShortName = org?.shortName || orgName;
   const orgTag = org?.id === 'sknu' ? 'SKNU' : (org?.tag || 'SKN-SEKS');
   const orgUnit = org?.unit || 'Wydział Psychologii WSKZ';
-  const totalMeetings = org?.id === 'sknu' ? 3 : (org?.id === 'skn_seksuologii' ? 12 : (freqData?.mandatoryTotal || 7));
+  
+  const unitWithPrep = orgUnit.startsWith('Wydział')
+    ? orgUnit.replace('Wydział', 'Wydziale')
+    : (orgUnit.startsWith('Instytut') ? orgUnit.replace('Instytut', 'Wydziale') : orgUnit);
 
-  const safeFreqData = freqData || { freq: 100, present: totalMeetings, absent: 0 };
-  const safeFreq = typeof safeFreqData?.freq === 'number' ? safeFreqData.freq : 100;
-  const safePresent = typeof safeFreqData?.present === 'number' ? safeFreqData.present : totalMeetings;
-  const safePoints = typeof points === 'number' ? points : 0;
+  const safeFreqData = freqData || { freq: 0, present: 0, absent: 0, mandatoryTotal: 0 };
+  const totalMeetings = typeof safeFreqData?.mandatoryTotal === 'number'
+    ? safeFreqData.mandatoryTotal
+    : (org?.id === 'sknu' ? 3 : (org?.id === 'skn_seksuologii' ? 12 : 7));
+  const safeFreq = typeof safeFreqData?.freq === 'number' ? safeFreqData.freq : 0;
+  const safePresent = typeof safeFreqData?.present === 'number'
+    ? safeFreqData.present
+    : (typeof safeFreqData?.attended === 'number' ? safeFreqData.attended : 0);
+  const safePoints = typeof points === 'number'
+    ? points
+    : (typeof safeFreqData?.points === 'number' ? safeFreqData.points : 0);
 
   // Visibility toggles for certificate sections (controlled via DocumentCustomizer)
   const showFreqSection = columnVisibility.cert_freq !== false;
@@ -200,7 +210,7 @@ export function MembershipCertificateTemplate({
       <div className="relative z-10 text-center border-b-2 border-indigo-900 pb-5">
         <div className="flex items-center justify-between text-xs text-slate-500 font-medium tracking-wider uppercase mb-2">
           <span>Wyższa Szkoła Kształcenia Zawodowego</span>
-          <span>{orgUnit}</span>
+          <span>{orgUnit.toUpperCase()}</span>
         </div>
         <div className="inline-flex items-center justify-center gap-2 mb-1">
           <Award className="text-indigo-900 w-7 h-7" />
@@ -234,7 +244,7 @@ export function MembershipCertificateTemplate({
           legitymujący/a się numerem indeksu: <strong className="font-mono text-slate-950 font-bold">{indexNumber}</strong>,{' '}
           będący/a studentem/ką kierunku: <strong>{fieldName}</strong> ({yearLabel}), w roku akademickim{' '}
           <strong>{academicYear}</strong> brał/a aktywny udział w działalności naukowo-badawczej i spotkaniach{' '}
-          <strong>{orgName}</strong> przy {orgUnit}.
+          <strong>{orgName}</strong> przy {unitWithPrep}.
         </p>
 
         {/* ── Metryka Osiągnięć i Frekwencji ── */}
@@ -245,7 +255,9 @@ export function MembershipCertificateTemplate({
           {showFreqSection && (
             <div className="p-2 border-r border-slate-200">
               <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block">Łączna Frekwencja</span>
-              <span className="text-lg font-bold text-emerald-700 font-mono">{safeFreq}%</span>
+              <span className="text-lg font-bold text-emerald-700 font-mono">
+                {totalMeetings === 0 ? '—' : `${safeFreq}%`}
+              </span>
               <span className="text-[10px] text-slate-500 block mt-0.5">{safePresent} / {totalMeetings} spotkań</span>
             </div>
           )}

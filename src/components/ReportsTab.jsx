@@ -47,7 +47,7 @@ import { useOrg } from '../context/OrgContext';
 import { getStoredSupervisors } from '../utils/specialRoles';
 import { getOfficialMemberRecord, getMemberStats } from '../utils/activityRegistry';
 import { CANONICAL_MEETINGS_2025_2026, filterLegitimateMeetings, getCanonicalMeetingsForOrg } from '../utils/canonicalMeetings';
-import { getMeetingType } from '../utils/meetingTypes';
+import { getMeetingType, calculateMemberStats } from '../utils/meetingTypes';
 import {
   getIssuedDocumentsRegistry,
   addIssuedDocument,
@@ -342,7 +342,7 @@ export default function ReportsTab({
   };
 
   // Settings & Supervisors
-  const { weights, calculateMemberPoints, supervisors: contextSupervisors } = useSettings() || {};
+  const { weights, calculateMemberPoints, supervisors: contextSupervisors, attendanceConfig } = useSettings() || {};
 
   const supervisors = contextSupervisors && contextSupervisors.length > 0
     ? contextSupervisors
@@ -398,71 +398,33 @@ export default function ReportsTab({
 
   // Frequency & stats of selected member
   const memberFreqData = useMemo(() => {
-    const isSknu = currentOrg?.id === 'sknu';
-    const isSknSeks = currentOrg?.id === 'skn_seksuologii';
-    const safeMeetings = Array.isArray(meetings) ? meetings : [];
-    const conductedMandatory = safeMeetings.filter(
-      meet => meet && !meet.isUpcoming && getMeetingType(meet) === 'mandatory'
+    if (!selectedMember) {
+      return {
+        freq: 0,
+        percentage: 0,
+        present: 0,
+        absent: 0,
+        mandatoryTotal: 0,
+        presentMandatory: 0,
+        points: 0,
+        totalPoints: 0,
+      };
+    }
+    return calculateMemberStats(
+      selectedMember,
+      ewidencjaList,
+      meetings,
+      customMeetingTypes,
+      { ...attendanceConfig, dorobek: dorobekList }
     );
-    const dynamicMandatoryTotal = conductedMandatory.length > 0 ? conductedMandatory.length : 1;
-    const totalMeetings = isSknu ? 3 : (isSknSeks ? 12 : dynamicMandatoryTotal);
-
-    if (!selectedMember) return { freq: 100, present: totalMeetings, absent: 0, mandatoryTotal: totalMeetings, presentMandatory: totalMeetings };
-
-    if (isSknu) {
-      const m01 = selectedMember?.m01 === 1 ? 1 : 0;
-      const m02 = selectedMember?.m02 === 1 ? 1 : 0;
-      const m03 = selectedMember?.m03 === 1 ? 1 : 0;
-      const m04 = selectedMember?.m04 === 1 ? 1 : 0;
-      const present = typeof selectedMember?.attended === 'number'
-        ? selectedMember.attended
-        : (typeof selectedMember?.present === 'number' ? selectedMember.present : (m01 + m02 + m03 + m04));
-      const absent = Math.max(0, totalMeetings - present);
-      const freq = typeof selectedMember?.attendancePercent === 'number'
-        ? selectedMember.attendancePercent
-        : Math.min(100, Math.round((present / totalMeetings) * 100));
-      return { freq, present, absent, mandatoryTotal: totalMeetings, presentMandatory: present };
-    }
-
-    if (!isSknSeks) {
-      const present = typeof selectedMember?.attended === 'number'
-        ? selectedMember.attended
-        : (typeof selectedMember?.present === 'number' ? selectedMember.present : 0);
-      const absent = Math.max(0, dynamicMandatoryTotal - present);
-      const freq = typeof selectedMember?.attendancePercent === 'number'
-        ? selectedMember.attendancePercent
-        : (dynamicMandatoryTotal > 0 ? Math.min(100, Math.round((present / dynamicMandatoryTotal) * 100)) : 100);
-      return { freq, present, absent, mandatoryTotal: dynamicMandatoryTotal, presentMandatory: present };
-    }
-
-    const cleanIdx = selectedMember?.index || selectedMember?.indexNumber || '';
-    const official = getOfficialMemberRecord(selectedMember) || (cleanIdx ? getMemberStats(cleanIdx) : null);
-    if (official) {
-      const present = typeof official.present === 'number' ? official.present : (typeof official.attended === 'number' ? official.attended : (selectedMember?.present || 0));
-      const absent = typeof official.absent === 'number' ? official.absent : (typeof official.absences === 'number' ? official.absences : (selectedMember?.absent || 0));
-      const freq = typeof official.attendancePercent === 'number' ? official.attendancePercent : (typeof official.freq === 'number' ? official.freq : 100);
-      return { freq, present, absent, mandatoryTotal: 12, presentMandatory: present };
-    }
-    const defaultMeetingsFallback = isSknSeks ? 12 : (meetings?.length || 7);
-    return {
-      freq: selectedMember?.attendancePercent || selectedMember?.freq || 100,
-      present: selectedMember?.present || defaultMeetingsFallback,
-      absent: selectedMember?.absent || 0,
-      mandatoryTotal: defaultMeetingsFallback,
-      presentMandatory: selectedMember?.present || defaultMeetingsFallback,
-    };
-  }, [selectedMember, isSknSeks, currentOrg?.id, meetings]);
+  }, [selectedMember, ewidencjaList, meetings, customMeetingTypes, attendanceConfig, dorobekList]);
 
   const memberPoints = useMemo(() => {
     if (!selectedMember) return 0;
+    if (typeof memberFreqData?.points === 'number') return memberFreqData.points;
     const calc = calculateMemberPoints ? calculateMemberPoints(selectedMember, meetings, {}, dorobekList) : 0;
-    const cleanIndexNum = Number(String(selectedMember.index || selectedMember.indexNumber || selectedMember.cleanIndex || '').replace(/\D/g, ''));
-    const rawPoints = selectedMember.points !== undefined && selectedMember.points !== null ? Number(selectedMember.points) : null;
-    const parsedPoints = (rawPoints !== null && !isNaN(rawPoints) && rawPoints > 0 && (!cleanIndexNum || rawPoints !== cleanIndexNum))
-      ? rawPoints
-      : calc;
-    return parsedPoints || 0;
-  }, [selectedMember, meetings, weights, calculateMemberPoints, dorobekList]);
+    return calc || 0;
+  }, [selectedMember, memberFreqData, meetings, calculateMemberPoints, dorobekList]);
 
 
   const currentDocNumber = useMemo(() => {
