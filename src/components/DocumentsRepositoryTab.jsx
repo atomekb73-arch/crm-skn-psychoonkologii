@@ -144,6 +144,39 @@ const DEFAULT_DOCUMENTS_SEKSUOLOGIA = [
   },
 ];
 
+const DEFAULT_DOCUMENTS_PSYCHOONKOLOGIA = [
+  {
+    id: 'doc_psycho_01',
+    code: 'STATUT/SKN-ONKO/2026',
+    title: 'Statut i Regulamin Studenckiego Koła Naukowego Psychoonkologii WSKZ',
+    category: 'Regulaminy i Statut',
+    date: '2026-03-01',
+    driveUrl: 'https://docs.google.com/document/d/1HbpVQkKdtKqsg0Ew5d3AigZBq-wvQYmJ-vpSIIWLFpg/edit',
+    status: 'Obowiązujący',
+    description: 'Oficjalny statut uchwalony przez członków założycieli i przedstawiony Władzom Wydziału Psychologii WSKZ.',
+  },
+  {
+    id: 'doc_psycho_02',
+    code: 'UCHWAŁA/SKN-ONKO/01/2026',
+    title: 'Uchwała Założycielska w sprawie powołania SKN Psychoonkologii WSKZ oraz wyboru Zarządu',
+    category: 'Uchwały Zarządu',
+    date: '2026-03-01',
+    driveUrl: 'https://docs.google.com/document/d/1HbpVQkKdtKqsg0Ew5d3AigZBq-wvQYmJ-vpSIIWLFpg/edit',
+    status: 'Obowiązujący',
+    description: 'Uchwała powołująca Koło oraz wyznaczająca strukturę Zarządu i plan działalności na rok akademicki 2026/2027.',
+  },
+  {
+    id: 'doc_psycho_03',
+    code: 'PROTOKÓŁ/SKN-ONKO/01/2026',
+    title: 'Protokół z zebrania założycielskiego i zatwierdzenie ram seminaryjnych Journal Club',
+    category: 'Protokoły Zebrań',
+    date: '2026-03-05',
+    driveUrl: 'https://docs.google.com/document/d/1HbpVQkKdtKqsg0Ew5d3AigZBq-wvQYmJ-vpSIIWLFpg/edit',
+    status: 'Obowiązujący',
+    description: 'Protokół obrad członków założycieli pod przewodnictwem Opiekuna Naukowego dr Ewy Skupińskiej.',
+  },
+];
+
 const CATEGORIES = [
   'Wszystkie',
   'Uchwały Zarządu',
@@ -151,6 +184,20 @@ const CATEGORIES = [
   'Regulaminy i Statut',
   'Wnioski i Granty',
 ];
+
+function getOrgDocTag(org) {
+  if (!org) return 'SKN-ONKO';
+  if (org.id === 'skn-psychoonkologia' || org.id === 'skn_psychoonkologia' || org.tag === 'SKN-ONKO' || org.tag === 'WSKZ') {
+    return 'SKN-ONKO';
+  }
+  if (org.id === 'sknu' || org.tag === 'SKNU') {
+    return 'SKNU';
+  }
+  if (org.id === 'skn_seksuologii' || org.tag === 'SKN-SEKS' || org.tag === 'SEKS') {
+    return 'SEKS';
+  }
+  return org.tag || (org.shortName ? org.shortName.toUpperCase().replace(/[^A-Z0-9]/g, '') : 'SKN');
+}
 
 export default function DocumentsRepositoryTab() {
   const { currentOrg, getStorageKey } = useOrg();
@@ -168,7 +215,7 @@ export default function DocumentsRepositoryTab() {
       console.error('Błąd odczytu dokumentów z storage:', e);
     }
     if (currentOrg.id === 'skn-psychoonkologia' || currentOrg.id === 'skn_psychoonkologia') {
-      return [];
+      return DEFAULT_DOCUMENTS_PSYCHOONKOLOGIA;
     }
     return currentOrg.id === 'sknu' ? DEFAULT_DOCUMENTS_SKNU : DEFAULT_DOCUMENTS_SEKSUOLOGIA;
   });
@@ -601,7 +648,7 @@ export default function DocumentsRepositoryTab() {
   // Open modal for new document
   const handleOpenAddModal = () => {
     setEditingDoc(null);
-    const orgTag = currentOrg.shortName ? currentOrg.shortName.toUpperCase().replace(/[^A-Z0-9]/g, '') : 'ORG';
+    const orgTag = getOrgDocTag(currentOrg);
 
     let cat = 'Uchwały Zarządu';
     let prefix = 'UCHWAŁA';
@@ -2174,7 +2221,20 @@ export default function DocumentsRepositoryTab() {
                   <label className="text-xs font-bold text-slate-700 block mb-1">Kategoria Dokumentu:</label>
                   <select
                     value={formState.category}
-                    onChange={(e) => setFormState({ ...formState, category: e.target.value })}
+                    onChange={(e) => {
+                      const newCat = e.target.value;
+                      let newPrefix = 'UCHWAŁA';
+                      if (newCat === 'Regulaminy i Statut') newPrefix = 'STATUT';
+                      else if (newCat === 'Protokoły Zebrań') newPrefix = 'PROT';
+                      else if (newCat === 'Wnioski i Granty') newPrefix = 'WNIOSEK';
+
+                      const orgTag = getOrgDocTag(currentOrg);
+                      const updatedCode = editingDoc
+                        ? formState.code
+                        : `${newPrefix}/${orgTag}/${String(documents.length + 1).padStart(2, '0')}/2026`;
+
+                      setFormState({ ...formState, category: newCat, code: updatedCode });
+                    }}
                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-sans focus:outline-none focus:border-indigo-500"
                   >
                     <option value="Uchwały Zarządu">Uchwały Zarządu</option>
@@ -2190,7 +2250,7 @@ export default function DocumentsRepositoryTab() {
                     type="text"
                     value={formState.code}
                     onChange={(e) => setFormState({ ...formState, code: e.target.value })}
-                    placeholder="np. UCHWAŁA/SKNU/01/2026"
+                    placeholder="np. UCHWAŁA/SKN-ONKO/01/2026"
                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-indigo-500"
                     required
                   />
