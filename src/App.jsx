@@ -1,4 +1,14 @@
-import { useState, useEffect, useCallback, useMemo, startTransition } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, startTransition } from 'react';
+
+const safeStartTransition = (fn) => {
+  if (typeof startTransition === 'function') {
+    startTransition(fn);
+  } else if (typeof React !== 'undefined' && typeof React.startTransition === 'function') {
+    React.startTransition(fn);
+  } else {
+    fn();
+  }
+};
 import {
   LayoutDashboard,
   ShieldAlert,
@@ -90,7 +100,7 @@ export default function App() {
     }
   });
   const setActiveTab = useCallback((tab) => {
-    startTransition(() => {
+    safeStartTransition(() => {
       setActiveTabState(tab);
     });
     try {

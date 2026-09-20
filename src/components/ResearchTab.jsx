@@ -1,4 +1,14 @@
 import React, { useState, useEffect, useMemo, useRef, startTransition } from 'react';
+
+const safeStartTransition = (fn) => {
+  if (typeof startTransition === 'function') {
+    startTransition(fn);
+  } else if (typeof React !== 'undefined' && typeof React.startTransition === 'function') {
+    React.startTransition(fn);
+  } else {
+    fn();
+  }
+};
 import {
   Microscope,
   BookOpen,
@@ -145,7 +155,7 @@ export default function ResearchTab() {
   // UI States & Non-blocking Transitions
   const [activeSubTab, setActiveSubTab] = useState('All'); // 'All' | 'Publication' | 'Conference' | 'Project'
   const handleSelectSubTab = (tab) => {
-    startTransition(() => {
+    safeStartTransition(() => {
       setActiveSubTab(tab);
     });
   };
@@ -203,7 +213,7 @@ export default function ResearchTab() {
   const [searchQuery, setSearchQuery] = useState('');
   const handleSearchChange = (e) => {
     const val = e.target.value;
-    startTransition(() => {
+    safeStartTransition(() => {
       setSearchQuery(val);
     });
   };

@@ -1,4 +1,14 @@
 import React, { startTransition } from 'react';
+
+const safeStartTransition = (fn) => {
+  if (typeof startTransition === 'function') {
+    startTransition(fn);
+  } else if (typeof React !== 'undefined' && typeof React.startTransition === 'function') {
+    React.startTransition(fn);
+  } else {
+    fn();
+  }
+};
 import {
   Users,
   Calendar,
@@ -44,7 +54,7 @@ export default function Navbar({
 
   // Safe handler for main tab click
   const handleMainTabClick = (tabId) => {
-    startTransition(() => {
+    safeStartTransition(() => {
       setActiveTab(tabId);
       if (tabId === 'members') setMembersSubTab('management');
       if (tabId === 'documentation' && !documentationSubTab) setDocumentationSubTab('reports');
@@ -90,7 +100,7 @@ export default function Navbar({
           <div className="flex items-center gap-1 bg-slate-200 p-1 rounded-xl w-fit border border-slate-300 shadow-2xs shrink-0 h-10 min-h-[40px]">
             <button
               onClick={() => {
-                startTransition(() => {
+                safeStartTransition(() => {
                   setActiveTab('members');
                   setMembersSubTab('management');
                 });
@@ -107,7 +117,7 @@ export default function Navbar({
 
             <button
               onClick={() => {
-                startTransition(() => {
+                safeStartTransition(() => {
                   setActiveTab('members');
                   setMembersSubTab('quarantine');
                 });
@@ -165,7 +175,7 @@ export default function Navbar({
         <div className="flex items-center gap-1 bg-slate-200 p-1 rounded-xl w-fit border border-slate-300 shadow-2xs animate-in fade-in duration-150 h-10 min-h-[40px] shrink-0">
           <button
             onClick={() => {
-              startTransition(() => {
+              safeStartTransition(() => {
                 setActiveTab('documentation');
                 setDocumentationSubTab('reports');
               });
@@ -182,7 +192,7 @@ export default function Navbar({
 
           <button
             onClick={() => {
-              startTransition(() => {
+              safeStartTransition(() => {
                 setActiveTab('documentation');
                 setDocumentationSubTab('documents');
               });
@@ -204,7 +214,7 @@ export default function Navbar({
         <div className="flex items-center gap-1 bg-slate-200 p-1 rounded-xl w-fit border border-slate-300 shadow-2xs animate-in fade-in duration-150 h-10 min-h-[40px] shrink-0">
           <button
             onClick={() => {
-              startTransition(() => {
+              safeStartTransition(() => {
                 setActiveTab('settings_tools');
                 setSettingsToolsSubTab('settings');
               });
@@ -221,7 +231,7 @@ export default function Navbar({
 
           <button
             onClick={() => {
-              startTransition(() => {
+              safeStartTransition(() => {
                 setActiveTab('settings_tools');
                 setSettingsToolsSubTab('tools');
               });
