@@ -57,6 +57,7 @@ import { OfficialCorrespondenceProtocolTemplate } from './DocumentTemplates';
 import { getStoredSupervisors } from '../utils/specialRoles';
 import { useSettings } from '../context/SettingsContext';
 import WelcomeMailModal from './WelcomeMailModal';
+import RepozytoriumAktowModal from './RepozytoriumAktowModal';
 
 const DEFAULT_DOCUMENTS_SKNU = [
   {
@@ -705,20 +706,26 @@ export default function DocumentsRepositoryTab() {
   };
 
   // Save document from modal
-  const handleSaveDocument = (e) => {
-    e.preventDefault();
-    if (!formState.title.trim()) {
+  const handleSaveDocument = (docOrEvent) => {
+    if (docOrEvent && docOrEvent.preventDefault) {
+      docOrEvent.preventDefault();
+    }
+    const docData = (docOrEvent && !docOrEvent.preventDefault && typeof docOrEvent === 'object')
+      ? docOrEvent
+      : formState;
+
+    if (!docData.title || !docData.title.trim()) {
       alert('Wpisz tytuł dokumentu!');
       return;
     }
 
     if (editingDoc) {
-      const updated = documents.map((d) => (d.id === editingDoc.id ? { ...d, ...formState } : d));
+      const updated = documents.map((d) => (d.id === editingDoc.id ? { ...d, ...docData } : d));
       saveDocuments(updated);
     } else {
       const newDoc = {
         id: `doc_${Date.now()}`,
-        ...formState,
+        ...docData,
       };
       saveDocuments([newDoc, ...documents]);
     }
@@ -2203,174 +2210,14 @@ export default function DocumentsRepositoryTab() {
       )}
 
       {/* ── MODAL: ADD / EDIT DOCUMENT ────────────────────────────────────────── */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-start pt-8 justify-center p-4 z-50 overflow-y-auto animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden font-sans my-auto">
-            <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
-                  <FileText size={18} />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold tracking-tight">
-                    {editingDoc ? 'Edycja Dokumentu / Uchwały' : 'Rejestracja Nowego Dokumentu'}
-                  </h3>
-                  <p className="text-[11px] text-slate-400">{currentOrg.name}</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveDocument} className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Kategoria Dokumentu:</label>
-                  <select
-                    value={formState.category}
-                    onChange={(e) => {
-                      const newCat = e.target.value;
-                      let newPrefix = 'UCHWAŁA';
-                      if (newCat === 'Regulaminy i Statut') newPrefix = 'STATUT';
-                      else if (newCat === 'Protokoły Zebrań') newPrefix = 'PROT';
-                      else if (newCat === 'Wnioski i Granty') newPrefix = 'WNIOSEK';
-
-                      const orgTag = getOrgDocTag(currentOrg);
-                      const updatedCode = editingDoc
-                        ? formState.code
-                        : `${newPrefix}/${orgTag}/${String(documents.length + 1).padStart(2, '0')}/2026`;
-
-                      setFormState({ ...formState, category: newCat, code: updatedCode });
-                    }}
-                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-sans focus:outline-none focus:border-indigo-500"
-                  >
-                    <option value="Uchwały Zarządu">Uchwały Zarządu</option>
-                    <option value="Protokoły Zebrań">Protokoły Zebrań</option>
-                    <option value="Regulaminy i Statut">Regulaminy i Statut</option>
-                    <option value="Wnioski i Granty">Wnioski i Granty</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Sygnatura / Nr Aktu:</label>
-                  <input
-                    type="text"
-                    value={formState.code}
-                    onChange={(e) => setFormState({ ...formState, code: e.target.value })}
-                    placeholder="np. UCHWAŁA/SKN-ONKO/01/2026"
-                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-indigo-500"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Tytuł / Przedmiot Dokumentu:</label>
-                <input
-                  type="text"
-                  value={formState.title}
-                  onChange={(e) => setFormState({ ...formState, title: e.target.value })}
-                  placeholder="Wpisz pełny tytuł uchwały lub protokołu..."
-                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-sans focus:outline-none focus:border-indigo-500"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Data Uchwalenia / Wydania:</label>
-                  <input
-                    type="date"
-                    value={formState.date}
-                    onChange={(e) => setFormState({ ...formState, date: e.target.value })}
-                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-mono focus:outline-none focus:border-indigo-500"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Status Obowiązywania:</label>
-                  <select
-                    value={formState.status}
-                    onChange={(e) => setFormState({ ...formState, status: e.target.value })}
-                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-sans focus:outline-none focus:border-indigo-500"
-                  >
-                    <option value="Obowiązujący">🟢 Obowiązujący</option>
-                    <option value="W toku">🟡 W toku</option>
-                    <option value="Zastąpiony">⚪ Zastąpiony</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-bold text-slate-700">Link do pliku w Google Drive:</label>
-                  <button
-                    type="button"
-                    onClick={() => window.open(getDriveFolderUrl(currentOrg?.id), '_blank')}
-                    className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer"
-                  >
-                    <FolderOpen size={13} />
-                    <span>📂 Otwórz Dysk Koła</span>
-                  </button>
-                </div>
-                <input
-                  type="url"
-                  value={formState.driveUrl}
-                  onChange={(e) => setFormState({ ...formState, driveUrl: e.target.value })}
-                  placeholder="https://docs.google.com/document/d/... (Wklej dokładnie ten link/ID pliku)"
-                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-mono focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Notatka / Streszczenie Aktu:</label>
-                <textarea
-                  rows={7}
-                  value={formState.description}
-                  onChange={(e) => setFormState({ ...formState, description: e.target.value })}
-                  placeholder="Opisz krótko cel aktu prawno-organizacyjnego..."
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-sans min-h-[160px] resize-y focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                <div>
-                  {formState.driveUrl && extractDriveFileId(formState.driveUrl) && (
-                    <button
-                      type="button"
-                      onClick={() => setPreviewFileId(extractDriveFileId(formState.driveUrl))}
-                      className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <Eye size={14} />
-                      <span>👁️ Podgląd dokumentu</span>
-                    </button>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold cursor-pointer"
-                  >
-                    Anuluj
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
-                  >
-                    Zapisz w Rejestrze
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <RepozytoriumAktowModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSave={handleSaveDocument}
+        editingDoc={editingDoc}
+        selectedCategory={selectedCategory}
+        documentsCount={documents.length}
+      />
 
       {/* ── MODAL: DOCUMENT DRIVE PREVIEW IFRAME ─────────────────────────────── */}
       {previewFileId && (
