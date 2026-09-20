@@ -33,6 +33,8 @@ import {
   Search,
   Users,
   Maximize2,
+  UploadCloud,
+  Upload,
 } from 'lucide-react';
 import { MEETING_TYPES, getMeetingType } from '../utils/meetingTypes';
 import { parseAttendanceLine, parseDurationToMinutes, fetchMeetingSheetAttendance, saveMeetingAttendanceToGAS, deleteMeetingAttendanceFromGAS, sendToGAS } from '../services/googleSheets';
@@ -79,6 +81,51 @@ const normalizeDiacritics = (str) => {
     .trim();
 };
 
+/**
+ * Inteligentny parser CSV z Google Meet z pomijaniem metadanych nagłówkowych
+ */
+export const processRawMeetCsv = (rawText) => {
+  if (!rawText || typeof rawText !== 'string') return { cleanedText: '', participants: [] };
+  const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  
+  // 1. Znajdź indeks wiersza z nagłówkami uczestników, omijając metadane początkowe:
+  let headerIndex = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const lineLower = lines[i].toLowerCase();
+    if (
+      (lineLower.includes('imię') || lineLower.includes('imie') || lineLower.includes('nazwisko') || lineLower.includes('name')) &&
+      (lineLower.includes('czas') || lineLower.includes('dołączył') || lineLower.includes('dolaczyl') || lineLower.includes('email') || lineLower.includes('e-mail') || lineLower.includes('first seen') || lineLower.includes('duration') || lineLower.includes('time in call'))
+    ) {
+      headerIndex = i;
+      break;
+    }
+  }
+
+  // Jeśli wykryto nagłówek metadanych, weź tylko wiersze od nagłówka w dół:
+  const participantLines = headerIndex !== -1 ? lines.slice(headerIndex + 1) : lines;
+
+  // 2. Parsuj wiersze uczestników (rozpoznając średnik, przecinek lub tabulator):
+  const parsedEntries = participantLines.map(line => {
+    // Odrzuć ewentualne linie podsumowań na końcu pliku
+    if (line.startsWith('---') || line.toLowerCase().includes('wygenerowano') || line.startsWith('*')) return null;
+    
+    const cols = line.split(/[;\t,]/).map(c => c.trim().replace(/^["']|["']$/g, ''));
+    if (cols.length < 2) return null;
+    
+    return {
+      rawLine: line,
+      name: cols[0],
+      email: cols[1] || '',
+      duration: cols[2] || ''
+    };
+  }).filter(Boolean);
+
+  return {
+    cleanedText: participantLines.join('\n'),
+    participants: parsedEntries
+  };
+};
+
 export default function MeetingsTab({
   meetings = [],
   members = [],
@@ -107,6 +154,8 @@ export default function MeetingsTab({
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [isSavingAttendance, setIsSavingAttendance] = useState(false);
   const [isClearingAttendance, setIsClearingAttendance] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef(null);
 
   // ── Resizable Sidebar state (12.5% to 25% of window width, default: 18vw) ──
   const [sidebarWidth, setSidebarWidth] = useState(() => {
@@ -672,11 +721,16 @@ export default function MeetingsTab({
     // Recalculate without premature global state modification
   }
 
-  async function processAttendanceFromLines(lines, threshold = minDurationThreshold) {
-    if (!selectedMeeting) return [];
+  async function processAttendanceFromLines(lines, threshold = minDurationThreshold, targetMeeting = null) {
+    const activeM = targetMeeting || selectedMeeting || currentSelectedMeeting || activeMeetings[0];
+    if (!activeM) return [];
+
+    const rawJoined = Array.isArray(lines) ? lines.join('\n') : String(lines || '');
+    const { cleanedText } = processRawMeetCsv(rawJoined);
+    const effectiveLines = (cleanedText ? cleanedText.split('\n') : (Array.isArray(lines) ? lines : [])).map(l => l.trim()).filter(Boolean);
 
     // Save raw list text in org-scoped storage
-    const mId = selectedMeeting.id || selectedMeeting.code || selectedMeeting.date;
+    const mId = activeM.id || activeM.code || activeM.date;
     const listKey = getStorageKey(`meeting_${mId}_list`);
     if (rawList && rawList.trim()) {
       try {
@@ -689,7 +743,7 @@ export default function MeetingsTab({
     const unmatched = [];
     const aliasesMap = getAliasesFromStorage(currentOrg?.id || 'default');
 
-    lines.forEach((rawLine, idx) => {
+    effectiveLines.forEach((rawLine, idx) => {
       let parsed = null;
       try {
         parsed = parseAttendanceLine(rawLine);
@@ -761,7 +815,7 @@ export default function MeetingsTab({
     setParsedParticipants(dedupedParticipants);
     setManualOverrides({});
 
-    const storageKey = getMeetingStorageKey(selectedMeeting);
+    const storageKey = getMeetingStorageKey(activeM);
     try {
       localStorage.setItem(storageKey, JSON.stringify(dedupedParticipants));
     } catch {}
@@ -769,6 +823,79 @@ export default function MeetingsTab({
     setResults({ matched, unmatched });
     return dedupedParticipants;
   }
+
+  const handleRawCsvOrTextDrop = async (rawContent) => {
+    if (!rawContent || !rawContent.trim()) return;
+    const { cleanedText } = processRawMeetCsv(rawContent);
+    const textToUse = cleanedText.trim() ? cleanedText : rawContent;
+    setRawList(textToUse);
+    setResults(null);
+
+    const currentMeeting = selectedMeeting || currentSelectedMeeting || activeMeetings[0] || {
+      id: 'M01',
+      code: 'M01',
+      title: 'Spotkanie',
+      date: new Date().toISOString().slice(0, 10),
+    };
+    if (!selectedMeeting) {
+      setSelectedMeeting(currentMeeting);
+    }
+
+    const mId = currentMeeting.id || currentMeeting.code || currentMeeting.date;
+    const listKey = getStorageKey(`meeting_${mId}_list`);
+    try {
+      localStorage.setItem(listKey, textToUse);
+    } catch {}
+
+    const lines = textToUse.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    await processAttendanceFromLines(lines, minDurationThreshold, currentMeeting);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDragging) setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target.result;
+        if (typeof content === 'string') {
+          handleRawCsvOrTextDrop(content);
+        }
+      };
+      reader.readAsText(file, 'UTF-8');
+    }
+  };
+
+  const handleFileInputChange = (e) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target.result;
+        if (typeof content === 'string') {
+          handleRawCsvOrTextDrop(content);
+        }
+      };
+      reader.readAsText(file, 'UTF-8');
+    }
+  };
 
   async function handleSaveSidebarAttendance() {
     if (!selectedMeeting || parsedParticipants.length === 0) return;
@@ -781,6 +908,7 @@ export default function MeetingsTab({
         const name = p.member?.fullName || p.fullName || p.rawName || '';
         const isSup = p.role === 'supervisor' || isFacultySupervisor(p.rawName);
         const isSpk = p.role === 'speaker' || p.role === 'prelegent' || String(p.rawName || '').toUpperCase().includes('[SPEAKER]');
+        const rola = isSup ? 'Opiekun' : (isSpk ? 'Prelegent' : (p.role === 'guest' ? 'Gość' : 'Członek Koła'));
         const zrodlo = 'Google Meet';
         const punkty = 1;
         const opisAktywnosci = 'Obecność na spotkaniu naukowym';
@@ -867,7 +995,11 @@ export default function MeetingsTab({
         setSelectedMeeting(currentMeeting);
       }
 
-      const lines = rawText.split(/\r?\n/);
+      // Oczyść metadane nagłówków Google Meet jeśli obecne
+      const { cleanedText } = processRawMeetCsv(rawText);
+      const textToProcess = cleanedText.trim() ? cleanedText : rawText;
+
+      const lines = textToProcess.split(/\r?\n/);
       console.log(`Pobrano ${lines.length} linii tekstu.`);
 
       const parsedList = [];
@@ -1921,13 +2053,57 @@ export default function MeetingsTab({
                   </div>
                 )}
 
-                <textarea
-                  value={rawList}
-                  onChange={e => { setRawList(e.target.value); setResults(null); }}
-                  rows={4}
-                  placeholder="Wklej surową listę obecności z Google Meet lub kliknij 'Wczytaj z arkusza'..."
-                  className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2.5 font-mono resize-none focus:outline-none focus:ring-2 focus:ring-indigo-300 transition"
-                />
+                {/* ── Drag & Drop Zone / Textarea with Google Meet CSV support ── */}
+                <div
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={`relative rounded-xl transition-all ${
+                    isDragging
+                      ? 'border-dashed border-2 border-indigo-500 bg-indigo-50/70 ring-4 ring-indigo-100 shadow-md'
+                      : 'border border-slate-200 bg-white hover:border-slate-300'
+                  }`}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv,.tsv,.txt"
+                    onChange={handleFileInputChange}
+                    className="hidden"
+                  />
+
+                  <textarea
+                    value={rawList}
+                    onChange={e => { setRawList(e.target.value); setResults(null); }}
+                    rows={4}
+                    placeholder="Wklej surową listę obecności z Google Meet lub przeciągnij i upuść tutaj plik CSV / TSV..."
+                    className="w-full text-xs bg-transparent border-0 rounded-t-xl px-3 py-2.5 font-mono resize-none focus:outline-none focus:ring-0 transition"
+                  />
+
+                  {/* Dropzone drag overlay if dragging */}
+                  {isDragging && (
+                    <div className="absolute inset-0 bg-indigo-50/95 backdrop-blur-2xs rounded-xl border-2 border-dashed border-indigo-500 flex flex-col items-center justify-center pointer-events-none z-10 p-4 text-center">
+                      <UploadCloud size={30} className="text-indigo-600 animate-bounce mb-1" />
+                      <span className="text-xs font-bold text-indigo-900">Upuść plik CSV / TSV z Google Meet tutaj</span>
+                      <span className="text-[11px] text-indigo-600">Automatycznie odfiltrujemy metadane i załadujemy uczestników</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between px-3 py-1.5 bg-slate-50/80 border-t border-slate-100 rounded-b-xl text-[11px] text-slate-500">
+                    <span className="flex items-center gap-1.5 truncate">
+                      <FileSpreadsheet size={13} className="text-indigo-500 shrink-0" />
+                      <span className="truncate">Wklej surową listę obecności z Google Meet lub przeciągnij i upuść tutaj plik CSV / TSV</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="text-indigo-600 hover:text-indigo-800 font-semibold hover:underline shrink-0 ml-2 cursor-pointer inline-flex items-center gap-1"
+                    >
+                      <Upload size={11} />
+                      <span>Wybierz plik</span>
+                    </button>
+                  </div>
+                </div>
 
                 {/* Adaptive Action Buttons */}
                 {(() => {
