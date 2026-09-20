@@ -134,6 +134,64 @@ export function getMeetingType(meeting, customTypes = {}) {
 }
 
 /**
+ * Sprawdza, czy dane spotkanie posiada już wczytane/zapisane logi obecności
+ * @param {Object|string} meeting - obiekt spotkania lub identyfikator spotkania
+ * @param {Array} attendanceRecords - opcjonalna lista rekordów z Ewidencja_Obecnosci
+ * @returns {boolean}
+ */
+export const hasMeetingAttendanceLogs = (meeting, attendanceRecords = []) => {
+  if (!meeting) return false;
+
+  // 1. Jeśli obiekt spotkania ma bezpośrednio przypisane logi/uczestników:
+  if (Array.isArray(meeting.attendanceLogs) && meeting.attendanceLogs.length > 0) return true;
+  if (Array.isArray(meeting.attendees) && meeting.attendees.length > 0) return true;
+  if (Array.isArray(meeting.participantRecords) && meeting.participantRecords.length > 0) return true;
+  if (typeof meeting.attendanceCount === 'number' && meeting.attendanceCount > 0) return true;
+  if (typeof meeting.attendeesCount === 'number' && meeting.attendeesCount > 0) return true;
+  if (meeting.hasLogs === true) return true;
+
+  // 2. Jeśli weryfikujemy po kodzie spotkania w ogólnej ewidencji obecności:
+  const meetingId = typeof meeting === 'string'
+    ? meeting
+    : (meeting.code || meeting.id || meeting.kod || meeting.date);
+  const cleanMeetingId = String(meetingId || '').replace(/[\[\]]/g, '').trim().toUpperCase();
+
+  if (cleanMeetingId && Array.isArray(attendanceRecords) && attendanceRecords.length > 0) {
+    const hasEwidencja = attendanceRecords.some(record => {
+      const recCode = String(record.meetingId || record.kodSpotkania || record.meetingCode || '').replace(/[\[\]]/g, '').trim().toUpperCase();
+      return recCode === cleanMeetingId || recCode.includes(cleanMeetingId) || cleanMeetingId.includes(recCode);
+    });
+    if (hasEwidencja) return true;
+  }
+
+  // 3. Sprawdź w localStorage czy istnieją zapisane obecności dla tego spotkania
+  if (typeof window !== 'undefined' && window.localStorage && typeof meeting === 'object') {
+    try {
+      const keys = [
+        meeting.id ? `crm_attendance_${meeting.id}` : null,
+        meeting.date ? `crm_attendance_${meeting.date}` : null,
+        meeting.code ? `crm_attendance_${meeting.code}` : null,
+      ].filter(Boolean);
+
+      for (const k of keys) {
+        const raw = localStorage.getItem(k);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed) {
+            if (typeof parsed.confirmedCount === 'number' && parsed.confirmedCount > 0) return true;
+            if (Array.isArray(parsed.confirmedIndexes) && parsed.confirmedIndexes.length > 0) return true;
+            if (Array.isArray(parsed.attendees) && parsed.attendees.length > 0) return true;
+            if (Array.isArray(parsed) && parsed.length > 0) return true;
+          }
+        }
+      }
+    } catch {}
+  }
+
+  return false;
+};
+
+/**
  * Sprawdza, czy spotkanie kwalifikuje się do mianownika frekwencji (bazy wymaganych spotkań).
  * Warunki:
  * 1. Nie jest to spotkanie nadchodzące (isUpcoming === false).
@@ -143,7 +201,7 @@ export function getMeetingType(meeting, customTypes = {}) {
  * 3. Jeśli brak ręcznego przełącznika:
  *    - Typ spotkania musi mieć countsTowardsDenominator: true (domyślnie 'mandatory').
  *      Spotkania 'internal' (zarząd), 'optional' (otwarte) i 'trigger_warning' są wykluczone.
- *    - Spotkanie MUSI posiadać zarejestrowaną/zweryfikowaną listę obecności (attendanceCount > 0 lub wpisy w ewidencji / localStorage).
+ *    - Spotkanie MUSI posiadać zarejestrowaną/zweryfikowaną listę obecności (hasMeetingAttendanceLogs).
  */
 export function isMeetingEligibleForDenominator(meeting, customTypes = {}, ewidencja = null) {
   if (!meeting) return false;
@@ -164,55 +222,8 @@ export function isMeetingEligibleForDenominator(meeting, customTypes = {}, ewide
     return false;
   }
 
-  // 3. Spotkanie MUSI posiadać zarejestrowaną frekwencję (attendanceCount > 0 / attendees > 0)
-  if (meeting.attendanceCount !== undefined && meeting.attendanceCount !== null) {
-    return Number(meeting.attendanceCount) > 0;
-  }
-  if (meeting.attendeesCount !== undefined && meeting.attendeesCount !== null) {
-    return Number(meeting.attendeesCount) > 0;
-  }
-  if (Array.isArray(meeting.attendees) && meeting.attendees.length > 0) {
-    return true;
-  }
-  if (Array.isArray(meeting.participantRecords) && meeting.participantRecords.length > 0) {
-    return true;
-  }
-
-  // 4. Sprawdź ewidencja jeśli dostępna
-  const cleanCode = String(meeting.code || meeting.id || '').replace(/[\[\]]/g, '').trim().toUpperCase();
-  if (Array.isArray(ewidencja) && ewidencja.length > 0 && cleanCode) {
-    const hasEwidencja = ewidencja.some(e => {
-      const eCode = String(e.kodSpotkania || e.meetingCode || '').replace(/[\[\]]/g, '').trim().toUpperCase();
-      return eCode === cleanCode;
-    });
-    if (hasEwidencja) return true;
-  }
-
-  // 5. Sprawdź w localStorage czy istnieją zapisane obecności dla tego spotkania
-  if (typeof window !== 'undefined' && window.localStorage) {
-    try {
-      const keys = [
-        `crm_attendance_${meeting.id}`,
-        `crm_attendance_${meeting.date}`,
-        meeting.code ? `crm_attendance_${meeting.code}` : null,
-      ].filter(Boolean);
-
-      for (const k of keys) {
-        const raw = localStorage.getItem(k);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed) {
-            if (typeof parsed.confirmedCount === 'number' && parsed.confirmedCount > 0) return true;
-            if (Array.isArray(parsed.confirmedIndexes) && parsed.confirmedIndexes.length > 0) return true;
-            if (Array.isArray(parsed.attendees) && parsed.attendees.length > 0) return true;
-            if (Array.isArray(parsed) && parsed.length > 0) return true;
-          }
-        }
-      }
-    } catch {}
-  }
-
-  return false;
+  // 3. Spotkanie MUSI posiadać zarejestrowaną frekwencję
+  return hasMeetingAttendanceLogs(meeting, ewidencja);
 }
 
 /**
