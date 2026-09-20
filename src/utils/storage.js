@@ -828,7 +828,7 @@ export const DEFAULT_CORRESPONDENCE_LOG = {
       direction: "OUT",
       date: "2026-06-15",
       sender: "Zarząd SKNU <sknu@student.wskz.pl>",
-      recipient: "Dyrekcja Wydziału Psychologii WSKZ <instytut.psychologii@wskz.pl>",
+      recipient: "Dyrekcja Wydziału Psychologii WSKZ <wydzial.psychologii@wskz.pl>",
       subject: "Zgłoszenie harmonogramu spotkań koła w semestrze letnim 2025/2026",
       summary: "Oficjalny wykaz 4 spotkań i warsztatów naukowych prowadzonych przez Koło z opiekunem mgr. Sławomirem Pietrzakiem.",
       hash: "sknu_out_02_20260615",

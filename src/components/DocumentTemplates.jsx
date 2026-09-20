@@ -1655,7 +1655,7 @@ export function OfficialCorrespondenceProtocolTemplate({
       </div>
 
       <p className="text-[9.5px] text-slate-500 mb-8 italic">
-        * Niniejszy dokument stanowi oficjalny wyciąg z Elektronicznego Dziennika Podawczego Koła Naukowego dla potrzeb Dziekanatu Wydziału Nauk Społecznych i Polskiej Komisji Akredytacyjnej.
+        * Niniejszy dokument stanowi oficjalny wyciąg z Elektronicznego Dziennika Podawczego Koła Naukowego dla potrzeb Dziekanatu Wydziału Psychologii WSKZ i Polskiej Komisji Akredytacyjnej.
       </p>
 
       {/* Dynamic Signatures */}
@@ -1686,170 +1686,244 @@ export function OfficialMeetingMinutesTemplate({
     [supervisors, org]
   );
 
-  const orgName = org?.name || 'Studenckie Koło Naukowe';
-  const orgShortName = org?.shortName || org?.name || 'Koło Naukowe';
+  const orgName = org?.name || 'Studenckie Koło Naukowe Psychoonkologii WSKZ';
+  const orgShortName = org?.shortName || org?.name || 'SKN Psychoonkologii';
   const orgUnit = org?.unit || 'Wydział Psychologii WSKZ';
-  const orgTag = org?.tag || 'WSKZ';
+  const orgTag = org?.tag || 'SKN-PO';
 
   const cleanYear = String(academicYear || '2025/2026').replace(/[\[\]]/g, '');
   const cleanCode = String(meeting?.code || meeting?.id || 'M01').replace(/[\[\]]/g, '').trim();
-  const protocolNumber = protocolData.protocolNumber || `PROT/${(org?.shortName || org?.id || 'SKN').toUpperCase().replace(/[^A-Z0-9]/g, '')}/${cleanCode}/${cleanYear.replace(/20/g, '')}`;
+  const protocolNumber = protocolData.protocolNumber || `PROT/${(org?.shortName || org?.id || 'SKN-PO').toUpperCase().replace(/[^A-Z0-9]/g, '')}/${cleanCode}/${cleanYear.replace(/20/g, '')}`;
   const cleanMeetingTitle = String(meeting?.title || protocolData?.title || 'Spotkanie Naukowe Koła').replace(/[\[\]]/g, '').trim();
   const cleanSpeaker = String(protocolData?.speaker || meeting?.who || 'Zarząd Koła Naukowego').replace(/[\[\]]/g, '').trim();
 
+  const hasAttachment = protocolData.includeAttendeesList && Array.isArray(protocolData.attendees) && protocolData.attendees.length > 0;
+
   return (
-    <div className="w-full max-w-[210mm] min-h-auto mx-auto bg-white p-8 sm:p-12 text-slate-900 font-sans print:p-0 print:max-w-none print:shadow-none print:bg-white text-xs leading-relaxed">
-      {/* Header */}
-      <div className="border-b-2 border-slate-900 pb-4 mb-6 flex justify-between items-start break-inside-avoid">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="font-extrabold text-sm tracking-tight text-slate-900">
-              WYŻSZA SZKOŁA KSZTAŁCENIA ZAWODOWEGO
-            </span>
-          </div>
-          <p className="text-[11px] font-semibold text-slate-700">{orgUnit}</p>
-          <p className="text-[11px] font-bold text-indigo-950 mt-0.5">{orgName}</p>
-        </div>
-        <div className="text-right flex flex-col items-end">
-          <div className="flex items-center gap-1.5 mb-1">
-            <div className="font-mono font-bold text-xs text-indigo-950 bg-slate-100 px-2.5 py-1 rounded border border-slate-200">
-              Nr: {protocolNumber}
+    <div id="printable-protocol-document" className="w-full max-w-[210mm] mx-auto bg-white p-8 sm:p-12 text-slate-900 font-sans print:p-0 print:max-w-none print:shadow-none print:bg-white text-xs leading-relaxed">
+      {/* ── CSS Print Styles for Exact A4 Protocol Output ── */}
+      <style>{`
+        @media print {
+          html, body {
+            background: #ffffff !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          body * {
+            visibility: hidden !important;
+          }
+          #protocol-print-container,
+          #protocol-print-container *,
+          #printable-protocol-document,
+          #printable-protocol-document * {
+            visibility: visible !important;
+          }
+          #protocol-print-container,
+          #printable-protocol-document {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            display: block !important;
+            box-shadow: none !important;
+            border: none !important;
+          }
+          .protocol-page-1 {
+            page-break-after: ${hasAttachment ? 'always' : 'auto'} !important;
+            break-after: ${hasAttachment ? 'page' : 'auto'} !important;
+          }
+          .protocol-attachment-page {
+            page-break-before: always !important;
+            break-before: page !important;
+            padding-top: 6mm !important;
+          }
+          .break-inside-avoid {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          @page {
+            size: A4 portrait;
+            margin: 10mm 12mm 12mm 12mm;
+          }
+        }
+      `}</style>
+
+      {/* ── GŁÓWNA STRONA PROTOKOŁU (STRONA 1) ── */}
+      <div className={`protocol-page-1 ${hasAttachment ? 'print:break-after-page' : ''}`}>
+        {/* Header */}
+        <div className="border-b-2 border-slate-900 pb-3.5 mb-5 flex justify-between items-start break-inside-avoid">
+          <div>
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="font-extrabold text-sm tracking-tight text-slate-900">
+                WYŻSZA SZKOŁA KSZTAŁCENIA ZAWODOWEGO
+              </span>
             </div>
-            <span className="text-[10px] bg-slate-900 text-white font-bold px-1.5 py-1 rounded tracking-wide">
-              [{orgTag}]
-            </span>
+            <p className="text-[11px] font-semibold text-slate-700">{orgUnit}</p>
+            <p className="text-[11px] font-bold text-indigo-950 mt-0.5">{orgName}</p>
           </div>
-          <p className="text-[10px] text-slate-500 font-mono">
-            Wrocław, dn. {protocolData.date || meeting?.formattedDate || meeting?.date || formatPolishDate()}
+          <div className="text-right flex flex-col items-end">
+            <div className="flex items-center gap-1.5 mb-1">
+              <div className="font-mono font-bold text-xs text-indigo-950 bg-slate-100 px-2.5 py-1 rounded border border-slate-200">
+                Nr: {protocolNumber}
+              </div>
+              <span className="text-[10px] bg-slate-900 text-white font-bold px-1.5 py-1 rounded tracking-wide">
+                [{orgTag}]
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-500 font-mono">
+              Wrocław, dn. {protocolData.date || meeting?.formattedDate || meeting?.date || formatPolishDate()}
+            </p>
+          </div>
+        </div>
+
+        {/* Document Title */}
+        <div className="text-center my-5 space-y-0.5 break-inside-avoid">
+          <h2 className="text-base sm:text-lg font-black uppercase tracking-wider text-slate-900">
+            PROTOKÓŁ ZE SPOTKANIA NAUKOWEGO
+          </h2>
+          <p className="text-xs font-semibold text-indigo-900">
+            Spotkanie {cleanCode} • Rok Akademicki {cleanYear}
           </p>
         </div>
-      </div>
 
-      {/* Document Title */}
-      <div className="text-center my-6 space-y-1 break-inside-avoid">
-        <h2 className="text-lg font-black uppercase tracking-wider text-slate-900">
-          PROTOKÓŁ ZE SPOTKANIA NAUKOWEGO
-        </h2>
-        <p className="text-xs font-semibold text-indigo-900">
-          Spotkanie {cleanCode} • Rok Akademicki {cleanYear}
-        </p>
-      </div>
-
-      {/* Meeting Metadata Table */}
-      <div className="mb-6 border border-slate-300 rounded-xl overflow-hidden shadow-2xs break-inside-avoid">
-        <table className="w-full text-left text-xs border-collapse">
-          <tbody>
-            <tr className="border-b border-slate-200 bg-slate-50/80">
-              <td className="py-2.5 px-3 font-bold text-slate-700 w-1/4 border-r border-slate-200">Temat / Tytuł:</td>
-              <td className="py-2.5 px-3 font-bold text-slate-900" colSpan="3">
-                {cleanMeetingTitle}
-              </td>
-            </tr>
-            <tr className="border-b border-slate-200">
-              <td className="py-2 px-3 font-bold text-slate-700 border-r border-slate-200">Data i Godzina:</td>
-              <td className="py-2 px-3 font-mono text-slate-900 border-r border-slate-200">
-                {protocolData.date || meeting?.formattedDate || meeting?.date} ({protocolData.time || meeting?.time || '18:00 - 19:30'})
-              </td>
-              <td className="py-2 px-3 font-bold text-slate-700 border-r border-slate-200 w-1/4">Miejsce / Tryb:</td>
-              <td className="py-2 px-3 text-slate-900">
-                {protocolData.location || meeting?.location || 'MS Teams / Google Meet (Tryb zdalny)'}
-              </td>
-            </tr>
-            <tr className="border-b border-slate-200 bg-slate-50/50">
-              <td className="py-2 px-3 font-bold text-slate-700 border-r border-slate-200">Prelegent / Prowadzący:</td>
-              <td className="py-2 px-3 font-semibold text-slate-900 border-r border-slate-200">
-                {cleanSpeaker}
-              </td>
-              <td className="py-2 px-3 font-bold text-slate-700 border-r border-slate-200">Liczba Uczestników:</td>
-              <td className="py-2 px-3 font-bold text-emerald-800">
-                {protocolData.attendeesCount ?? meeting?.attendeesCount ?? 0} osób zweryfikowanych
-              </td>
-            </tr>
-            <tr>
-              <td className="py-2 px-3 font-bold text-slate-700 border-r border-slate-200">Protokolant:</td>
-              <td className="py-2 px-3 text-slate-900" colSpan="3">
-                {protocolData.recorder || 'Protokolant Zarządu Koła'}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      {/* Section 1: Porządek Obrad */}
-      <div className="mb-5 space-y-1.5 break-inside-avoid">
-        <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1">
-          1. Cel spotkania i porządek obrad
-        </h3>
-        <div className="p-3 bg-slate-50/60 rounded-lg border border-slate-200/80 whitespace-pre-line text-slate-800 leading-relaxed font-sans text-[11px]">
-          {protocolData.agenda || '1. Otwarcie spotkania przez Przewodniczącego Koła.\n2. Wystąpienie prelegenta i prezentacja referatu naukowego.\n3. Dyskusja naukowa, sesja pytań i odpowiedzi (Q&A).\n4. Wolne wnioski, sprawy organizacyjne i zamknięcie posiedzenia.'}
+        {/* Meeting Metadata Table */}
+        <div className="mb-5 border border-slate-300 rounded-xl overflow-hidden shadow-2xs break-inside-avoid">
+          <table className="w-full text-left text-xs border-collapse">
+            <tbody>
+              <tr className="border-b border-slate-200 bg-slate-50/80">
+                <td className="py-2 px-3 font-bold text-slate-700 w-1/4 border-r border-slate-200">Temat / Tytuł:</td>
+                <td className="py-2 px-3 font-bold text-slate-900" colSpan="3">
+                  {cleanMeetingTitle}
+                </td>
+              </tr>
+              <tr className="border-b border-slate-200">
+                <td className="py-2 px-3 font-bold text-slate-700 border-r border-slate-200">Data i Godzina:</td>
+                <td className="py-2 px-3 font-mono text-slate-900 border-r border-slate-200">
+                  {protocolData.date || meeting?.formattedDate || meeting?.date} ({protocolData.time || meeting?.time || '18:00 - 19:30'})
+                </td>
+                <td className="py-2 px-3 font-bold text-slate-700 border-r border-slate-200 w-1/4">Miejsce / Tryb:</td>
+                <td className="py-2 px-3 text-slate-900">
+                  {protocolData.location || meeting?.location || 'Google Meet / MS Teams (Tryb zdalny)'}
+                </td>
+              </tr>
+              <tr className="border-b border-slate-200 bg-slate-50/50">
+                <td className="py-2 px-3 font-bold text-slate-700 border-r border-slate-200">Prelegent / Prowadzący:</td>
+                <td className="py-2 px-3 font-semibold text-slate-900 border-r border-slate-200">
+                  {cleanSpeaker}
+                </td>
+                <td className="py-2 px-3 font-bold text-slate-700 border-r border-slate-200">Liczba Uczestników:</td>
+                <td className="py-2 px-3 font-bold text-emerald-800">
+                  {protocolData.attendeesCount ?? meeting?.attendeesCount ?? 0} osób zweryfikowanych
+                </td>
+              </tr>
+              <tr>
+                <td className="py-2 px-3 font-bold text-slate-700 border-r border-slate-200">Protokolant:</td>
+                <td className="py-2 px-3 text-slate-900" colSpan="3">
+                  {protocolData.recorder || 'Protokolant Zarządu Koła'}
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-      </div>
 
-      {/* Section 2: Przebieg Spotkania */}
-      <div className="mb-5 space-y-1.5 break-inside-avoid">
-        <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1">
-          2. Przebieg posiedzenia, streszczenie prelekcji i dyskusja
-        </h3>
-        <div className="p-3 bg-slate-50/60 rounded-lg border border-slate-200/80 whitespace-pre-line text-slate-800 leading-relaxed font-sans text-[11px]">
-          {protocolData.content || 'W trakcie posiedzenia prelegent przedstawił prezentację merytoryczną. Członkowie koła aktywnie uczestniczyli w dyskusji nad zaprezentowaną tematyką badawczą, poruszając kluczowe aspekty metodologiczne i praktyczne.'}
-        </div>
-      </div>
-
-      {/* Section 3: Ustalenia i Wnioski */}
-      <div className="mb-6 space-y-1.5 break-inside-avoid">
-        <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1">
-          3. Ustalenia końcowe, zadania i wnioski
-        </h3>
-        <div className="p-3 bg-slate-50/60 rounded-lg border border-slate-200/80 whitespace-pre-line text-slate-800 leading-relaxed font-sans text-[11px]">
-          {protocolData.conclusions || '1. Przyjęto sprawozdanie z przeprowadzonego referatu naukowego do ewidencji działalności koła.\n2. Ustalono termin kolejnego spotkania seminaryjnego.\n3. Zobowiązano członków do przygotowania materiałów na kolejną sesję roboczą.'}
-        </div>
-      </div>
-
-      {/* Optional Attendees list - isolated to new page on print if present */}
-      {protocolData.includeAttendeesList && Array.isArray(protocolData.attendees) && protocolData.attendees.length > 0 && (
-        <div className="mt-6 mb-6 space-y-1.5 break-before-page print:break-before-page page-break-before-always">
+        {/* Section 1: Porządek Obrad */}
+        <div className="mb-4 space-y-1 break-inside-avoid">
           <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1">
-            4. Załącznik: Imienna lista zweryfikowanych uczestników ({protocolData.attendees.length})
+            1. Cel spotkania i porządek obrad
           </h3>
-          <div className="p-2.5 bg-slate-50/60 rounded-lg border border-slate-200/80 text-[11px] leading-tight font-mono grid grid-cols-2 gap-x-6 gap-y-1">
+          <div className="p-2.5 bg-slate-50/60 rounded-lg border border-slate-200/80 whitespace-pre-line text-slate-800 leading-relaxed font-sans text-[11px]">
+            {protocolData.agenda || '1. Otwarcie spotkania przez Przewodniczącego Koła.\n2. Wystąpienie prelegenta i prezentacja referatu naukowego.\n3. Dyskusja naukowa, sesja pytań i odpowiedzi (Q&A).\n4. Wolne wnioski, sprawy organizacyjne i zamknięcie posiedzenia.'}
+          </div>
+        </div>
+
+        {/* Section 2: Przebieg Spotkania */}
+        <div className="mb-4 space-y-1 break-inside-avoid">
+          <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1">
+            2. Przebieg posiedzenia, streszczenie prelekcji i dyskusja
+          </h3>
+          <div className="p-2.5 bg-slate-50/60 rounded-lg border border-slate-200/80 whitespace-pre-line text-slate-800 leading-relaxed font-sans text-[11px]">
+            {protocolData.content || 'W trakcie posiedzenia prelegent przedstawił prezentację merytoryczną. Członkowie koła aktywnie uczestniczyli w dyskusji nad zaprezentowaną tematyką badawczą, poruszając kluczowe aspekty metodologiczne i praktyczne.'}
+          </div>
+        </div>
+
+        {/* Section 3: Ustalenia i Wnioski */}
+        <div className="mb-5 space-y-1 break-inside-avoid">
+          <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1">
+            3. Ustalenia końcowe, zadania i wnioski
+          </h3>
+          <div className="p-2.5 bg-slate-50/60 rounded-lg border border-slate-200/80 whitespace-pre-line text-slate-800 leading-relaxed font-sans text-[11px]">
+            {protocolData.conclusions || '1. Przyjęto sprawozdanie z przeprowadzonego referatu naukowego do ewidencji działalności koła.\n2. Ustalono termin kolejnego spotkania seminaryjnego.\n3. Zobowiązano członków do przygotowania materiałów na kolejną sesję roboczą.'}
+          </div>
+        </div>
+
+        {/* Dolny blok podpisów - na stronie 1 */}
+        <div className="mt-6 pt-4 border-t border-slate-200 break-inside-avoid">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
+            
+            {/* 1. Podpis Protokolanta / Przewodniczącego */}
+            <div className="flex flex-col items-center">
+              <div className="h-8 border-b border-dashed border-slate-300 w-full mb-1"></div>
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider mb-0.5">[Podpis elektroniczny]</span>
+              <span className="text-xs font-semibold text-slate-800">{protocolData.recorder || 'Protokolant Zarządu Koła'}</span>
+              <span className="text-[10px] text-slate-500">Zarząd Koła Naukowego</span>
+            </div>
+
+            {/* 2. Dynamiczne podpisy Opiekunów Naukowych */}
+            {activeSupervisors.map((sup, idx) => (
+              <div key={idx} className="flex flex-col items-center">
+                <div className="h-8 border-b border-dashed border-slate-300 w-full mb-1"></div>
+                <span className="text-[10px] text-slate-400 uppercase tracking-wider mb-0.5">[Podpis elektroniczny]</span>
+                <span className="text-xs font-semibold text-slate-800">
+                  {formatSupervisorName(sup)}
+                </span>
+                <span className="text-[10px] text-slate-500">
+                  {formatSupervisorRole(sup)}
+                </span>
+              </div>
+            ))}
+
+          </div>
+        </div>
+      </div>
+
+      {/* ── STRONA 2: ZAŁĄCZNIK Z LISTĄ OBECNYCH (SEPAROWANY NA NOWEJ STRONIE) ── */}
+      {hasAttachment && (
+        <div className="protocol-attachment-page mt-8 pt-6 border-t-2 border-slate-900 print:border-t-0 print:pt-0">
+          <div className="border-b-2 border-slate-900 pb-2 mb-4 flex justify-between items-end">
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                Załącznik nr 1 do Protokołu {protocolNumber}
+              </span>
+              <h3 className="text-xs sm:text-sm font-black uppercase tracking-tight text-slate-900">
+                Imienna Lista Zweryfikowanych Uczestników Spotkania ({protocolData.attendees.length} osób)
+              </h3>
+            </div>
+            <span className="text-[10px] font-mono text-slate-500">
+              Spotkanie {cleanCode} • {protocolData.date || meeting?.date}
+            </span>
+          </div>
+
+          <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-200/90 text-[11px] leading-tight font-sans grid grid-cols-2 gap-x-6 gap-y-1">
             {protocolData.attendees.map((att, idx) => (
-              <div key={idx} className="flex items-center justify-between border-b border-slate-200/50 py-0.5">
-                <span className="truncate">{idx + 1}. {att.name || att.rawName}</span>
-                <span className="text-slate-500 font-semibold text-[10px]">{att.index || att.durationStr || 'Obecny'}</span>
+              <div key={idx} className="flex items-center justify-between border-b border-slate-200/60 py-1 px-1">
+                <span className="truncate font-medium text-slate-800">
+                  {idx + 1}. {att.name || att.rawName}
+                </span>
+                <span className="text-slate-500 font-mono font-semibold text-[10px] shrink-0 ml-2">
+                  {att.index ? `album: ${att.index}` : (att.durationStr || 'Obecny/a')}
+                </span>
               </div>
             ))}
           </div>
+
+          <div className="mt-4 pt-2 text-[10px] text-slate-500 text-right">
+            * Lista wygenerowana automatycznie z rejestru obecności Google Meet / MS Teams w systemie CRM Koła Naukowego.
+          </div>
         </div>
       )}
-
-      {/* Dolny blok podpisów - odporny na nakładanie i łamanie */}
-      <div className="mt-8 pt-6 border-t border-slate-200 break-inside-avoid">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
-          
-          {/* 1. Podpis Protokolanta / Przewodniczącego */}
-          <div className="flex flex-col items-center">
-            <div className="h-10 border-b border-dashed border-slate-300 w-full mb-1"></div>
-            <span className="text-[10px] text-slate-400 uppercase tracking-wider mb-0.5">[Podpis elektroniczny]</span>
-            <span className="text-xs font-semibold text-slate-800">{protocolData.recorder || 'Protokolant Zarządu Koła'}</span>
-            <span className="text-[10px] text-slate-500">Zarząd Koła Naukowego</span>
-          </div>
-
-          {/* 2. Dynamiczne podpisy Opiekunów Naukowych */}
-          {activeSupervisors.map((sup, idx) => (
-            <div key={idx} className="flex flex-col items-center">
-              <div className="h-10 border-b border-dashed border-slate-300 w-full mb-1"></div>
-              <span className="text-[10px] text-slate-400 uppercase tracking-wider mb-0.5">[Podpis elektroniczny]</span>
-              <span className="text-xs font-semibold text-slate-800">
-                {formatSupervisorName(sup)}
-              </span>
-              <span className="text-[10px] text-slate-500">
-                {formatSupervisorRole(sup)}
-              </span>
-            </div>
-          ))}
-
-        </div>
-      </div>
     </div>
   );
 }

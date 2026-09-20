@@ -34,7 +34,7 @@ export default function CertificateModal({
   academicYear = '2025/2026',
 }) {
   const [docType, setDocType] = useState(initialDocType);
-  const [presentationTopic, setPresentationTopic] = useState('Analiza współczesnych modeli sekso-terapeutycznych w praktyce klinicznej');
+  const [presentationTopic, setPresentationTopic] = useState('Standardy opieki psychoonkologicznej i interwencji kryzysowej');
   const [copied, setCopied] = useState(false);
   const { supervisors: contextSupervisors } = useSettings() || {};
 
