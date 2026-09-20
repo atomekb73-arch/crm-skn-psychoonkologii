@@ -51,8 +51,14 @@ import {
   ExternalLink,
   FolderOpen,
   Zap,
+  Minus,
 } from 'lucide-react';
-import { useSettings, DEFAULT_POINT_WEIGHTS } from '../context/SettingsContext';
+import {
+  useSettings,
+  DEFAULT_POINT_WEIGHTS,
+  DEFAULT_ATTENDANCE_CONFIG,
+  getEngagementScaleLevel,
+} from '../context/SettingsContext';
 import { useOrg } from '../context/OrgContext';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -147,12 +153,83 @@ export default function SettingsTab({ members = [], meetings = [], onRefreshData
     weights,
     updateWeight,
     resetWeights,
+    attendanceConfig,
+    updateAttendanceConfig,
+    resetAttendanceConfig,
     supervisors,
     addSupervisor,
     updateSupervisor,
     deleteSupervisor,
     resetSupervisors,
   } = useSettings();
+
+  // ── Sektor: Attendance & Certification Rules State ──────────────────────────
+  const [localAttendance, setLocalAttendance] = useState(() => ({
+    ...DEFAULT_ATTENDANCE_CONFIG,
+    ...(attendanceConfig || {}),
+  }));
+  const [attendanceSaveFeedback, setAttendanceSaveFeedback] = useState(false);
+
+  // ── Interaktywny Symulator Frekwencji w Czasie Rzeczywistym ─────────────────
+  const [simAttended, setSimAttended] = useState(6);
+  const [simTotalMeetings, setSimTotalMeetings] = useState(10);
+
+  const simStats = useMemo(() => {
+    const total = Math.max(1, Number(simTotalMeetings) || 10);
+    const attended = Math.min(total, Math.max(0, Number(simAttended) || 0));
+
+    let baseDenominator = total;
+    if (localAttendance.calcMode === 'FIXED_TARGET') {
+      baseDenominator = Math.max(1, Number(localAttendance.fixedTarget) || 10);
+    } else if (localAttendance.calcMode === 'DYNAMIC_MANDATORY') {
+      baseDenominator = total;
+    } else {
+      // ALL_VERIFIED
+      baseDenominator = total;
+    }
+
+    const freq = baseDenominator > 0 ? Math.min(100, Math.round((attended / baseDenominator) * 100)) : 0;
+    const minPassing = Number(localAttendance.minPassingPercent) || 50;
+    const isEligible = freq >= minPassing;
+    const engagement = getEngagementScaleLevel(freq);
+
+    const displayFreqText = (attended === 0 && localAttendance.zeroAttendanceDisplay === 'NEUTRAL_DASH')
+      ? '— (Start roku)'
+      : `${freq}%`;
+
+    return {
+      total,
+      attended,
+      baseDenominator,
+      freq,
+      isEligible,
+      minPassing,
+      engagement,
+      displayFreqText,
+    };
+  }, [simAttended, simTotalMeetings, localAttendance]);
+
+  useEffect(() => {
+    if (attendanceConfig) {
+      setLocalAttendance({
+        ...DEFAULT_ATTENDANCE_CONFIG,
+        ...attendanceConfig,
+      });
+    }
+  }, [attendanceConfig]);
+
+  const handleSaveAttendance = () => {
+    updateAttendanceConfig(localAttendance);
+    setAttendanceSaveFeedback(true);
+    setTimeout(() => setAttendanceSaveFeedback(false), 3500);
+  };
+
+  const handleResetAttendance = () => {
+    resetAttendanceConfig();
+    setLocalAttendance(DEFAULT_ATTENDANCE_CONFIG);
+    setAttendanceSaveFeedback(true);
+    setTimeout(() => setAttendanceSaveFeedback(false), 3500);
+  };
 
   // ── Sektor 5: Backup & Recovery State ───────────────────────────────────────
   const [snapshots, setSnapshots] = useState(() => getOrgSnapshots(orgId));
@@ -1579,7 +1656,585 @@ export default function SettingsTab({ members = [], meetings = [], onRefreshData
         </div>
       </div>
 
-      {/* ── SEKTOR 5: EMAIL & SMTP / NOTIFICATIONS CONFIGURATION ─────────────── */}
+      {/* ── SEKTOR 5: Zasady Zaliczania & Frekwencji (Attendance Rules & Live Simulator) ──────── */}
+      <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center font-bold">
+              <CheckCheck size={20} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-slate-800">5. Zasady Zaliczania i Frekwencji</h2>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 uppercase tracking-wide">
+                  SYMULATOR NA ŻYWO
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">
+                Konfiguracja mianownika frekwencji, rocznego progu certyfikatu oraz interaktywny symulator podglądu karty w czasie rzeczywistym.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleResetAttendance}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-semibold transition cursor-pointer"
+            >
+              <RotateCcw size={13} />
+              <span>Przywróć domyślne</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveAttendance}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-sm transition cursor-pointer"
+            >
+              <Save size={13} />
+              <span>{attendanceSaveFeedback ? '✓ Zapisano konfigurację!' : 'Zapisz konfigurację'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* ── 2-Column Split View: Right-Handed Action Form & Left-Handed Live 3-Part Preview ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start pt-1">
+          
+          {/* ══════════════════════════════════════════════════════════════════
+              KOLUMNA 2 (PRAWA STRONA): Obszar akcji / Formularz pod prawą ręką (lg:col-span-6 order-2 lg:order-2)
+          ══════════════════════════════════════════════════════════════════ */}
+          <div className="lg:col-span-6 order-2 lg:order-2 space-y-4">
+            
+            {/* 1. Wybór trybu wyznaczania mianownika */}
+            <div className="space-y-2.5">
+              <span className="block text-xs font-bold uppercase tracking-wider text-slate-800">
+                1. Tryb wyznaczania mianownika frekwencji:
+              </span>
+
+              <div className="space-y-2">
+                {/* Opcja 1: DYNAMIC_MANDATORY */}
+                <div
+                  onClick={() => setLocalAttendance(prev => ({ ...prev, calcMode: 'DYNAMIC_MANDATORY' }))}
+                  className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
+                    localAttendance.calcMode === 'DYNAMIC_MANDATORY'
+                      ? 'bg-teal-50/70 border-teal-300 ring-2 ring-teal-500/20 shadow-2xs'
+                      : 'bg-slate-100 border-slate-300 hover:bg-slate-200/60'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                        localAttendance.calcMode === 'DYNAMIC_MANDATORY' ? 'border-teal-600 bg-teal-600' : 'border-slate-300 bg-white'
+                      }`}>
+                        {localAttendance.calcMode === 'DYNAMIC_MANDATORY' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </div>
+                      <span className="text-xs font-bold text-slate-800">Dynamiczny (Obowiązkowe z logami)</span>
+                    </div>
+                    <span className="text-[10px] font-bold text-teal-700 bg-teal-100/70 px-2 py-0.5 rounded-full">
+                      Zalecany (SKN)
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 mt-1.5 pl-6 leading-relaxed">
+                    Mianownik rośnie wraz z odbywaniem kolejnych spotkań o charakterze <strong>Obowiązkowe</strong> posiadających listę obecności.
+                  </p>
+                </div>
+
+                {/* Opcja 2: FIXED_TARGET */}
+                <div
+                  onClick={() => setLocalAttendance(prev => ({ ...prev, calcMode: 'FIXED_TARGET' }))}
+                  className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
+                    localAttendance.calcMode === 'FIXED_TARGET'
+                      ? 'bg-teal-50/70 border-teal-300 ring-2 ring-teal-500/20 shadow-2xs'
+                      : 'bg-slate-100 border-slate-300 hover:bg-slate-200/60'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                        localAttendance.calcMode === 'FIXED_TARGET' ? 'border-teal-600 bg-teal-600' : 'border-slate-300 bg-white'
+                      }`}>
+                        {localAttendance.calcMode === 'FIXED_TARGET' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </div>
+                      <span className="text-xs font-bold text-slate-800">Sztywny roczny cel (np. {localAttendance.fixedTarget || 10} spotkań)</span>
+                    </div>
+                    <span className="text-[10px] font-bold text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded-full">
+                      Stały pułap
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 mt-1.5 pl-6 leading-relaxed">
+                    Mianownik jest stałą, z góry określoną liczbą spotkań w roku. Każda zarejestrowana obecność przybliża studenta do celu.
+                  </p>
+                </div>
+
+                {/* Opcja 3: ALL_VERIFIED */}
+                <div
+                  onClick={() => setLocalAttendance(prev => ({ ...prev, calcMode: 'ALL_VERIFIED' }))}
+                  className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
+                    localAttendance.calcMode === 'ALL_VERIFIED'
+                      ? 'bg-teal-50/70 border-teal-300 ring-2 ring-teal-500/20 shadow-2xs'
+                      : 'bg-slate-100 border-slate-300 hover:bg-slate-200/60'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                        localAttendance.calcMode === 'ALL_VERIFIED' ? 'border-teal-600 bg-teal-600' : 'border-slate-300 bg-white'
+                      }`}>
+                        {localAttendance.calcMode === 'ALL_VERIFIED' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </div>
+                      <span className="text-xs font-bold text-slate-800">Wszystkie zrealizowane (Bez podziału)</span>
+                    </div>
+                    <span className="text-[10px] font-bold text-indigo-700 bg-indigo-100/70 px-2 py-0.5 rounded-full">
+                      Wszystkie typy
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 mt-1.5 pl-6 leading-relaxed">
+                    Każde zakończone wydarzenie z zarejestrowaną listą obecności powiększa mianownik frekwencji.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Parametry bazowe */}
+            <div className="space-y-3 pt-1">
+              <span className="block text-xs font-bold uppercase tracking-wider text-slate-800">
+                2. Parametry bazowe i progi:
+              </span>
+
+              {/* Sztywny cel spotkań */}
+              <div className={`p-3 rounded-2xl border transition-all ${
+                localAttendance.calcMode === 'FIXED_TARGET'
+                  ? 'bg-amber-50/60 border-amber-200'
+                  : 'bg-slate-50/60 border-slate-200 opacity-60'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label htmlFor="cfg-fixed-target" className="text-xs font-bold text-slate-800 block cursor-pointer">
+                      Liczba spotkań w celu rocznym:
+                    </label>
+                    <p className="text-[11px] text-slate-600">
+                      Używane jako stały mianownik w trybie "Sztywny roczny cel"
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <input
+                      id="cfg-fixed-target"
+                      name="fixedTarget"
+                      type="number"
+                      min="1"
+                      max="50"
+                      value={localAttendance.fixedTarget || 10}
+                      onChange={e => setLocalAttendance(prev => ({ ...prev, fixedTarget: Math.max(1, parseInt(e.target.value, 10) || 1) }))}
+                      disabled={localAttendance.calcMode !== 'FIXED_TARGET'}
+                      aria-label="Liczba spotkań w celu rocznym"
+                      className="w-16 h-8 text-center bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-teal-400 outline-none disabled:bg-slate-100 font-mono"
+                    />
+                    <span className="text-xs font-semibold text-slate-600">spotkań</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Próg zaliczenia do certyfikatu (Slider + Input) */}
+              <div className="p-3.5 rounded-2xl bg-slate-50/60 border border-slate-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label htmlFor="cfg-min-percent" className="text-xs font-bold text-slate-800 block cursor-pointer">
+                      Próg zaliczenia do certyfikatu:
+                    </label>
+                    <p className="text-[11px] text-slate-600">
+                      Minimalna frekwencja roczna kwalifikująca do wydania zaświadczenia
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0 bg-white px-2.5 py-1 rounded-xl border border-slate-200 shadow-2xs">
+                    <input
+                      id="cfg-min-percent"
+                      name="minPassingPercent"
+                      type="number"
+                      min="10"
+                      max="100"
+                      step="5"
+                      value={localAttendance.minPassingPercent || 50}
+                      onChange={e => setLocalAttendance(prev => ({ ...prev, minPassingPercent: Math.max(1, Math.min(100, parseInt(e.target.value, 10) || 50)) }))}
+                      aria-label="Próg zaliczenia do certyfikatu procentowo"
+                      className="w-10 text-center font-bold text-xs text-teal-700 outline-none font-mono"
+                    />
+                    <span className="text-xs font-bold text-teal-700">%</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 pt-1">
+                  <input
+                    id="cfg-min-percent-range"
+                    name="minPassingPercentRange"
+                    type="range"
+                    min="10"
+                    max="100"
+                    step="5"
+                    value={localAttendance.minPassingPercent || 50}
+                    onChange={e => setLocalAttendance(prev => ({ ...prev, minPassingPercent: parseInt(e.target.value, 10) || 50 }))}
+                    aria-label="Suwak progu zaliczenia do certyfikatu"
+                    className="w-full accent-teal-600 cursor-pointer"
+                  />
+                  <span className="text-[11px] font-mono font-bold text-slate-700 min-w-[32px] text-right">
+                    {localAttendance.minPassingPercent || 50}%
+                  </span>
+                </div>
+              </div>
+
+              {/* Zachowanie przy 0 obecnościach */}
+              <div className="p-3.5 rounded-2xl bg-slate-50/60 border border-slate-200 space-y-2">
+                <span className="text-xs font-bold text-slate-800 block">
+                  Prezentacja zerowej frekwencji (0 obecności):
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setLocalAttendance(prev => ({ ...prev, zeroAttendanceDisplay: 'PERCENT_ZERO' }))}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                      localAttendance.zeroAttendanceDisplay === 'PERCENT_ZERO'
+                        ? 'bg-teal-600 text-white border-teal-600 shadow-2xs'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span>0% (Wartość liczbowa)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLocalAttendance(prev => ({ ...prev, zeroAttendanceDisplay: 'NEUTRAL_DASH' }))}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                      localAttendance.zeroAttendanceDisplay === 'NEUTRAL_DASH'
+                        ? 'bg-teal-600 text-white border-teal-600 shadow-2xs'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span>— (Start roku)</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Interaktywny pasek kontrolny symulatora (Testowe dane wejściowe) */}
+            <div className="bg-white rounded-2xl p-3.5 border border-slate-200/90 shadow-2xs space-y-2.5">
+              <div className="text-[11px] font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Sliders size={13} className="text-teal-600" />
+                <span>3. Sterowanie testowe symulatora (Podgląd w czasie rzeczywistym):</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Stepper 1: Testowa liczba obecności */}
+                <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200 flex items-center justify-between">
+                  <div>
+                    <label htmlFor="sim-attended-input" className="text-[10px] font-bold text-slate-700 block cursor-pointer">
+                      Obecności studenta:
+                    </label>
+                    <span className="text-[10px] text-slate-500">Zaliczone spotkania</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-white px-1.5 py-0.5 rounded-lg border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => setSimAttended(prev => Math.max(0, prev - 1))}
+                      aria-label="Zmniejsz liczbę obecności"
+                      className="w-6 h-6 rounded-md hover:bg-slate-100 text-slate-700 flex items-center justify-center font-bold transition cursor-pointer"
+                    >
+                      <Minus size={12} />
+                    </button>
+                    <input
+                      id="sim-attended-input"
+                      name="simAttended"
+                      type="number"
+                      min="0"
+                      max={simStats.total}
+                      value={simAttended}
+                      onChange={e => setSimAttended(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                      aria-label="Liczba obecności w symulatorze"
+                      className="w-8 text-center font-mono font-bold text-xs text-teal-700 outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setSimAttended(prev => Math.min(simStats.total, prev + 1))}
+                      aria-label="Zwiększ liczbę obecności"
+                      className="w-6 h-6 rounded-md hover:bg-slate-100 text-slate-700 flex items-center justify-center font-bold transition cursor-pointer"
+                    >
+                      <Plus size={12} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Stepper 2: Testowa pula spotkań w roku */}
+                <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200 flex items-center justify-between">
+                  <div>
+                    <label htmlFor="sim-total-meetings-input" className="text-[10px] font-bold text-slate-700 block cursor-pointer">
+                      Pula spotkań w roku:
+                    </label>
+                    <span className="text-[10px] text-slate-500">Wszystkie zrealizowane</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-white px-1.5 py-0.5 rounded-lg border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => setSimTotalMeetings(prev => Math.max(1, prev - 1))}
+                      aria-label="Zmniejsz pulę spotkań w roku"
+                      className="w-6 h-6 rounded-md hover:bg-slate-100 text-slate-700 flex items-center justify-center font-bold transition cursor-pointer"
+                    >
+                      <Minus size={12} />
+                    </button>
+                    <input
+                      id="sim-total-meetings-input"
+                      name="simTotalMeetings"
+                      type="number"
+                      min="1"
+                      max="40"
+                      value={simTotalMeetings}
+                      onChange={e => setSimTotalMeetings(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                      aria-label="Pula spotkań w roku w symulatorze"
+                      className="w-8 text-center font-mono font-bold text-xs text-slate-800 outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setSimTotalMeetings(prev => Math.min(40, prev + 1))}
+                      aria-label="Zwiększ pulę spotkań w roku"
+                      className="w-6 h-6 rounded-md hover:bg-slate-100 text-slate-700 flex items-center justify-center font-bold transition cursor-pointer"
+                    >
+                      <Plus size={12} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Save & Reset Buttons for Right Column */}
+            <div className="pt-2 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleResetAttendance}
+                className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <RotateCcw size={14} />
+                <span>Przywróć domyślne</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveAttendance}
+                className="flex-1 h-10 px-4 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-sm transition flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Save size={15} />
+                <span>{attendanceSaveFeedback ? '✓ Konfiguracja zapisana!' : 'Zapisz konfigurację koła'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* ══════════════════════════════════════════════════════════════════
+              KOLUMNA 1 (LEWA STRONA): Obszar dynamicznej obserwacji / Potrójny Podgląd (lg:col-span-6 order-1 lg:order-1)
+          ══════════════════════════════════════════════════════════════════ */}
+          <div className="lg:col-span-6 order-1 lg:order-1 space-y-4 bg-gradient-to-br from-slate-50/90 to-teal-50/30 p-4 sm:p-5 rounded-3xl border border-teal-200/80 shadow-xs">
+            
+            {/* Simulator Header */}
+            <div className="flex items-center justify-between pb-2 border-b border-teal-100">
+              <div className="flex items-center gap-2">
+                <span className="w-7 h-7 rounded-xl bg-teal-600 text-white flex items-center justify-center text-xs font-bold shadow-2xs">
+                  👁️
+                </span>
+                <div>
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-900">
+                    Dynamiczny Podgląd na żywo (Potrójny Audyt)
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Reaguje natychmiast na zmiany parametrów i trybów po prawej stronie
+                  </p>
+                </div>
+              </div>
+              <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-700 border border-slate-300">
+                Live Preview
+              </span>
+            </div>
+
+            {/* ── SEKCJA A (Góra): Karta z Profilu Członka ── */}
+            <div className="bg-white border border-teal-200/90 rounded-2xl p-4 shadow-sm space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                  <UserCheck size={13} className="text-teal-600" />
+                  <span>Sekcja A: Karta Frekwencji i Audyt Spotkań (Widok Profilu)</span>
+                </span>
+                <span className="text-[10px] font-mono text-slate-400">Modal Członka</span>
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Wyliczona frekwencja:</span>
+                  <div className="flex items-baseline gap-2 mt-0.5">
+                    <span className="text-3xl sm:text-4xl font-black text-slate-900 font-mono tracking-tight">
+                      {simStats.displayFreqText}
+                    </span>
+                    <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${simStats.engagement.color}`}>
+                      {simStats.engagement.icon} {simStats.engagement.label}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <span className="text-[10px] font-semibold text-slate-500 block">Mianownik bazowy:</span>
+                  <p className="text-sm font-bold text-teal-800 font-mono">
+                    {simStats.attended} / {simStats.baseDenominator} spotkań
+                  </p>
+                  <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border mt-1 ${
+                    simStats.isEligible
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                      : 'bg-amber-50 text-amber-800 border-amber-300'
+                  }`}>
+                    {simStats.isEligible ? '✓ Kwalifikacja do zaświadczenia' : '⚠️ W toku (brakuje)'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="space-y-1">
+                <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/60 flex">
+                  <div
+                    className={`h-full transition-all duration-300 ${
+                      simStats.freq >= 75 ? 'bg-emerald-500' : simStats.freq >= 50 ? 'bg-teal-500' : simStats.freq >= 25 ? 'bg-amber-500' : 'bg-rose-500'
+                    }`}
+                    style={{ width: `${Math.min(100, Math.max(0, simStats.freq))}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-[10px] text-slate-600 font-medium">
+                  <span>Próg zaświadczenia: <strong>{localAttendance.minPassingPercent || 50}%</strong></span>
+                  <span>100% ({simStats.baseDenominator}/{simStats.baseDenominator})</span>
+                </div>
+              </div>
+
+              {/* 3 Metric Pills */}
+              <div className="grid grid-cols-3 gap-2 pt-0.5">
+                <div className="bg-emerald-100/90 border border-emerald-300 rounded-xl p-2 text-center">
+                  <span className="block text-[9px] font-bold text-emerald-800 uppercase">Zaliczone</span>
+                  <span className="text-base font-black text-emerald-950 font-mono">
+                    {simStats.attended}
+                  </span>
+                </div>
+                <div className="bg-slate-100 border border-slate-300 rounded-xl p-2 text-center">
+                  <span className="block text-[9px] font-bold text-slate-800 uppercase">Wymagane</span>
+                  <span className="text-base font-black text-slate-900 font-mono">
+                    {simStats.baseDenominator}
+                  </span>
+                </div>
+                <div className="bg-amber-100/90 border border-amber-300 rounded-xl p-2 text-center">
+                  <span className="block text-[9px] font-bold text-amber-800 uppercase">Pozostało</span>
+                  <span className="text-base font-black text-amber-950 font-mono">
+                    {Math.max(0, simStats.baseDenominator - simStats.attended)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* ── SEKCJA B (Środek): Miniaturowa Oś Czasu Spotkań ── */}
+            <div className="bg-white border border-teal-200/90 rounded-2xl p-4 shadow-sm space-y-2.5">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                  <Calendar size={13} className="text-teal-600" />
+                  <span>Sekcja B: Miniaturowa Oś Czasu Spotkań ({simStats.total} wydarzeń w roku)</span>
+                </span>
+                <span className="text-[10px] text-slate-500 font-medium">
+                  {simStats.attended} zaliczone • {simStats.total - simStats.attended} nieobecności
+                </span>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1.5 bg-slate-200/90 rounded-xl border border-slate-300">
+                {Array.from({ length: simStats.total }, (_, idx) => {
+                  const isAttended = idx < simStats.attended;
+                  const code = `M${String(idx + 1).padStart(2, '0')}`;
+                  return (
+                    <div
+                      key={idx}
+                      title={`Spotkanie ${code}: ${isAttended ? 'Obecność zaliczona' : 'Nieobecność'}`}
+                      className={`px-2 py-1 rounded-lg text-[10px] font-mono font-bold transition flex items-center gap-1 border ${
+                        isAttended
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300 shadow-2xs'
+                          : 'bg-white text-slate-500 border-slate-200'
+                      }`}
+                    >
+                      <span>{code}</span>
+                      <span>{isAttended ? '✓' : '—'}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ── SEKCJA C (Dół): Symulacja Wiersza w Głównej Tabeli Członków ── */}
+            <div className="bg-white border border-teal-200/90 rounded-2xl p-4 shadow-sm space-y-2.5">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                  <Users size={13} className="text-teal-600" />
+                  <span>Sekcja C: Podgląd wiersza w Głównej Tabeli Członków (MembersTab)</span>
+                </span>
+                <span className="text-[10px] font-mono text-slate-400">Tabela Główna</span>
+              </div>
+
+              <div className="overflow-x-auto rounded-xl border border-slate-300 bg-slate-100 shadow-sm p-2.5">
+                <div className="min-w-[500px] space-y-2">
+                  <div className="grid grid-cols-12 gap-2 text-[10px] font-bold text-slate-800 uppercase tracking-wider pb-1 border-b border-slate-200/80">
+                    <div className="col-span-3">Status</div>
+                    <div className="col-span-3 text-center">Frekwencja</div>
+                    <div className="col-span-2 text-center">Ob. / Nieob.</div>
+                    <div className="col-span-2 text-center">Zaświadczenie</div>
+                    <div className="col-span-2 text-center">Punkty</div>
+                  </div>
+
+                  <div className="grid grid-cols-12 gap-2 items-center py-1">
+                    {/* Status */}
+                    <div className="col-span-3">
+                      <span className="h-6 px-2.5 inline-flex items-center justify-center gap-1.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs whitespace-nowrap">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        Członek Aktywny
+                      </span>
+                    </div>
+
+                    {/* Frekwencja */}
+                    <div className="col-span-3 flex flex-col items-center justify-center gap-1">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-12 bg-slate-200/80 rounded-full h-1.5 overflow-hidden border border-slate-200">
+                          <div
+                            className={`h-1.5 rounded-full ${
+                              simStats.freq >= 75 ? 'bg-emerald-500' : simStats.freq >= 50 ? 'bg-amber-400' : simStats.freq >= 25 ? 'bg-amber-300' : 'bg-slate-300'
+                            }`}
+                            style={{ width: `${Math.min(100, Math.max(0, simStats.freq))}%` }}
+                          />
+                        </div>
+                        <span className="text-slate-900 font-bold text-xs font-mono">{simStats.displayFreqText}</span>
+                      </div>
+                      <span className={`h-5 px-2 inline-flex items-center justify-center gap-1 rounded-full text-[10px] font-medium border ${simStats.engagement.color}`}>
+                        <span className="w-1 h-1 rounded-full bg-current" />
+                        {simStats.engagement.label}
+                      </span>
+                    </div>
+
+                    {/* Ob. / Nieob. */}
+                    <div className="col-span-2 text-center font-mono text-xs font-bold text-slate-900">
+                      {simStats.attended} / {Math.max(0, simStats.total - simStats.attended)}
+                    </div>
+
+                    {/* Zaświadczenie */}
+                    <div className="col-span-2 text-center">
+                      <span className={`h-6 px-2.5 inline-flex items-center justify-center text-[11px] font-medium tracking-tight rounded-full border shadow-2xs whitespace-nowrap ${
+                        simStats.isEligible
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold'
+                          : 'bg-slate-100 text-slate-700 border-slate-300'
+                      }`}>
+                        {simStats.isEligible ? '✓ Można wydać' : 'W toku'}
+                      </span>
+                    </div>
+
+                    {/* Punkty */}
+                    <div className="col-span-2 text-center font-mono text-xs font-bold text-indigo-700">
+                      48 pkt
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      {/* ── SEKTOR 6: EMAIL & SMTP / NOTIFICATIONS CONFIGURATION ─────────────── */}
       <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-4 sm:p-5 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
           <div className="flex items-center gap-3">
@@ -1588,7 +2243,7 @@ export default function SettingsTab({ members = [], meetings = [], onRefreshData
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900 tracking-tight">
-                5. Konfiguracja Poczty Koła & Notyfikacji (Email & SMTP)
+                6. Konfiguracja Poczty Koła & Notyfikacji (Email & SMTP)
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
                 Dedykowany adres koła, parametry wysyłki oraz szablony wiadomości powitalnych powiązane z arkuszem <strong className="text-slate-700">Ewidencja_Poczty</strong>.

@@ -30,7 +30,7 @@ import {
   MEETING_TYPES,
   isMeetingEligibleForDenominator,
 } from '../utils/meetingTypes';
-import { getEngagementScaleLevel } from '../context/SettingsContext';
+import { useSettings, getEngagementScaleLevel } from '../context/SettingsContext';
 import { useOrg } from '../context/OrgContext';
 
 export default function EditMemberModal({
@@ -42,6 +42,7 @@ export default function EditMemberModal({
   meetings = [],
 }) {
   const { currentOrg, getStorageKey } = useOrg();
+  const { attendanceConfig } = useSettings();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [index, setIndex] = useState('');
@@ -167,9 +168,10 @@ export default function EditMemberModal({
       customMeetingTypes,
       member.present || 0,
       member.absent || 0,
-      ewidencjaList
+      ewidencjaList,
+      attendanceConfig
     );
-  }, [member, meetings, customMeetingTypes, ewidencjaList]);
+  }, [member, meetings, customMeetingTypes, ewidencjaList, attendanceConfig]);
 
   // Process and sort all meetings with individual student attendance status
   const auditedMeetings = useMemo(() => {

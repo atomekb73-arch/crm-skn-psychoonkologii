@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 export const DEFAULT_POINT_WEIGHTS = {
   OB_ONLINE: { id: 'OB_ONLINE', label: 'Obecność na spotkaniu Online', points: 1, icon: '💻' },
@@ -28,7 +28,14 @@ export function getEngagementScaleLevel(freq) {
   return ENGAGEMENT_SCALE.find(level => f >= level.min && f <= level.max) || ENGAGEMENT_SCALE[ENGAGEMENT_SCALE.length - 1];
 }
 
-export function evaluateCertificateEligibility(freq, absences = 0, mandatoryTotal = null) {
+export const DEFAULT_ATTENDANCE_CONFIG = {
+  calcMode: 'DYNAMIC_MANDATORY', // 'DYNAMIC_MANDATORY' | 'FIXED_TARGET' | 'ALL_VERIFIED'
+  fixedTarget: 10,
+  minPassingPercent: 50,
+  zeroAttendanceDisplay: 'PERCENT_ZERO', // 'PERCENT_ZERO' | 'NEUTRAL_DASH'
+};
+
+export function evaluateCertificateEligibility(freq, absences = 0, mandatoryTotal = null, minPassingPercent = 50) {
   if (mandatoryTotal === 0) {
     return {
       canIssue: false,
@@ -39,8 +46,9 @@ export function evaluateCertificateEligibility(freq, absences = 0, mandatoryTota
   }
   const f = typeof freq === 'number' && !isNaN(freq) ? freq : 0;
   const abs = typeof absences === 'number' && !isNaN(absences) ? absences : 0;
+  const threshold = typeof minPassingPercent === 'number' && !isNaN(minPassingPercent) ? minPassingPercent : 50;
 
-  const meetsFreq = f >= 50;
+  const meetsFreq = f >= threshold;
   const meetsAbsences = abs <= 5;
   const canIssue = meetsFreq && meetsAbsences;
 
@@ -51,7 +59,7 @@ export function evaluateCertificateEligibility(freq, absences = 0, mandatoryTota
       ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
       : 'bg-rose-50 text-rose-700 border-rose-200',
     reason: !meetsFreq
-      ? `Frekwencja poniżej 50% (${f}%)`
+      ? `Frekwencja poniżej ${threshold}% (${f}%)`
       : !meetsAbsences
       ? `Zbyt wiele nieobecności (${abs} > 5)`
       : 'Spełniono wymogi frekwencji i obecności',
@@ -83,6 +91,18 @@ export function SettingsProvider({ children }) {
     return DEFAULT_POINT_WEIGHTS;
   });
 
+  const [attendanceConfig, setAttendanceConfig] = useState(() => {
+    try {
+      if (currentOrg) {
+        const orgSaved = localStorage.getItem(getStorageKey('crm_attendance_config'));
+        if (orgSaved) return { ...DEFAULT_ATTENDANCE_CONFIG, ...JSON.parse(orgSaved) };
+      }
+      const saved = localStorage.getItem('crm_attendance_config') || localStorage.getItem('skn_attendance_config');
+      if (saved) return { ...DEFAULT_ATTENDANCE_CONFIG, ...JSON.parse(saved) };
+    } catch {}
+    return DEFAULT_ATTENDANCE_CONFIG;
+  });
+
   const sanitizeSupervisors = (list) => {
     if (!Array.isArray(list) || list.length === 0) return DEFAULT_FACULTY_SUPERVISORS;
     return list;
@@ -95,7 +115,7 @@ export function SettingsProvider({ children }) {
     return sanitizeSupervisors(getStoredSupervisors());
   });
 
-  // Re-sync supervisors when active organization changes
+  // Re-sync supervisors & attendanceConfig when active organization changes
   useEffect(() => {
     if (currentOrg) {
       try {
@@ -104,17 +124,54 @@ export function SettingsProvider({ children }) {
           const parsed = JSON.parse(orgSaved);
           if (Array.isArray(parsed) && parsed.length > 0) {
             setSupervisors(sanitizeSupervisors(parsed));
-            return;
+          }
+        } else if (Array.isArray(currentOrg.supervisors) && currentOrg.supervisors.length > 0) {
+          setSupervisors(sanitizeSupervisors(currentOrg.supervisors));
+        } else {
+          setSupervisors(sanitizeSupervisors(getStoredSupervisors()));
+        }
+      } catch {}
+
+      try {
+        const attSaved = localStorage.getItem(getStorageKey('crm_attendance_config'));
+        if (attSaved) {
+          setAttendanceConfig({ ...DEFAULT_ATTENDANCE_CONFIG, ...JSON.parse(attSaved) });
+        } else {
+          const globalAtt = localStorage.getItem('crm_attendance_config') || localStorage.getItem('skn_attendance_config');
+          if (globalAtt) {
+            setAttendanceConfig({ ...DEFAULT_ATTENDANCE_CONFIG, ...JSON.parse(globalAtt) });
+          } else {
+            setAttendanceConfig(DEFAULT_ATTENDANCE_CONFIG);
           }
         }
       } catch {}
-      if (Array.isArray(currentOrg.supervisors) && currentOrg.supervisors.length > 0) {
-        setSupervisors(sanitizeSupervisors(currentOrg.supervisors));
-      } else {
-        setSupervisors(sanitizeSupervisors(getStoredSupervisors()));
-      }
     }
   }, [currentOrg?.id, getStorageKey]);
+
+  const updateAttendanceConfig = useCallback((patch) => {
+    setAttendanceConfig(prev => {
+      const updated = { ...prev, ...patch };
+      try {
+        if (currentOrg) {
+          localStorage.setItem(getStorageKey('crm_attendance_config'), JSON.stringify(updated));
+        }
+        localStorage.setItem('crm_attendance_config', JSON.stringify(updated));
+        localStorage.setItem('skn_attendance_config', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  }, [currentOrg, getStorageKey]);
+
+  const resetAttendanceConfig = useCallback(() => {
+    setAttendanceConfig(DEFAULT_ATTENDANCE_CONFIG);
+    try {
+      if (currentOrg) {
+        localStorage.removeItem(getStorageKey('crm_attendance_config'));
+      }
+      localStorage.removeItem('crm_attendance_config');
+      localStorage.removeItem('skn_attendance_config');
+    } catch {}
+  }, [currentOrg, getStorageKey]);
 
   const updateWeight = (id, newPoints) => {
     setWeights(prev => {
@@ -194,6 +251,9 @@ export function SettingsProvider({ children }) {
         weights,
         updateWeight,
         resetWeights,
+        attendanceConfig,
+        updateAttendanceConfig,
+        resetAttendanceConfig,
         supervisors,
         addSupervisor,
         updateSupervisor,
@@ -219,6 +279,9 @@ export function useSettings() {
       weights: DEFAULT_POINT_WEIGHTS,
       updateWeight: () => {},
       resetWeights: () => {},
+      attendanceConfig: DEFAULT_ATTENDANCE_CONFIG,
+      updateAttendanceConfig: () => {},
+      resetAttendanceConfig: () => {},
       supervisors: DEFAULT_FACULTY_SUPERVISORS,
       addSupervisor: () => {},
       updateSupervisor: () => {},

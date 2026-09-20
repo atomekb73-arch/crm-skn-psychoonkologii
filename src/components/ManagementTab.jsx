@@ -70,7 +70,7 @@ export default function ManagementTab({
     freqData: null,
     points: 0,
   });
-  const { weights, calculateMemberPoints } = useSettings();
+  const { weights, calculateMemberPoints, attendanceConfig } = useSettings();
 
   // Persistent custom meeting categories (localStorage)
   const customMeetingTypes = useMemo(() => {
@@ -143,7 +143,9 @@ export default function ManagementTab({
         safeMeetings,
         customMeetingTypes || {},
         m?.present || 0,
-        m?.absent || 0
+        m?.absent || 0,
+        null,
+        attendanceConfig
       );
 
       const present = calc?.totalAttended ?? calc?.present ?? 0;
@@ -151,6 +153,7 @@ export default function ManagementTab({
       const freq = calc?.freq ?? 0;
 
       return {
+        ...calc,
         freq: isNaN(freq) ? 0 : freq,
         present,
         absent,
