@@ -337,6 +337,90 @@ const MAX_SNAPSHOTS_PER_ORG = 5;
  * Creates an automatic snapshot of the organization's current state.
  * Keeps a maximum of 5 snapshots per organization (pruning oldest).
  */
+export const DEFAULT_DRIVE_FOLDER_URL = 'https://drive.google.com/drive/u/0/my-drive';
+
+export function getDriveFolderUrl(orgId = 'skn-psychoonkologia') {
+  const stored = getOrgStorage(orgId, 'drive_folder_url', null);
+  if (stored && typeof stored === 'string' && stored.trim().length > 0) {
+    return stored.trim();
+  }
+  return DEFAULT_DRIVE_FOLDER_URL;
+}
+
+export function setDriveFolderUrl(orgId = 'skn-psychoonkologia', url = '') {
+  setOrgStorage(orgId, 'drive_folder_url', String(url || '').trim());
+}
+
+// ─── INDEXEDDB SNAPSHOT ENGINE ─────────────────────────────────
+const SNAP_DB_NAME = 'CRM_Snapshots_DB';
+const SNAP_DB_VERSION = 1;
+const SNAP_STORE_NAME = 'snapshots';
+
+function openSnapshotDB() {
+  return new Promise((resolve, reject) => {
+    if (typeof window === 'undefined' || !window.indexedDB) {
+      return reject(new Error('IndexedDB unavailable'));
+    }
+    const req = window.indexedDB.open(SNAP_DB_NAME, SNAP_DB_VERSION);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(SNAP_STORE_NAME)) {
+        db.createObjectStore(SNAP_STORE_NAME, { keyPath: 'key' });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function saveSnapshotIDB(snapshot) {
+  try {
+    const db = await openSnapshotDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(SNAP_STORE_NAME, 'readwrite');
+      const store = tx.objectStore(SNAP_STORE_NAME);
+      const req = store.put(snapshot);
+      req.onsuccess = () => resolve(true);
+      req.onerror = () => reject(req.error);
+    });
+  } catch (err) {
+    console.warn('[IDB] Unable to save snapshot to IndexedDB:', err);
+    return false;
+  }
+}
+
+export async function getSnapshotFromIDB(key) {
+  try {
+    const db = await openSnapshotDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(SNAP_STORE_NAME, 'readonly');
+      const store = tx.objectStore(SNAP_STORE_NAME);
+      const req = store.get(key);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  } catch (err) {
+    console.warn('[IDB] Unable to read snapshot from IndexedDB:', err);
+    return null;
+  }
+}
+
+export async function deleteSnapshotIDB(key) {
+  try {
+    const db = await openSnapshotDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(SNAP_STORE_NAME, 'readwrite');
+      const store = tx.objectStore(SNAP_STORE_NAME);
+      const req = store.delete(key);
+      req.onsuccess = () => resolve(true);
+      req.onerror = () => reject(req.error);
+    });
+  } catch (err) {
+    console.warn('[IDB] Unable to delete snapshot from IndexedDB:', err);
+    return false;
+  }
+}
+
 export function createOrgSnapshot(orgId, reason = 'Automatyczna migawka') {
   if (typeof window === 'undefined' || !orgId) return null;
   const cleanId = String(orgId).trim().toLowerCase();
@@ -370,10 +454,20 @@ export function createOrgSnapshot(orgId, reason = 'Automatyczna migawka') {
     data: snapshotData,
   };
 
+  // 1. Zapisz w IndexedDB (brak limitu 5MB)
+  saveSnapshotIDB(payload);
+
+  // 2. Zapisz w localStorage z bezpieczną obsługą QuotaExceededError
   try {
     localStorage.setItem(snapshotKey, JSON.stringify(payload));
   } catch (err) {
-    console.warn('[Snapshot] Storage quota exceeded:', err);
+    console.warn('[Snapshot] Storage quota exceeded for full payload, storing metadata only:', err);
+    try {
+      const metadataOnly = { ...payload, data: null, hasIDB: true };
+      localStorage.setItem(snapshotKey, JSON.stringify(metadataOnly));
+    } catch (e2) {
+      console.warn('[Snapshot] Cannot write metadata to localStorage:', e2);
+    }
   }
 
   // Prune older snapshots beyond MAX_SNAPSHOTS_PER_ORG
@@ -395,7 +489,10 @@ export function createOrgSnapshot(orgId, reason = 'Automatyczna migawka') {
     existingSnaps.sort((a, b) => b.timestamp - a.timestamp);
     if (existingSnaps.length > MAX_SNAPSHOTS_PER_ORG) {
       const toDelete = existingSnaps.slice(MAX_SNAPSHOTS_PER_ORG);
-      toDelete.forEach((s) => localStorage.removeItem(s.key));
+      toDelete.forEach((s) => {
+        localStorage.removeItem(s.key);
+        deleteSnapshotIDB(s.key);
+      });
     }
   } catch (err) {
     console.warn('[Snapshot Rotation Error]', err);
@@ -440,6 +537,56 @@ export function getOrgSnapshots(orgId) {
 /**
  * Restores organization state from a specific local snapshot key.
  */
+export async function restoreOrgSnapshotAsync(orgId, snapshotKey) {
+  if (typeof window === 'undefined' || !orgId || !snapshotKey) {
+    throw new Error('Brak wymaganych parametrów do przywrócenia migawki.');
+  }
+  const cleanId = String(orgId).trim().toLowerCase();
+
+  let snapshot = null;
+  const raw = localStorage.getItem(snapshotKey);
+  if (raw) {
+    try {
+      snapshot = JSON.parse(raw);
+    } catch {}
+  }
+
+  if (!snapshot || !snapshot.data || typeof snapshot.data !== 'object') {
+    const idbSnap = await getSnapshotFromIDB(snapshotKey);
+    if (idbSnap && idbSnap.data && typeof idbSnap.data === 'object') {
+      snapshot = idbSnap;
+    }
+  }
+
+  if (!snapshot || !snapshot.data || typeof snapshot.data !== 'object') {
+    throw new Error('Nie odnaleziono prawidłowych danych w migawce.');
+  }
+
+  // Create temporary safety snapshot
+  try {
+    createOrgSnapshot(cleanId, 'Automatyczny punkt przed rollbackiem');
+  } catch {}
+
+  // Clear and restore
+  clearOrgWorkspace(cleanId);
+  let restored = 0;
+  Object.keys(snapshot.data).forEach((key) => {
+    try {
+      const val = snapshot.data[key];
+      localStorage.setItem(key, typeof val === 'string' ? val : JSON.stringify(val));
+      restored++;
+    } catch (e) {
+      console.error(`[Snapshot Restore] Błąd przywracania ${key}:`, e);
+    }
+  });
+
+  return {
+    success: true,
+    keysRestored: restored,
+    snapshotDate: snapshot.formattedDate,
+  };
+}
+
 export function restoreOrgSnapshot(orgId, snapshotKey) {
   if (typeof window === 'undefined' || !orgId || !snapshotKey) {
     throw new Error('Brak wymaganych parametrów do przywrócenia migawki.');
@@ -681,7 +828,7 @@ export const DEFAULT_CORRESPONDENCE_LOG = {
       direction: "OUT",
       date: "2026-06-15",
       sender: "Zarząd SKNU <sknu@student.wskz.pl>",
-      recipient: "Dyrekcja Instytutu Psychologii WSKZ <instytut.psychologii@wskz.pl>",
+      recipient: "Dyrekcja Wydziału Psychologii WSKZ <instytut.psychologii@wskz.pl>",
       subject: "Zgłoszenie harmonogramu spotkań koła w semestrze letnim 2025/2026",
       summary: "Oficjalny wykaz 4 spotkań i warsztatów naukowych prowadzonych przez Koło z opiekunem mgr. Sławomirem Pietrzakiem.",
       hash: "sknu_out_02_20260615",
@@ -1119,7 +1266,7 @@ export const DEFAULT_EMAIL_CONFIG = {
     smtpPort: '587',
     smtpUser: 'skn.psychoonkologia@wskz.pl',
     smtpPassword: '',
-    footerSignature: 'Z poważaniem,\nZarząd Studenckiego Koła Naukowego Psychoonkologii WSKZ\nInstytut Psychologii WSKZ\ne-mail: skn.psychoonkologia@wskz.pl',
+    footerSignature: 'Z poważaniem,\nZarząd Studenckiego Koła Naukowego Psychoonkologii WSKZ\nWydział Psychologii WSKZ\ne-mail: skn.psychoonkologia@wskz.pl',
     welcomeSubjectTemplate: 'Potwierdzenie przyjęcia zgłoszenia i powitanie w SKN Psychoonkologii WSKZ',
     welcomeBodyTemplate: `Dzień dobry {IMIE},\n\nZ radością informujemy, że Twoje zgłoszenie do Studenckiego Koła Naukowego Psychoonkologii WSKZ na rok akademicki 2026/2027 zostało pomyślnie zweryfikowane i przyjęte!\n\nTwoje dane ewidencyjne:\n• Imię i nazwisko: {IMIE_NAZWISKO}\n• Kierunek: {KIERUNEK} ({ROK})\n• Numer indeksu: {INDEKS}\n\nNajważniejsze informacje organizacyjne:\n1. Harmonogram spotkań, sesji Journal Club oraz warsztatów merytorycznych dostępny jest w kalendarzu koła.\n2. Udział w spotkaniach i aktywność naukowa są na bieżąco ewidencjonowane w systemie CRM.\n3. W razie jakichkolwiek pytań zachęcamy do kontaktu mailowego z Zarządem Koła.\n\nSerdecznie witamy w naszym zespole i życzymy owocnej pracy naukowej!\n\n{PODPIS}`,
   },
@@ -1131,7 +1278,7 @@ export const DEFAULT_EMAIL_CONFIG = {
     smtpPort: '587',
     smtpUser: 'skn.psychoonkologia@wskz.pl',
     smtpPassword: '',
-    footerSignature: 'Z poważaniem,\nZarząd Studenckiego Koła Naukowego Psychoonkologii WSKZ\nInstytut Psychologii WSKZ\ne-mail: skn.psychoonkologia@wskz.pl',
+    footerSignature: 'Z poważaniem,\nZarząd Studenckiego Koła Naukowego Psychoonkologii WSKZ\nWydział Psychologii WSKZ\ne-mail: skn.psychoonkologia@wskz.pl',
     welcomeSubjectTemplate: 'Potwierdzenie przyjęcia zgłoszenia i powitanie w SKN Psychoonkologii WSKZ',
     welcomeBodyTemplate: `Dzień dobry {IMIE},\n\nZ radością informujemy, że Twoje zgłoszenie do Studenckiego Koła Naukowego Psychoonkologii WSKZ na rok akademicki 2026/2027 zostało pomyślnie zweryfikowane i przyjęte!\n\nTwoje dane ewidencyjne:\n• Imię i nazwisko: {IMIE_NAZWISKO}\n• Kierunek: {KIERUNEK} ({ROK})\n• Numer indeksu: {INDEKS}\n\nNajważniejsze informacje organizacyjne:\n1. Harmonogram spotkań, sesji Journal Club oraz warsztatów merytorycznych dostępny jest w kalendarzu koła.\n2. Udział w spotkaniach i aktywność naukowa są na bieżąco ewidencjonowane w systemie CRM.\n3. W razie jakichkolwiek pytań zachęcamy do kontaktu mailowego z Zarządem Koła.\n\nSerdecznie witamy w naszym zespole i życzymy owocnej pracy naukowej!\n\n{PODPIS}`,
   },

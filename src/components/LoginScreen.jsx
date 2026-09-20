@@ -480,7 +480,7 @@ export default function LoginScreen() {
           <p className="font-medium">
             Wewnętrzny system ewidencyjny SKN Psychoonkologii WSKZ • Dostęp autoryzowany wyłącznie dla Członków Zarządu
           </p>
-          <p className="text-[10px] text-purple-200/40">Instytut Psychologii WSKZ • Bezpieczne połączenie szyfrowane</p>
+          <p className="text-[10px] text-purple-200/40">Wydział Psychologii WSKZ • Bezpieczne połączenie szyfrowane</p>
         </div>
 
       </div>

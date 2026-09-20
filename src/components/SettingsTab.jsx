@@ -65,6 +65,9 @@ import {
   getEmailConfig,
   saveEmailConfig,
   DEFAULT_EMAIL_CONFIG,
+  getDriveFolderUrl,
+  setDriveFolderUrl,
+  DEFAULT_DRIVE_FOLDER_URL,
 } from '../utils/storage';
 import { initializeSubmissionsRegistryInGAS } from '../services/googleSheets';
 
@@ -155,12 +158,14 @@ export default function SettingsTab({ members = [], meetings = [] }) {
   const [emailConfig, setEmailConfig] = useState(() => getEmailConfig(orgId));
   const [showSmtpPassword, setShowSmtpPassword] = useState(false);
   const [emailSaveFeedback, setEmailSaveFeedback] = useState(null);
+  const [driveFolderUrl, setDriveFolderUrlState] = useState(() => getDriveFolderUrl(orgId));
 
-  // Refresh snapshots and email config when active organization switches
+  // Refresh snapshots, email config and drive URL when active organization switches
   useEffect(() => {
     if (orgId) {
       setSnapshots(getOrgSnapshots(orgId));
       setEmailConfig(getEmailConfig(orgId));
+      setDriveFolderUrlState(getDriveFolderUrl(orgId));
     }
   }, [orgId]);
 
@@ -507,7 +512,7 @@ export default function SettingsTab({ members = [], meetings = [] }) {
         academicTitle: cleanTitle,
         name: cleanName,
         fullName,
-        affiliation: supAffiliation.trim() || 'Instytut Psychologii WSKZ',
+        affiliation: supAffiliation.trim() || 'Wydział Psychologii WSKZ',
         email: supEmail.trim(),
         startDate: supStartDate,
         endDate: supIsActive ? '' : supEndDate,
@@ -519,7 +524,7 @@ export default function SettingsTab({ members = [], meetings = [] }) {
         academicTitle: cleanTitle,
         name: cleanName,
         fullName,
-        affiliation: supAffiliation.trim() || 'Instytut Psychologii WSKZ',
+        affiliation: supAffiliation.trim() || 'Wydział Psychologii WSKZ',
         role: 'Opiekun Naukowy Koła',
         email: supEmail.trim(),
         startDate: supStartDate,
@@ -961,7 +966,7 @@ export default function SettingsTab({ members = [], meetings = [] }) {
                 type="text"
                 value={supAffiliation}
                 onChange={e => setSupAffiliation(e.target.value)}
-                placeholder="np. Instytut Psychologii / Katedra..."
+                placeholder="np. Wydział Psychologii / Katedra..."
                 className="w-full h-9 px-3 text-sm bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-300 outline-none"
               />
             </div>
@@ -1087,7 +1092,7 @@ export default function SettingsTab({ members = [], meetings = [] }) {
                       <div className="text-[10px] text-indigo-600 font-medium">{sup.role || 'Opiekun Naukowy Koła'}</div>
                     </div>
                   </td>
-                  <td className="px-4 py-2.5 text-slate-600 font-medium">{sup.affiliation || 'Instytut Psychologii WSKZ'}</td>
+                  <td className="px-4 py-2.5 text-slate-600 font-medium">{sup.affiliation || 'Wydział Psychologii WSKZ'}</td>
                   <td className="px-4 py-2.5 text-slate-600 font-mono">{sup.email || '—'}</td>
                   <td className="px-4 py-2.5 text-slate-600 font-mono">
                     {sup.startDate} {sup.isActive ? '— Aktualnie' : `— ${sup.endDate || '—'}`}
@@ -1768,6 +1773,49 @@ export default function SettingsTab({ members = [], meetings = [] }) {
                 <p className="text-xs text-slate-400">
                   Hermetyczny eksport, import, punkty przywracania stanu (Snapshots) oraz serwisowa re-indeksacja arkuszy Google Sheets.
                 </p>
+              </div>
+            </div>
+
+            {/* Centralna Konfiguracja Dysku Google Koła */}
+            <div className="w-full mt-3 p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                    <HardDrive size={16} className="text-indigo-600" />
+                    Główny katalog Dysku Google Koła (settings.driveFolderUrl)
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Adres folderu na Dysku Google, w którym przechowywane są oficjalne dokumenty, uchwały i protokoły koła.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => window.open(driveFolderUrl || DEFAULT_DRIVE_FOLDER_URL, '_blank')}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition cursor-pointer shrink-0"
+                >
+                  <ExternalLink size={13} />
+                  <span>🔗 Otwórz Dysk Koła</span>
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="url"
+                  value={driveFolderUrl}
+                  onChange={(e) => setDriveFolderUrlState(e.target.value)}
+                  placeholder="https://drive.google.com/drive/folders/..."
+                  className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-900 focus:outline-none focus:border-indigo-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDriveFolderUrl(orgId, driveFolderUrl);
+                    setBackupFeedback({ type: 'success', message: 'Zapisano podlinkowany Dysk Google Koła!' });
+                    setTimeout(() => setBackupFeedback(null), 3000);
+                  }}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer shrink-0"
+                >
+                  Zapisz adres Dysku
+                </button>
               </div>
             </div>
 

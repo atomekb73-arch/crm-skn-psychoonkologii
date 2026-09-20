@@ -1553,22 +1553,29 @@ export async function fetchMeetingSheetAttendance(meetingCode, sheetId = SHEET_I
   };
 }
 
-// ─── 4. EWIDENCJA POCZTY (Google Sheets Sync: Ewidencja_Poczty) ───────────────
+// ─── 4. EWIDENCJA POCZTY (Google Sheets Sync: Dziennik_Korespondencji) ───────────────
 
-export const MAIL_REGISTRY_TAB = 'Ewidencja_Poczty';
+export const MAIL_REGISTRY_TAB = 'Dziennik_Korespondencji';
 
 /**
- * Pobiera i parsuje wpisy korespondencji / ewidencji poczty z dedykowanej zakładki Ewidencja_Poczty w arkuszu Google.
- * Gwarantuje ścisłe powiązanie z zakładką "Ewidencja_Poczty", bez tworzenia nowych zakładek i bez ingerencji w pozostałe arkusze.
+ * Pobiera i parsuje wpisy korespondencji / ewidencji poczty z dedykowanej zakładki Dziennik_Korespondencji w arkuszu Google.
+ * Gwarantuje ścisłe powiązanie z Dziennikiem Korespondencji i ochronę przed zaciąganiem wierszy rekrutacyjnych z Rejestru Zgłoszeń.
  */
 export async function fetchMailRegistryFromSheet(sheetId = SHEET_ID) {
   const cleanId = extractSheetId(sheetId) || SHEET_ID;
   if (!cleanId) return { ok: false, error: 'Brak ID arkusza', entries: [] };
 
   try {
-    const table = await fetchSheet('Ewidencja_Poczty', cleanId);
+    let table = await fetchSheet('Dziennik_Korespondencji', cleanId);
+    let tabName = 'Dziennik_Korespondencji';
+
     if (!table || !table.rows || table.rows.length === 0) {
-      return { ok: true, tabName: 'Ewidencja_Poczty', entries: [] };
+      table = await fetchSheet('Ewidencja_Poczty', cleanId);
+      tabName = 'Ewidencja_Poczty';
+    }
+
+    if (!table || !table.rows || table.rows.length === 0) {
+      return { ok: true, tabName: MAIL_REGISTRY_TAB, entries: [] };
     }
 
     const rows = table.rows.filter(r => r && r.c);
@@ -1589,6 +1596,20 @@ export async function fetchMailRegistryFromSheet(sheetId = SHEET_ID) {
       // Sprawdź czy to wiersz nagłówka
       const isHeader = /sygnatura|data|kierunek|nadawca|odbiorca|temat|lp\./i.test(`${col0} ${col1} ${col2} ${col5}`);
       if (isHeader && idx === 0) return;
+
+      // Ochrona przed zaciągnięciem wierszy rekrutacyjnych z Rejestru Zgłoszeń
+      const combinedText = `${col0} ${col1} ${col2} ${col3} ${col4} ${col5}`.toLowerCase();
+      if (
+        combinedText.includes('date(') ||
+        combinedText.includes('zgłoszenie do koła') ||
+        combinedText.includes('status_weryfikacji') ||
+        combinedText.includes('rejestr_zgloszen')
+      ) {
+        return;
+      }
+      if (col0.startsWith('Date(') || (col0.match(/\d{4}-\d{2}-\d{2}/) && col1.includes('@') && !col2.toUpperCase().includes('IN') && !col2.toUpperCase().includes('OUT'))) {
+        return;
+      }
 
       // Jeśli wiersz jest pusty
       if (!col0 && !col1 && !col2 && !col3 && !col4 && !col5 && !col6) return;
@@ -1617,15 +1638,15 @@ export async function fetchMailRegistryFromSheet(sheetId = SHEET_ID) {
         summary,
         status,
         hash,
-        fromSheet: 'Ewidencja_Poczty',
+        fromSheet: tabName,
         createdAt: parsedDate ? parsedDate.toISOString() : new Date().toISOString(),
       });
     });
 
-    return { ok: true, tabName: 'Ewidencja_Poczty', entries };
+    return { ok: true, tabName, entries };
   } catch (err) {
-    console.warn('Błąd pobierania Ewidencja_Poczty:', err);
-    return { ok: false, error: err.message || 'Błąd odczytu Ewidencja_Poczty', entries: [] };
+    console.warn('Błąd pobierania Dziennik_Korespondencji:', err);
+    return { ok: false, error: err.message || 'Błąd odczytu Dziennika Korespondencji', entries: [] };
   }
 }
 

@@ -39,6 +39,7 @@ import {
   updateCorrespondenceEntry,
   deleteCorrespondenceEntry,
   setOrgStorage,
+  getDriveFolderUrl,
 } from '../utils/storage';
 import {
   parseRawEmailText,
@@ -86,7 +87,7 @@ const DEFAULT_DOCUMENTS_SKNU = [
     date: '2026-05-27',
     driveUrl: 'https://docs.google.com/spreadsheets/d/1xIJDJP2PpIJY8EfaY2gf6Qcq3YBcSCKX3BW-oO92u6Y/edit',
     status: 'Obowiązujący',
-    description: 'Oficjalny statut uchwalony przez członków założycieli i przedstawiony Władzom Instytutu Psychologii WSKZ.',
+    description: 'Oficjalny statut uchwalony przez członków założycieli i przedstawiony Władzom Wydziału Psychologii WSKZ.',
   },
   {
     id: 'doc_sknu_04',
@@ -96,7 +97,7 @@ const DEFAULT_DOCUMENTS_SKNU = [
     date: '2026-06-15',
     driveUrl: 'https://docs.google.com/spreadsheets/d/1xIJDJP2PpIJY8EfaY2gf6Qcq3YBcSCKX3BW-oO92u6Y/edit',
     status: 'Obowiązujący',
-    description: 'Wniosek złożony do Dyrekcji Instytutu Psychologii WSKZ o zakup pakietu podręczników trenerskich Programu Unplugged.',
+    description: 'Wniosek złożony do Dyrekcji Wydziału Psychologii WSKZ o zakup pakietu podręczników trenerskich Programu Unplugged.',
   },
 ];
 
@@ -588,16 +589,42 @@ export default function DocumentsRepositoryTab() {
     });
   }, [documents, selectedCategory, searchQuery]);
 
+  const [previewFileId, setPreviewFileId] = useState(null);
+
+  const extractDriveFileId = (urlOrId) => {
+    if (!urlOrId) return null;
+    const str = String(urlOrId).trim();
+    const match = str.match(/[-\w]{25,}/);
+    return match ? match[0] : (str.length > 15 ? str : null);
+  };
+
   // Open modal for new document
   const handleOpenAddModal = () => {
     setEditingDoc(null);
     const orgTag = currentOrg.shortName ? currentOrg.shortName.toUpperCase().replace(/[^A-Z0-9]/g, '') : 'ORG';
+
+    let cat = 'Uchwały Zarządu';
+    let prefix = 'UCHWAŁA';
+    if (selectedCategory === 'Regulaminy i Statut') {
+      cat = 'Regulaminy i Statut';
+      prefix = 'STATUT';
+    } else if (selectedCategory === 'Protokoły Zebrań') {
+      cat = 'Protokoły Zebrań';
+      prefix = 'PROT';
+    } else if (selectedCategory === 'Wnioski i Granty') {
+      cat = 'Wnioski i Granty';
+      prefix = 'WNIOSEK';
+    } else if (selectedCategory === 'Uchwały Zarządu') {
+      cat = 'Uchwały Zarządu';
+      prefix = 'UCHWAŁA';
+    }
+
     setFormState({
-      code: `UCHWAŁA/${orgTag}/${String(documents.length + 1).padStart(2, '0')}/2026`,
+      code: `${prefix}/${orgTag}/${String(documents.length + 1).padStart(2, '0')}/2026`,
       title: '',
-      category: 'Uchwały Zarządu',
+      category: cat,
       date: new Date().toISOString().split('T')[0],
-      driveUrl: gdriveUrl || '',
+      driveUrl: '',
       status: 'Obowiązujący',
       description: '',
     });
@@ -1131,11 +1158,11 @@ export default function DocumentsRepositoryTab() {
                     type="button"
                     onClick={handleSyncMailSheet}
                     disabled={isSyncingMailSheet}
-                    className="h-8 px-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-800 text-slate-700 text-[11px] font-medium flex items-center justify-center gap-1.5 transition cursor-pointer"
-                    title="Synchronizuj z dedykowaną zakładką arkusza Google"
+                    className="h-8 px-2.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-800 text-slate-700 text-[11px] font-bold flex items-center justify-center gap-1.5 transition cursor-pointer col-span-2 shadow-2xs"
+                    title="Zarejestruj lokalne pisma w centralnej bazie koła w Google Sheets"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 shrink-0 ${isSyncingMailSheet ? 'animate-spin' : ''}`} />
-                    <span className="truncate">Synchronizuj</span>
+                    <span className="truncate">⚡ Zarejestruj lokalne pisma w bazie koła</span>
                   </button>
                   <button
                     type="button"
@@ -2119,8 +2146,8 @@ export default function DocumentsRepositoryTab() {
 
       {/* ── MODAL: ADD / EDIT DOCUMENT ────────────────────────────────────────── */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden font-sans">
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-start pt-8 justify-center p-4 z-50 overflow-y-auto animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden font-sans my-auto">
             <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
@@ -2209,12 +2236,22 @@ export default function DocumentsRepositoryTab() {
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Link do pliku w Google Drive:</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold text-slate-700">Link do pliku w Google Drive:</label>
+                  <button
+                    type="button"
+                    onClick={() => window.open(getDriveFolderUrl(currentOrg?.id), '_blank')}
+                    className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer"
+                  >
+                    <FolderOpen size={13} />
+                    <span>📂 Otwórz Dysk Koła</span>
+                  </button>
+                </div>
                 <input
                   type="url"
                   value={formState.driveUrl}
                   onChange={(e) => setFormState({ ...formState, driveUrl: e.target.value })}
-                  placeholder="https://docs.google.com/document/d/... lub folder"
+                  placeholder="https://docs.google.com/document/d/... (Wklej dokładnie ten link/ID pliku)"
                   className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-mono focus:outline-none focus:border-indigo-500"
                 />
               </div>
@@ -2222,30 +2259,72 @@ export default function DocumentsRepositoryTab() {
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">Notatka / Streszczenie Aktu:</label>
                 <textarea
-                  rows={3}
+                  rows={7}
                   value={formState.description}
                   onChange={(e) => setFormState({ ...formState, description: e.target.value })}
                   placeholder="Opisz krótko cel aktu prawno-organizacyjnego..."
-                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-sans resize-none focus:outline-none focus:border-indigo-500"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-sans min-h-[160px] resize-y focus:outline-none focus:border-indigo-500"
                 />
               </div>
 
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold cursor-pointer"
-                >
-                  Anuluj
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
-                >
-                  Zapisz w Rejestrze
-                </button>
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                <div>
+                  {formState.driveUrl && extractDriveFileId(formState.driveUrl) && (
+                    <button
+                      type="button"
+                      onClick={() => setPreviewFileId(extractDriveFileId(formState.driveUrl))}
+                      className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Eye size={14} />
+                      <span>👁️ Podgląd dokumentu</span>
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold cursor-pointer"
+                  >
+                    Anuluj
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                  >
+                    Zapisz w Rejestrze
+                  </button>
+                </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: DOCUMENT DRIVE PREVIEW IFRAME ─────────────────────────────── */}
+      {previewFileId && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 z-9999 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden font-sans">
+            <div className="px-5 py-3.5 bg-slate-900 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <Eye size={16} className="text-indigo-400" />
+                <span className="text-xs font-bold">Podgląd Dokumentu (Google Drive)</span>
+              </div>
+              <button
+                onClick={() => setPreviewFileId(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex-1 bg-slate-100 p-0 overflow-hidden relative">
+              <iframe
+                src={`https://drive.google.com/file/d/${previewFileId}/preview`}
+                className="w-full h-full border-0"
+                title="Podgląd dokumentu w Google Drive"
+                allow="autoplay"
+              />
+            </div>
           </div>
         </div>
       )}

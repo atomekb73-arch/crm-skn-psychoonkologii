@@ -10,7 +10,7 @@ export const DEFAULT_FACULTY_SUPERVISORS = [
     lastName: 'Skupińska',
     email: 'ewa.skupinska@wskz.pl',
     role: 'Opiekun Naukowy Koła',
-    affiliation: 'Instytut Psychologii WSKZ',
+    affiliation: 'Wydział Psychologii WSKZ',
     aliases: [
       'Ewa Skupińska',
       'Ewa Skupinska',
@@ -32,7 +32,7 @@ export const DEFAULT_FACULTY_SUPERVISORS = [
     lastName: 'Dziekan',
     email: 'martyna.dziekan@wskz.pl',
     role: 'Opiekun Naukowy Koła',
-    affiliation: 'Instytut Psychologii WSKZ',
+    affiliation: 'Wydział Psychologii WSKZ',
     aliases: [
       'Martyna Dziekan',
       'dr Martyna Dziekan',

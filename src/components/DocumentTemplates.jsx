@@ -68,7 +68,7 @@ export function getActiveSupervisors(supervisors = [], org = null) {
     const filtered = org.supervisors.filter(filterLegacy);
     if (filtered.length > 0) return filtered;
   }
-  const orgUnit = org?.unit || 'Instytut Psychologii WSKZ';
+  const orgUnit = org?.unit || 'Wydział Psychologii WSKZ';
   if (org?.id === 'sknu') {
     return [
       { academicTitle: 'mgr', name: 'Sławomir Pietrzak', affiliation: orgUnit, role: 'Opiekun Koła Naukowego', email: 'slawomir.pietrzak@wskz.pl' },
@@ -95,7 +95,7 @@ export function formatSupervisorRole(s) {
   return s.role || 'Opiekun Naukowy Koła';
 }
 
-export function formatSupervisorAffiliation(s, defaultUnit = 'Instytut Psychologii WSKZ') {
+export function formatSupervisorAffiliation(s, defaultUnit = 'Wydział Psychologii WSKZ') {
   if (!s) return defaultUnit;
   if (typeof s === 'string') return defaultUnit;
   return s.affiliation || defaultUnit;
@@ -107,7 +107,7 @@ export function formatSupervisorAffiliation(s, defaultUnit = 'Instytut Psycholog
 export function DocumentSignaturesBlock({
   activeSupervisors = [],
   orgShortName = 'Koło Naukowe',
-  orgUnit = 'Instytut Psychologii WSKZ',
+  orgUnit = 'Wydział Psychologii WSKZ',
   chairpersonTitle = 'Przewodniczący Koła',
   chairpersonSub = null,
 }) {
@@ -168,7 +168,7 @@ export function MembershipCertificateTemplate({
   const orgName = org?.name || 'Studenckie Koło Naukowe Psychoonkologii WSKZ';
   const orgShortName = org?.shortName || orgName;
   const orgTag = org?.id === 'sknu' ? 'SKNU' : (org?.tag || 'SKN-SEKS');
-  const orgUnit = org?.unit || 'Instytut Psychologii WSKZ';
+  const orgUnit = org?.unit || 'Wydział Psychologii WSKZ';
   const totalMeetings = org?.id === 'sknu' ? 3 : (org?.id === 'skn_seksuologii' ? 12 : (freqData?.mandatoryTotal || 7));
 
   const safeFreqData = freqData || { freq: 100, present: totalMeetings, absent: 0 };
@@ -333,7 +333,7 @@ export function SpeakerDiplomaTemplate({
   const orgName = org?.name || 'Studenckie Koło Naukowe Psychoonkologii WSKZ';
   const orgShortName = org?.shortName || orgName;
   const orgTag = org?.id === 'sknu' ? 'SKNU' : (org?.tag || 'SKN-SEKS');
-  const orgUnit = org?.unit || 'Instytut Psychologii WSKZ';
+  const orgUnit = org?.unit || 'Wydział Psychologii WSKZ';
 
   const docNumber = generateDocumentNumber('SPEAKER', member?.index || member?.indexNumber || '00000', academicYear, orgTag);
   const activeSupervisors = getActiveSupervisors(supervisors, org);
@@ -436,7 +436,7 @@ export function BoardCertificateTemplate({
   const orgName = org?.name || 'Studenckie Koło Naukowe Psychoonkologii WSKZ';
   const orgShortName = org?.shortName || orgName;
   const orgTag = org?.id === 'sknu' ? 'SKNU' : (org?.tag || 'SKN-SEKS');
-  const orgUnit = org?.unit || 'Instytut Psychologii WSKZ';
+  const orgUnit = org?.unit || 'Wydział Psychologii WSKZ';
 
   const docNumber = generateDocumentNumber('BOARD', member?.index || member?.indexNumber || '00000', academicYear, orgTag);
   const activeSupervisors = getActiveSupervisors(supervisors, org);
@@ -551,7 +551,7 @@ export function MeetingsSummaryTableTemplate({
   const orgName = org?.name || 'Studenckie Koło Naukowe Psychoonkologii WSKZ';
   const orgShortName = org?.shortName || orgName;
   const orgTag = org?.id === 'sknu' ? 'SKNU' : (org?.tag || 'SKN-SEKS');
-  const orgUnit = org?.unit || 'Instytut Psychologii WSKZ';
+  const orgUnit = org?.unit || 'Wydział Psychologii WSKZ';
 
   const docNumber = generateDocumentNumber('TABELA-SPOTKAN', 'WSKZ', academicYear, orgTag);
   const activeSupervisors = getActiveSupervisors(supervisors, org);
@@ -820,7 +820,7 @@ export function MembersRegistryTemplate({
   const orgName = org?.name || 'Studenckie Koło Naukowe Psychoonkologii WSKZ';
   const orgShortName = org?.shortName || orgName;
   const orgTag = org?.id === 'sknu' ? 'SKNU' : (org?.tag || 'SKN-SEKS');
-  const orgUnit = org?.unit || 'Instytut Psychologii WSKZ';
+  const orgUnit = org?.unit || 'Wydział Psychologii WSKZ';
   const isSknSeks = org?.id === 'skn_seksuologii';
   const totalMeetings = org?.id === 'sknu' ? 3 : (isSknSeks ? 12 : 7);
 
@@ -977,7 +977,7 @@ export function ResearchConferencesRegistryTemplate({
   const orgName = org?.name || 'Studenckie Koło Naukowe Psychoonkologii WSKZ';
   const orgShortName = org?.shortName || orgName;
   const orgTag = org?.id === 'sknu' ? 'SKNU' : (org?.tag || 'SKN-SEKS');
-  const orgUnit = org?.unit || 'Instytut Psychologii WSKZ';
+  const orgUnit = org?.unit || 'Wydział Psychologii WSKZ';
 
   const docNumber = generateDocumentNumber('BADANIA-KONF', 'ALL', academicYear, orgTag);
   const activeSupervisors = getActiveSupervisors(supervisors, org);
@@ -1240,7 +1240,7 @@ export function AnnualReportProtocolTemplate({
   const orgName = org?.name || 'Studenckie Koło Naukowe Psychoonkologii WSKZ';
   const orgShortName = org?.shortName || orgName;
   const orgTag = org?.id === 'sknu' ? 'SKNU' : (org?.tag || 'SKN-SEKS');
-  const orgUnit = org?.unit || 'Instytut Psychologii WSKZ';
+  const orgUnit = org?.unit || 'Wydział Psychologii WSKZ';
   const isSknSeks = org?.id === 'skn_seksuologii';
   const totalMeetings = org?.id === 'sknu' ? 3 : (isSknSeks ? 12 : (meetings?.length || 7));
 
@@ -1396,7 +1396,7 @@ export function OfficialRegistryProtocolTemplate({
 }) {
   const orgName = org?.name || 'Studenckie Koło Naukowe';
   const orgShortName = org?.shortName || 'Koło Naukowe';
-  const orgUnit = org?.unit || 'Instytut Psychologii WSKZ';
+  const orgUnit = org?.unit || 'Wydział Psychologii WSKZ';
   const activeSupervisors = getActiveSupervisors(supervisors, org);
 
   const totalCount = registry.length;
@@ -1541,7 +1541,7 @@ export function OfficialCorrespondenceProtocolTemplate({
 }) {
   const orgName = org?.name || 'Studenckie Koło Naukowe';
   const orgShortName = org?.shortName || 'Koło Naukowe';
-  const orgUnit = org?.unit || 'Instytut Psychologii WSKZ';
+  const orgUnit = org?.unit || 'Wydział Psychologii WSKZ';
   const activeSupervisors = getActiveSupervisors(supervisors, org);
 
   const totalCount = correspondenceLog.length;
@@ -1688,7 +1688,7 @@ export function OfficialMeetingMinutesTemplate({
 
   const orgName = org?.name || 'Studenckie Koło Naukowe';
   const orgShortName = org?.shortName || org?.name || 'Koło Naukowe';
-  const orgUnit = org?.unit || 'Instytut Psychologii WSKZ';
+  const orgUnit = org?.unit || 'Wydział Psychologii WSKZ';
   const orgTag = org?.tag || 'WSKZ';
 
   const cleanYear = String(academicYear || '2025/2026').replace(/[\[\]]/g, '');
@@ -1706,16 +1706,18 @@ export function OfficialMeetingMinutesTemplate({
             <span className="font-extrabold text-sm tracking-tight text-slate-900">
               WYŻSZA SZKOŁA KSZTAŁCENIA ZAWODOWEGO
             </span>
-            <span className="text-[10px] bg-slate-900 text-white font-bold px-1.5 py-0.5 rounded">
-              {orgTag}
-            </span>
           </div>
           <p className="text-[11px] font-semibold text-slate-700">{orgUnit}</p>
           <p className="text-[11px] font-bold text-indigo-950 mt-0.5">{orgName}</p>
         </div>
-        <div className="text-right">
-          <div className="font-mono font-bold text-xs text-indigo-950 bg-slate-100 px-2.5 py-1 rounded border border-slate-200 inline-block mb-1">
-            Nr: {protocolNumber}
+        <div className="text-right flex flex-col items-end">
+          <div className="flex items-center gap-1.5 mb-1">
+            <div className="font-mono font-bold text-xs text-indigo-950 bg-slate-100 px-2.5 py-1 rounded border border-slate-200">
+              Nr: {protocolNumber}
+            </div>
+            <span className="text-[10px] bg-slate-900 text-white font-bold px-1.5 py-1 rounded tracking-wide">
+              [{orgTag}]
+            </span>
           </div>
           <p className="text-[10px] text-slate-500 font-mono">
             Wrocław, dn. {protocolData.date || meeting?.formattedDate || meeting?.date || formatPolishDate()}
@@ -1803,17 +1805,17 @@ export function OfficialMeetingMinutesTemplate({
         </div>
       </div>
 
-      {/* Optional Attendees list */}
+      {/* Optional Attendees list - isolated to new page on print if present */}
       {protocolData.includeAttendeesList && Array.isArray(protocolData.attendees) && protocolData.attendees.length > 0 && (
-        <div className="mb-6 space-y-1.5 break-inside-avoid">
+        <div className="mt-6 mb-6 space-y-1.5 break-before-page print:break-before-page page-break-before-always">
           <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1">
             4. Załącznik: Imienna lista zweryfikowanych uczestników ({protocolData.attendees.length})
           </h3>
-          <div className="p-2.5 bg-slate-50/60 rounded-lg border border-slate-200/80 text-[10px] font-mono grid grid-cols-2 gap-x-4 gap-y-1">
+          <div className="p-2.5 bg-slate-50/60 rounded-lg border border-slate-200/80 text-[11px] leading-tight font-mono grid grid-cols-2 gap-x-6 gap-y-1">
             {protocolData.attendees.map((att, idx) => (
               <div key={idx} className="flex items-center justify-between border-b border-slate-200/50 py-0.5">
                 <span className="truncate">{idx + 1}. {att.name || att.rawName}</span>
-                <span className="text-slate-500 font-semibold">{att.index || att.durationStr || 'Obecny'}</span>
+                <span className="text-slate-500 font-semibold text-[10px]">{att.index || att.durationStr || 'Obecny'}</span>
               </div>
             ))}
           </div>
