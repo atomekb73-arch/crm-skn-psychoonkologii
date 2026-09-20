@@ -50,6 +50,7 @@ import {
   AtSign,
   ExternalLink,
   FolderOpen,
+  Zap,
 } from 'lucide-react';
 import { useSettings, DEFAULT_POINT_WEIGHTS } from '../context/SettingsContext';
 import { useOrg } from '../context/OrgContext';
@@ -71,7 +72,12 @@ import {
   setDriveFolderUrl,
   DEFAULT_DRIVE_FOLDER_URL,
 } from '../utils/storage';
-import { initializeSubmissionsRegistryInGAS } from '../services/googleSheets';
+import {
+  initializeSubmissionsRegistryInGAS,
+  syncAllPointsToGAS,
+  fetchGasData,
+  saveBoardPointsToGAS,
+} from '../services/googleSheets';
 
 const DEFAULT_ACCESS_USERS = [
   {
@@ -132,7 +138,7 @@ const BOARD_ROLE_WEIGHTS = {
 
 const DEFAULT_BOARD_TENURES = [];
 
-export default function SettingsTab({ members = [], meetings = [] }) {
+export default function SettingsTab({ members = [], meetings = [], onRefreshData }) {
   const { currentOrg, currentOrgId } = useOrg();
   const { currentUser, isSuperAdmin } = useAuth();
   const orgId = currentOrg?.id || currentOrgId || 'skn-psychoonkologia';
@@ -614,6 +620,146 @@ export default function SettingsTab({ members = [], meetings = [] }) {
   const handleDeleteTenure = (id) => {
     const updated = boardTenures.filter(t => t.id !== id);
     saveBoardTenures(updated);
+  };
+
+  const handleSyncAndSavePointsToGAS = async () => {
+    try {
+      setIsProcessingBackup(true);
+
+      // a) Pobierz i wzbogać wpisy kadencji zarządu o naliczone punkty
+      let currentTenures = boardTenures || [];
+      if (currentTenures.length === 0 && typeof window !== 'undefined' && window.localStorage) {
+        try {
+          const raw = localStorage.getItem('skn_board_tenures');
+          if (raw) currentTenures = JSON.parse(raw);
+        } catch {}
+      }
+
+      const enrichedTenures = currentTenures.map(t => {
+        const rawIdx = String(t.memberIndex || t.index || t.nrIndeksu || '').replace(/\D/g, '').trim();
+        const cleanIdx = rawIdx.replace(/^0+/, '') || rawIdx;
+        const pts = calculateTenurePoints(t.startDate, t.endDate, t.isActive, t.roleName);
+        const roleName = String(t.roleName || t.role || t.opis || 'Członek Zarządu').trim();
+        const startDate = t.startDate || t.date || new Date().toISOString().slice(0, 10);
+        return {
+          ...t,
+          startDate,
+          data: startDate,
+          memberIndex: cleanIdx,
+          nrIndeksu: cleanIdx,
+          roleName,
+          funkcja: roleName,
+          kategoria: "Działalność w Zarządzie Koła",
+          opis: `Pełnienie funkcji: ${roleName}`,
+          opisAktywnosci: `Pełnienie funkcji: ${roleName}`,
+          punkty: pts,
+          points: pts,
+          dataZapisu: new Date().toISOString().slice(0, 10),
+        };
+      });
+
+      // b) Pobierz i uzupełnij ewidencję obecności (przypisanie 1 pkt za każdą obecność z pustym polem)
+      let activeEwidencja = [];
+      if (typeof window !== 'undefined' && window.localStorage) {
+        try {
+          const raw = localStorage.getItem('crm_ewidencja');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) activeEwidencja = parsed;
+          }
+        } catch {}
+      }
+
+      // Jeśli w pamięci brak ewidencji, zbuduj ją ze spotkań
+      if (activeEwidencja.length === 0 && Array.isArray(meetings) && meetings.length > 0) {
+        meetings.forEach(m => {
+          if (Array.isArray(m.attendees)) {
+            m.attendees.forEach(att => {
+              if (att && (att.present || att.present !== false)) {
+                const rawIdx = String(att.index || att.nrIndeksu || '').trim();
+                const name = att.name || att.fullName || '';
+                if (rawIdx || name) {
+                  activeEwidencja.push({
+                    kodSpotkania: m.code || m.id || m.title || 'SPOTKANIE',
+                    data: m.date || new Date().toISOString().slice(0, 10),
+                    nrIndeksu: rawIdx,
+                    name: name,
+                    rola: att.role || 'Uczestnik',
+                    zrodlo: 'Google Meet',
+                    punkty: 1,
+                    opisAktywnosci: 'Obecność na spotkaniu naukowym'
+                  });
+                }
+              }
+            });
+          }
+        });
+      }
+
+      const updatedEwidencja = activeEwidencja.map(item => {
+        const rawPts = item.punkty !== undefined ? item.punkty : (item.points !== undefined ? item.points : null);
+        const pts = (rawPts !== null && rawPts !== undefined && Number(rawPts) > 0) ? Number(rawPts) : 1;
+        return {
+          ...item,
+          punkty: pts,
+          points: pts,
+          opisAktywnosci: item.opisAktywnosci || 'Obecność na spotkaniu naukowym'
+        };
+      });
+
+      if (typeof window !== 'undefined' && window.localStorage) {
+        try {
+          localStorage.setItem('crm_ewidencja', JSON.stringify(updatedEwidencja));
+        } catch {}
+      }
+
+      // c) Wyślij dwuetapową procedurę do backendu Google Apps Script
+      await syncAllPointsToGAS({
+        ewidencja: updatedEwidencja,
+        boardTenures: enrichedTenures,
+      });
+
+      if (enrichedTenures.length > 0) {
+        try {
+          await saveBoardPointsToGAS(enrichedTenures, orgId);
+        } catch (e) {
+          console.warn('saveBoardPointsToGAS warning:', e);
+        }
+      }
+
+      // d) Pobierz zaktualizowany stan z backendu
+      const gasData = await fetchGasData();
+      if (gasData) {
+        if (gasData.dorobek) {
+          try {
+            localStorage.setItem('crm_dorobek', JSON.stringify(gasData.dorobek));
+          } catch {}
+        }
+        if (gasData.ewidencja) {
+          try {
+            localStorage.setItem('crm_ewidencja', JSON.stringify(gasData.ewidencja));
+          } catch {}
+        }
+      }
+
+      if (typeof onRefreshData === 'function') {
+        await onRefreshData({ force: true, silent: true });
+      }
+
+      setBackupFeedback({
+        type: 'success',
+        message: 'Pomyślnie zsynchronizowano i utrwalono punkty w arkuszach Google!',
+      });
+      setTimeout(() => setBackupFeedback(null), 7000);
+    } catch (err) {
+      console.error('Błąd zapisu punktów w arkuszu:', err);
+      setBackupFeedback({
+        type: 'error',
+        message: `Błąd zapisu punktów w arkuszu: ${err?.message || err}`,
+      });
+    } finally {
+      setIsProcessingBackup(false);
+    }
   };
 
   // Filtered members for tenure autocomplete
@@ -1767,7 +1913,7 @@ export default function SettingsTab({ members = [], meetings = [] }) {
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-base font-bold text-slate-800">6. Zarządzanie Bazą Danych & Google Workspace</h2>
+                  <h2 className="text-base font-bold text-slate-800">7. Zarządzanie Bazą Danych & Google Workspace</h2>
                   <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
                     {currentOrg?.shortName || currentOrg?.name}
                   </span>
@@ -1778,58 +1924,29 @@ export default function SettingsTab({ members = [], meetings = [] }) {
               </div>
             </div>
 
-            {/* Centralna Konfiguracja Dysku Google Koła */}
-            <div className="w-full mt-3 p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100 space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-xs font-bold text-slate-800 flex items-center gap-2">
-                    <HardDrive size={16} className="text-indigo-600" />
-                    Główny katalog Dysku Google Koła (settings.driveFolderUrl)
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    Adres folderu na Dysku Google, w którym przechowywane są oficjalne dokumenty, uchwały i protokoły koła.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => window.open(driveFolderUrl || DEFAULT_DRIVE_FOLDER_URL, '_blank')}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition cursor-pointer shrink-0"
-                >
-                  <ExternalLink size={13} />
-                  <span>🔗 Otwórz Dysk Koła</span>
-                </button>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="url"
-                  value={driveFolderUrl}
-                  onChange={(e) => setDriveFolderUrlState(e.target.value)}
-                  placeholder="https://drive.google.com/drive/folders/..."
-                  className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-900 focus:outline-none focus:border-indigo-500"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDriveFolderUrl(orgId, driveFolderUrl);
-                    setBackupFeedback({ type: 'success', message: 'Zapisano podlinkowany Dysk Google Koła!' });
-                    setTimeout(() => setBackupFeedback(null), 3000);
-                  }}
-                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer shrink-0"
-                >
-                  Zapisz adres Dysku
-                </button>
-              </div>
-            </div>
-
             <div className="flex items-center gap-2 flex-wrap">
               {/* Hidden file input for org backup import */}
               <input
                 ref={orgFileInputRef}
+                id="org-backup-file-input"
+                name="orgBackupFileInput"
                 type="file"
                 accept=".json"
                 onChange={handleImportOrgFile}
                 className="hidden"
+                aria-label="Wgraj plik kopii zapasowej koła JSON"
               />
+
+              <button
+                type="button"
+                onClick={handleSyncAndSavePointsToGAS}
+                disabled={isProcessingBackup}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold shadow-xs transition cursor-pointer disabled:opacity-50"
+                title="Synchronizuje i zapisuje punkty za obecności oraz kadencje zarządu w arkuszu Google Sheets"
+              >
+                {isProcessingBackup ? <RefreshCw size={13} className="animate-spin" /> : <Zap size={13} className="fill-current" />}
+                <span>⚡ Zsynchronizuj i zapisz punkty w arkuszu Google</span>
+              </button>
 
               <button
                 type="button"
@@ -1892,6 +2009,49 @@ export default function SettingsTab({ members = [], meetings = [] }) {
               >
                 <History size={13} />
                 <span>Utwórz migawkę</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Centralna Konfiguracja Dysku Google Koła */}
+          <div className="w-full p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                  <HardDrive size={16} className="text-indigo-600" />
+                  Główny katalog Dysku Google Koła (settings.driveFolderUrl)
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Adres folderu na Dysku Google, w którym przechowywane są oficjalne dokumenty, uchwały i protokoły koła.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => window.open(driveFolderUrl || DEFAULT_DRIVE_FOLDER_URL, '_blank')}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition cursor-pointer shrink-0"
+              >
+                <ExternalLink size={13} />
+                <span>🔗 Otwórz Dysk Koła</span>
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="url"
+                value={driveFolderUrl}
+                onChange={(e) => setDriveFolderUrlState(e.target.value)}
+                placeholder="https://drive.google.com/drive/folders/..."
+                className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-900 focus:outline-none focus:border-indigo-500"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setDriveFolderUrl(orgId, driveFolderUrl);
+                  setBackupFeedback({ type: 'success', message: 'Zapisano podlinkowany Dysk Google Koła!' });
+                  setTimeout(() => setBackupFeedback(null), 3000);
+                }}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer shrink-0"
+              >
+                Zapisz adres Dysku
               </button>
             </div>
           </div>

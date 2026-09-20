@@ -210,6 +210,44 @@ export async function saveBoardPointsToGAS(boardList = [], orgId = 'skn-psychoon
 }
 
 /**
+ * Kompleksowa synchronizacja punktów dorobku i obecności z Google Sheets
+ */
+export async function syncAllPointsToGAS({ ewidencja = [], boardTenures = [] }) {
+  const enrichedTenures = (boardTenures || []).map(t => {
+    const rawIdx = String(t.memberIndex || t.index || t.nrIndeksu || '').replace(/\D/g, '').trim();
+    const cleanIdx = rawIdx.replace(/^0+/, '') || rawIdx;
+    const pts = Number(t.punkty !== undefined ? t.punkty : (t.points !== undefined ? t.points : 0)) || 0;
+    const roleName = String(t.roleName || t.role || t.opis || 'Członek Zarządu').trim();
+    const startDate = t.startDate || t.date || new Date().toISOString().slice(0, 10);
+    return {
+      startDate: startDate,
+      data: startDate,
+      memberIndex: cleanIdx,
+      nrIndeksu: cleanIdx,
+      roleName: roleName,
+      kategoria: "Działalność w Zarządzie Koła",
+      opis: `Pełnienie funkcji: ${roleName}`,
+      funkcja: roleName,
+      punkty: pts,
+      points: pts,
+      dataZapisu: new Date().toISOString().slice(0, 10),
+      ...t
+    };
+  });
+
+  return await sendToGAS({
+    action: "migruj_punkty_i_dorobek",
+    ewidencja: (ewidencja || []).map(item => ({
+      ...item,
+      punkty: (item.punkty !== undefined && item.punkty !== null && Number(item.punkty) > 0) ? Number(item.punkty) : 1,
+      opisAktywnosci: item.opisAktywnosci || 'Obecność na spotkaniu naukowym'
+    })),
+    kadencje: enrichedTenures,
+    boardTenures: enrichedTenures
+  });
+}
+
+/**
  * Usuwa pozycję dorobku z arkusza "Rejestr_Dorobku" w Google Apps Script.
  * POST action: "usun_dorobek"
  */
