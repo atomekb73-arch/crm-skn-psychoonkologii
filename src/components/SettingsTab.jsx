@@ -77,12 +77,16 @@ import {
   getDriveFolderUrl,
   setDriveFolderUrl,
   DEFAULT_DRIVE_FOLDER_URL,
+  getGasWebAppUrl,
+  setGasWebAppUrl,
+  DEFAULT_GAS_WEBAPP_URL,
 } from '../utils/storage';
 import {
   initializeSubmissionsRegistryInGAS,
   syncAllPointsToGAS,
   fetchGasData,
   saveBoardPointsToGAS,
+  pingGAS,
 } from '../services/googleSheets';
 
 const DEFAULT_ACCESS_USERS = [
@@ -244,15 +248,50 @@ export default function SettingsTab({ members = [], meetings = [], onRefreshData
   const [showSmtpPassword, setShowSmtpPassword] = useState(false);
   const [emailSaveFeedback, setEmailSaveFeedback] = useState(null);
   const [driveFolderUrl, setDriveFolderUrlState] = useState(() => getDriveFolderUrl(orgId));
+  const [gasWebAppUrl, setGasWebAppUrlState] = useState(() => getGasWebAppUrl(orgId));
+  const [pingStatus, setPingStatus] = useState(null);
+  const [isTestingPing, setIsTestingPing] = useState(false);
 
-  // Refresh snapshots, email config and drive URL when active organization switches
+  // Refresh snapshots, email config, drive URL and GAS URL when active organization switches
   useEffect(() => {
     if (orgId) {
       setSnapshots(getOrgSnapshots(orgId));
       setEmailConfig(getEmailConfig(orgId));
       setDriveFolderUrlState(getDriveFolderUrl(orgId));
+      setGasWebAppUrlState(getGasWebAppUrl(orgId));
     }
   }, [orgId]);
+
+  const handleTestGasPing = async () => {
+    setIsTestingPing(true);
+    setPingStatus(null);
+    try {
+      const res = await pingGAS();
+      if (res && (res.status === 'success' || res.status === 'ok' || res.pong || res.timestamp)) {
+        setPingStatus({
+          type: 'success',
+          message: `Połączenie aktywne z SKN Psychoonkologii GAS! Status: ${res.status || 'OK'}, Odpowiedź: ${JSON.stringify(res)}`,
+        });
+      } else if (res) {
+        setPingStatus({
+          type: 'success',
+          message: `Otrzymano odpowiedź z GAS: ${JSON.stringify(res)}`,
+        });
+      } else {
+        setPingStatus({
+          type: 'warning',
+          message: 'Brak odpowiedzi JSON z serwera GAS. Sprawdź, czy skrypt jest opublikowany jako Web App z dostępem dla "Anyone".',
+        });
+      }
+    } catch (err) {
+      setPingStatus({
+        type: 'error',
+        message: `Błąd połączenia z GAS: ${err.message || err}`,
+      });
+    } finally {
+      setIsTestingPing(false);
+    }
+  };
 
   const handleSaveEmailConfig = (e) => {
     if (e?.preventDefault) e.preventDefault();
@@ -2709,6 +2748,64 @@ export default function SettingsTab({ members = [], meetings = [], onRefreshData
                 Zapisz adres Dysku
               </button>
             </div>
+          </div>
+
+          {/* Centralna Konfiguracja Endpointu GAS WebApp Koła */}
+          <div className="w-full p-4 bg-amber-50/60 rounded-2xl border border-amber-200/80 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                  <Zap size={16} className="text-amber-600 fill-amber-500" />
+                  Oficjalny Endpoint Google Apps Script WebApp (GAS API URL)
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Dedykowany URL produkcyjny backendu Google Apps Script dla instancji SKN Psychoonkologii.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleTestGasPing}
+                disabled={isTestingPing}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-xs transition cursor-pointer shrink-0 disabled:opacity-50"
+              >
+                {isTestingPing ? <RefreshCw size={13} className="animate-spin" /> : <Zap size={13} className="fill-current" />}
+                <span>⚡ Testuj połączenie (Ping)</span>
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="url"
+                value={gasWebAppUrl}
+                onChange={(e) => setGasWebAppUrlState(e.target.value)}
+                placeholder="https://script.google.com/macros/s/AKfycb.../exec"
+                className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-900 focus:outline-none focus:border-amber-500"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setGasWebAppUrl(orgId, gasWebAppUrl);
+                  setBackupFeedback({ type: 'success', message: 'Zapisano nowy URL skryptu Google Apps Script!' });
+                  setTimeout(() => setBackupFeedback(null), 3000);
+                }}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer shrink-0"
+              >
+                Zapisz URL skryptu
+              </button>
+            </div>
+            {pingStatus && (
+              <div className={`p-2.5 rounded-xl text-xs font-medium border flex items-center justify-between ${
+                pingStatus.type === 'success'
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  : pingStatus.type === 'warning'
+                    ? 'bg-amber-50 text-amber-800 border-amber-200'
+                    : 'bg-rose-50 text-rose-800 border-rose-200'
+              }`}>
+                <span>{pingStatus.message}</span>
+                <button type="button" onClick={() => setPingStatus(null)} className="p-0.5 text-slate-400 hover:text-slate-600">
+                  <X size={13} />
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Snapshots Table / List */}

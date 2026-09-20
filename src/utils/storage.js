@@ -338,6 +338,7 @@ const MAX_SNAPSHOTS_PER_ORG = 5;
  * Keeps a maximum of 5 snapshots per organization (pruning oldest).
  */
 export const DEFAULT_DRIVE_FOLDER_URL = 'https://drive.google.com/drive/u/0/my-drive';
+export const DEFAULT_GAS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbw989Pzd1qDhRvM6_oRgVZtcVInIw31lgcG-mL_YGJgBRnXTJnSFoUlkH7nMvyeeVge/exec';
 
 export function getDriveFolderUrl(orgId = 'skn-psychoonkologia') {
   const stored = getOrgStorage(orgId, 'drive_folder_url', null);
@@ -349,6 +350,24 @@ export function getDriveFolderUrl(orgId = 'skn-psychoonkologia') {
 
 export function setDriveFolderUrl(orgId = 'skn-psychoonkologia', url = '') {
   setOrgStorage(orgId, 'drive_folder_url', String(url || '').trim());
+}
+
+export function getGasWebAppUrl(orgId = 'skn-psychoonkologia') {
+  const stored = getOrgStorage(orgId, 'gas_webapp_url', null);
+  if (stored && typeof stored === 'string' && stored.trim().length > 0) {
+    return stored.trim();
+  }
+  return (
+    import.meta.env?.VITE_GAS_API_URL ||
+    import.meta.env?.VITE_GAS_URL ||
+    import.meta.env?.VITE_APPS_SCRIPT_URL ||
+    import.meta.env?.REACT_APP_GAS_URL ||
+    DEFAULT_GAS_WEBAPP_URL
+  );
+}
+
+export function setGasWebAppUrl(orgId = 'skn-psychoonkologia', url = '') {
+  setOrgStorage(orgId, 'gas_webapp_url', String(url || '').trim());
 }
 
 // ─── INDEXEDDB SNAPSHOT ENGINE ─────────────────────────────────

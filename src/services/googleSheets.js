@@ -1,5 +1,6 @@
 import { initialMembers as seedMembers } from '../data/seedMembers.js';
 import { isFacultySupervisor, findMatchingSupervisor, cleanParticipantIdentifier } from '../utils/specialRoles.js';
+import { getGasWebAppUrl } from '../utils/storage.js';
 
 export function extractSheetId(input) {
   if (!input) return '';
@@ -15,12 +16,18 @@ const envSheetInput = import.meta.env?.VITE_GOOGLE_SHEET_ID || import.meta.env?.
 export const SHEET_ID = envSheetInput ? extractSheetId(envSheetInput) : '1HbpVQkKdtKqsg0Ew5d3AigZBq-wvQYmJ-vpSIIWLFpg';
 
 export const APPS_SCRIPT_URL =
+  (typeof window !== 'undefined' ? getGasWebAppUrl('skn-psychoonkologia') : null) ||
+  import.meta.env?.VITE_GAS_API_URL ||
   import.meta.env?.VITE_GAS_URL ||
   import.meta.env?.VITE_APPS_SCRIPT_URL ||
   import.meta.env?.REACT_APP_GAS_URL ||
   "https://script.google.com/macros/s/AKfycbw989Pzd1qDhRvM6_oRgVZtcVInIw31lgcG-mL_YGJgBRnXTJnSFoUlkH7nMvyeeVge/exec";
 export const GAS_WEBAPP_URL = APPS_SCRIPT_URL;
 export const GAS_ENDPOINT = APPS_SCRIPT_URL;
+
+export function getGasUrl() {
+  return (typeof window !== 'undefined' ? getGasWebAppUrl('skn-psychoonkologia') : null) || APPS_SCRIPT_URL;
+}
 
 
 
